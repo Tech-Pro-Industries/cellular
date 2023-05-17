@@ -1,0 +1,885 @@
+using DevExpress.Xpf.Grid;
+using LMT.Component.Control.LogInfoShow.ViewModel;
+using MsgQueue;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using UILanguageHelper;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class LogInfoShow : UserControl, IComponentConnector
+  {
+    public Dictionary<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>> g_AllLog = new Dictionary<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>>();
+    public ObservableCollection<LogInfoTitle> LogList = new ObservableCollection<LogInfoTitle>();
+    private int nMaxInfoTypeEnum = Enum.GetValues(typeof (InfoTypeEnum)).Length - 1;
+    private static readonly int nMaxNumOfEachList = 2000;
+    private LogColorConverter LogColorUpdate = new LogColorConverter();
+    private bool bLock;
+    internal System.Windows.Controls.Grid listViewWidth;
+    internal Button lockButton;
+    internal Button locatedUpButton;
+    internal Button locatedDwButton;
+    internal GridControl UiLogInfo;
+    internal TableView view;
+    internal CheckBox cbENB_INFO;
+    internal CheckBox cbENB_TASK_DEAL_INFO;
+    internal CheckBox cbSI_STR_INFO;
+    internal CheckBox cbSI_ALARM_INFO;
+    internal CheckBox cbOM_BRKDWN_ALARM_INFO;
+    internal CheckBox cbOM_EVENT_ALARM_INFO;
+    internal CheckBox cbOM_ALARM_CLEAR_INFO;
+    internal CheckBox cbOM_EVENT_NOTIFY_INFO;
+    internal CheckBox cbENB_GETOP_INFO;
+    internal CheckBox cbENB_SETOP_INFO;
+    internal CheckBox cbENB_GETOP_ERR_INFO;
+    internal CheckBox cbENB_SETOP_ERR_INFO;
+    internal CheckBox cbENB_VARY_INFO;
+    internal CheckBox cbENB_OTHER_INFO;
+    internal CheckBox cbENB_OTHER_INFO_IMPORT;
+    internal CheckBox cbCUSTOM_ERROR_INFO;
+    internal CheckBox cbCUSTOM_TIP_INFO;
+    internal CheckBox cbSelectAll;
+    private bool _contentLoaded;
+
+    public LogInfoShow()
+    {
+      this.InitializeComponent();
+      this.LoadJsonFile();
+      this.UiLogInfo.ItemsSource = (object) this.LogList;
+      this.UiLogInfo.DefaultSorting = "LogTime";
+      this.LogColorUpdate = new LogColorConverter();
+      this.cbENB_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_INFO));
+      this.cbENB_TASK_DEAL_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_TASK_DEAL_INFO));
+      this.cbSI_STR_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.SI_STR_INFO));
+      this.cbSI_ALARM_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.SI_ALARM_INFO));
+      this.cbOM_BRKDWN_ALARM_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.OM_BRKDWN_ALARM_INFO));
+      this.cbOM_EVENT_ALARM_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.OM_EVENT_ALARM_INFO));
+      this.cbOM_ALARM_CLEAR_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.OM_ALARM_CLEAR_INFO));
+      this.cbOM_EVENT_NOTIFY_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.OM_EVENT_NOTIFY_INFO));
+      this.cbENB_GETOP_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_GETOP_INFO));
+      this.cbENB_SETOP_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_SETOP_INFO));
+      this.cbENB_GETOP_ERR_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_GETOP_ERR_INFO));
+      this.cbENB_SETOP_ERR_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_SETOP_ERR_INFO));
+      this.cbENB_VARY_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_VARY_INFO));
+      this.cbENB_OTHER_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_OTHER_INFO));
+      this.cbENB_OTHER_INFO_IMPORT.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.ENB_OTHER_INFO_IMPORT));
+      this.cbCUSTOM_ERROR_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.CUSTOM_ERROR_INFO));
+      this.cbCUSTOM_TIP_INFO.Content = (object) LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(InfoTypeEnum.CUSTOM_TIP_INFO));
+    }
+
+    private void LoadJsonFile()
+    {
+    }
+
+    private void InitOneDirectionLog(
+      Dictionary<InfoTypeEnum, List<LogInfoTitle>> dirLogInfo)
+    {
+      for (int key = 0; key < this.nMaxInfoTypeEnum; ++key)
+      {
+        dirLogInfo[(InfoTypeEnum) key] = new List<LogInfoTitle>();
+        dirLogInfo[(InfoTypeEnum) key].Capacity = LMT.Component.Control.LogInfoShow.LogInfoShow.nMaxNumOfEachList;
+      }
+    }
+
+    public static void AddLogInfo(LogInfoTitle newLogInfo, LMT.Component.Control.LogInfoShow.LogInfoShow LogInfo)
+    {
+      DateTime now = DateTime.Now;
+      newLogInfo.LogTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+      Color.FromRgb((byte) 0, (byte) 0, (byte) 0);
+      Color.FromRgb((byte) 215, (byte) 215, (byte) 215);
+      newLogInfo.LogColor = LogInfo.LogColorUpdate.GetColor(newLogInfo.Type);
+      if (newLogInfo.TargetIP == string.Empty)
+      {
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_NullIPCheck"));
+      }
+      else
+      {
+        if (LogInfo.UiLogInfo.VisibleRowCount >= LMT.Component.Control.LogInfoShow.LogInfoShow.nMaxNumOfEachList - 1)
+        {
+          LogInfo.LogList.Clear();
+          LogInfo.g_AllLog.Clear();
+        }
+        if (!LogInfo.g_AllLog.ContainsKey(newLogInfo.TargetIP))
+        {
+          LogInfo.g_AllLog.Add(newLogInfo.TargetIP, new Dictionary<InfoTypeEnum, List<LogInfoTitle>>());
+          LogInfo.InitOneDirectionLog(LogInfo.g_AllLog[newLogInfo.TargetIP]);
+        }
+        newLogInfo.LogType = LanguageServices.Current.GetTextValue(InfoTypeConvert.GetDescByType(newLogInfo.Type));
+        switch (newLogInfo.Type)
+        {
+          case InfoTypeEnum.ENB_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_INFO].Add(newLogInfo);
+            bool? isChecked1 = LogInfo.cbENB_INFO.IsChecked;
+            bool flag1 = false;
+            if ((isChecked1.GetValueOrDefault() == flag1 ? (isChecked1.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_TASK_DEAL_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_TASK_DEAL_INFO].Add(newLogInfo);
+            bool? isChecked2 = LogInfo.cbENB_TASK_DEAL_INFO.IsChecked;
+            bool flag2 = false;
+            if ((isChecked2.GetValueOrDefault() == flag2 ? (isChecked2.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.SI_STR_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.SI_STR_INFO].Add(newLogInfo);
+            bool? isChecked3 = LogInfo.cbSI_STR_INFO.IsChecked;
+            bool flag3 = false;
+            if ((isChecked3.GetValueOrDefault() == flag3 ? (isChecked3.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.SI_ALARM_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.SI_ALARM_INFO].Add(newLogInfo);
+            bool? isChecked4 = LogInfo.cbSI_ALARM_INFO.IsChecked;
+            bool flag4 = false;
+            if ((isChecked4.GetValueOrDefault() == flag4 ? (isChecked4.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.OM_BRKDWN_ALARM_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.OM_BRKDWN_ALARM_INFO].Add(newLogInfo);
+            bool? isChecked5 = LogInfo.cbOM_BRKDWN_ALARM_INFO.IsChecked;
+            bool flag5 = false;
+            if ((isChecked5.GetValueOrDefault() == flag5 ? (isChecked5.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.OM_EVENT_ALARM_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.OM_EVENT_ALARM_INFO].Add(newLogInfo);
+            bool? isChecked6 = LogInfo.cbOM_EVENT_ALARM_INFO.IsChecked;
+            bool flag6 = false;
+            if ((isChecked6.GetValueOrDefault() == flag6 ? (isChecked6.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.OM_ALARM_CLEAR_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.OM_ALARM_CLEAR_INFO].Add(newLogInfo);
+            bool? isChecked7 = LogInfo.cbOM_ALARM_CLEAR_INFO.IsChecked;
+            bool flag7 = false;
+            if ((isChecked7.GetValueOrDefault() == flag7 ? (isChecked7.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.OM_EVENT_NOTIFY_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.OM_EVENT_NOTIFY_INFO].Add(newLogInfo);
+            bool? isChecked8 = LogInfo.cbOM_EVENT_NOTIFY_INFO.IsChecked;
+            bool flag8 = false;
+            if ((isChecked8.GetValueOrDefault() == flag8 ? (isChecked8.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_GETOP_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_GETOP_INFO].Add(newLogInfo);
+            bool? isChecked9 = LogInfo.cbENB_GETOP_INFO.IsChecked;
+            bool flag9 = false;
+            if ((isChecked9.GetValueOrDefault() == flag9 ? (isChecked9.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_SETOP_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_SETOP_INFO].Add(newLogInfo);
+            bool? isChecked10 = LogInfo.cbENB_SETOP_INFO.IsChecked;
+            bool flag10 = false;
+            if ((isChecked10.GetValueOrDefault() == flag10 ? (isChecked10.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_GETOP_ERR_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_GETOP_ERR_INFO].Add(newLogInfo);
+            bool? isChecked11 = LogInfo.cbENB_GETOP_ERR_INFO.IsChecked;
+            bool flag11 = false;
+            if ((isChecked11.GetValueOrDefault() == flag11 ? (isChecked11.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_SETOP_ERR_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_SETOP_ERR_INFO].Add(newLogInfo);
+            bool? isChecked12 = LogInfo.cbENB_SETOP_ERR_INFO.IsChecked;
+            bool flag12 = false;
+            if ((isChecked12.GetValueOrDefault() == flag12 ? (isChecked12.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_VARY_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_VARY_INFO].Add(newLogInfo);
+            bool? isChecked13 = LogInfo.cbENB_VARY_INFO.IsChecked;
+            bool flag13 = false;
+            if ((isChecked13.GetValueOrDefault() == flag13 ? (isChecked13.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_OTHER_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_OTHER_INFO].Add(newLogInfo);
+            bool? isChecked14 = LogInfo.cbENB_OTHER_INFO.IsChecked;
+            bool flag14 = false;
+            if ((isChecked14.GetValueOrDefault() == flag14 ? (isChecked14.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.ENB_OTHER_INFO_IMPORT:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.ENB_OTHER_INFO_IMPORT].Add(newLogInfo);
+            bool? isChecked15 = LogInfo.cbENB_OTHER_INFO_IMPORT.IsChecked;
+            bool flag15 = false;
+            if ((isChecked15.GetValueOrDefault() == flag15 ? (isChecked15.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.CUSTOM_ERROR_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.CUSTOM_ERROR_INFO].Add(newLogInfo);
+            bool? isChecked16 = LogInfo.cbENB_OTHER_INFO_IMPORT.IsChecked;
+            bool flag16 = false;
+            if ((isChecked16.GetValueOrDefault() == flag16 ? (isChecked16.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          case InfoTypeEnum.CUSTOM_TIP_INFO:
+            LogInfo.g_AllLog[newLogInfo.TargetIP][InfoTypeEnum.CUSTOM_TIP_INFO].Add(newLogInfo);
+            bool? isChecked17 = LogInfo.cbENB_OTHER_INFO_IMPORT.IsChecked;
+            bool flag17 = false;
+            if ((isChecked17.GetValueOrDefault() == flag17 ? (isChecked17.HasValue ? 1 : 0) : 0) != 0)
+              return;
+            break;
+          default:
+            newLogInfo.LogType = LanguageServices.Current.GetTextValue("BaseInfo_LogManager_OtherInfo");
+            break;
+        }
+        try
+        {
+          LogInfo.LogList.Add(newLogInfo);
+          if (LogInfo.bLock)
+            return;
+          (LogInfo.UiLogInfo.View as TableView).ScrollIntoView(LogInfo.UiLogInfo.GetRow(LogInfo.LogList.Count - 1));
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.Debug("信息浏览异常信息：" + newLogInfo.LogInfo + newLogInfo.LogType + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 489, nameof (AddLogInfo));
+          LogManager.Log.Debug("ListView界面的Items总数为：" + LogInfo.UiLogInfo.VisibleRowCount.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 491, nameof (AddLogInfo));
+          LogManager.Log.Debug("信息浏览当前是否锁定" + LogInfo.lockButton.Content, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 492, nameof (AddLogInfo));
+        }
+      }
+    }
+
+    public void Clean() => this.g_AllLog.Clear();
+
+    private void Button_Click_2(object sender, RoutedEventArgs e)
+    {
+      if (this.g_AllLog == null || this.g_AllLog.Count <= 0)
+        return;
+      foreach (KeyValuePair<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>> keyValuePair in this.g_AllLog)
+      {
+        for (int key = 0; key < this.nMaxInfoTypeEnum; ++key)
+          this.g_AllLog[keyValuePair.Key][(InfoTypeEnum) key].Clear();
+      }
+      this.LogList.Clear();
+    }
+
+    private void Button_Click_3(object sender, RoutedEventArgs e)
+    {
+      if (this.UiLogInfo.SelectedItems.Count == 0)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_DelTip"));
+      }
+      else
+      {
+        try
+        {
+          List<LogInfoTitle> logInfoTitleList = new List<LogInfoTitle>();
+          foreach (object selectedItem in (IEnumerable) this.UiLogInfo.SelectedItems)
+          {
+            LogInfoTitle logInfoTitle = selectedItem as LogInfoTitle;
+            logInfoTitleList.Add(logInfoTitle);
+          }
+          foreach (LogInfoTitle logInfoTitle in logInfoTitleList)
+          {
+            this.g_AllLog[logInfoTitle.TargetIP][logInfoTitle.Type].Remove(logInfoTitle);
+            this.LogList.Remove(logInfoTitle);
+          }
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.Debug("信息浏览异常：" + ex.Message + "\n" + ex.StackTrace, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 611, nameof (Button_Click_3));
+          int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnknownException"));
+        }
+      }
+    }
+
+    private void Button_Click_4(object sender, RoutedEventArgs e)
+    {
+      if (this.UiLogInfo.VisibleRowCount == 0)
+        return;
+      string data = "";
+      foreach (LogInfoTitle log in (Collection<LogInfoTitle>) this.LogList)
+        data = data + log.LogTime + "\t" + log.LogType + "\t" + log.LogInfo + "\n";
+      try
+      {
+        Clipboard.SetDataObject((object) data);
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_CopyAllEnd"));
+      }
+      catch
+      {
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_CopyAllEnd2"), messageBoxImage: CustomMessageBoxIcon.Error);
+      }
+    }
+
+    private void Button_Click_5(object sender, RoutedEventArgs e)
+    {
+      if (this.UiLogInfo.SelectedItems.Count == 0)
+        return;
+      string data = "";
+      foreach (LogInfoTitle selectedItem in (IEnumerable) this.UiLogInfo.SelectedItems)
+        data = data + selectedItem.LogTime + "\t" + selectedItem.LogType + "\t" + selectedItem.LogInfo + "\n";
+      try
+      {
+        Clipboard.SetDataObject((object) data);
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_CopyEnd"));
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("复制信息失败，异常：{0}", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 667, nameof (Button_Click_5));
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_CopyEnd2"), messageBoxImage: CustomMessageBoxIcon.Error);
+      }
+    }
+
+    private void AddOrRemoveLogInfo(InfoTypeEnum LogFilterIndex, bool b_Add)
+    {
+      if (this.g_AllLog.Count == 0)
+        return;
+      string key = string.Empty;
+      foreach (KeyValuePair<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>> keyValuePair in this.g_AllLog)
+        key = keyValuePair.Key;
+      if (this.g_AllLog[key][LogFilterIndex] == null || this.g_AllLog[key][LogFilterIndex].Count == 0)
+        return;
+      if (b_Add)
+      {
+        foreach (LogInfoTitle logInfoTitle in this.g_AllLog[key][LogFilterIndex])
+          this.LogList.Add(logInfoTitle);
+      }
+      else
+      {
+        foreach (LogInfoTitle logInfoTitle in this.g_AllLog[key][LogFilterIndex])
+          this.LogList.Remove(logInfoTitle);
+      }
+      this.UiLogInfo.DefaultSorting = "LogTime";
+    }
+
+    private void cbENB_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_INFO, true);
+
+    private void cbENB_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_INFO, false);
+
+    private void cbENB_TASK_DEAL_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_TASK_DEAL_INFO, true);
+
+    private void cbENB_TASK_DEAL_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_TASK_DEAL_INFO, false);
+
+    private void cbSI_STR_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.SI_STR_INFO, true);
+
+    private void cbSI_STR_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.SI_STR_INFO, false);
+
+    private void cbSI_ALARM_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.SI_ALARM_INFO, true);
+
+    private void cbSI_ALARM_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.SI_ALARM_INFO, false);
+
+    private void cbOM_BRKDWN_ALARM_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_BRKDWN_ALARM_INFO, true);
+
+    private void cbOM_BRKDWN_ALARM_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_BRKDWN_ALARM_INFO, false);
+
+    private void cbOM_EVENT_ALARM_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_EVENT_ALARM_INFO, true);
+
+    private void cbOM_EVENT_ALARM_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_EVENT_ALARM_INFO, false);
+
+    private void cbOM_ALARM_CLEAR_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_ALARM_CLEAR_INFO, true);
+
+    private void cbOM_ALARM_CLEAR_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_ALARM_CLEAR_INFO, false);
+
+    private void cbOM_EVENT_NOTIFY_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_EVENT_NOTIFY_INFO, true);
+
+    private void cbOM_EVENT_NOTIFY_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.OM_EVENT_NOTIFY_INFO, false);
+
+    private void cbENB_GETOP_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_GETOP_INFO, true);
+
+    private void cbENB_GETOP_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_GETOP_INFO, false);
+
+    private void cbENB_SETOP_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_SETOP_INFO, true);
+
+    private void cbENB_SETOP_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_SETOP_INFO, false);
+
+    private void cbENB_GETOP_ERR_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_GETOP_ERR_INFO, true);
+
+    private void cbENB_GETOP_ERR_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_GETOP_ERR_INFO, false);
+
+    private void cbENB_SETOP_ERR_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_SETOP_ERR_INFO, true);
+
+    private void cbENB_SETOP_ERR_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_SETOP_ERR_INFO, false);
+
+    private void cbENB_VARY_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_VARY_INFO, true);
+
+    private void cbENB_VARY_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_VARY_INFO, false);
+
+    private void cbENB_OTHER_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_OTHER_INFO, true);
+
+    private void cbENB_OTHER_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_OTHER_INFO, false);
+
+    private void cbENB_OTHER_INFO_IMPORT_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_OTHER_INFO_IMPORT, true);
+
+    private void cbENB_OTHER_INFO_IMPORT_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.ENB_OTHER_INFO_IMPORT, false);
+
+    private void InsertSelectedTypeLog(InfoTypeEnum enumType, string strIP)
+    {
+      switch (enumType)
+      {
+        case InfoTypeEnum.ENB_INFO:
+          bool? isChecked1 = this.cbENB_INFO.IsChecked;
+          bool flag1 = false;
+          if ((isChecked1.GetValueOrDefault() == flag1 ? (isChecked1.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_TASK_DEAL_INFO:
+          bool? isChecked2 = this.cbENB_TASK_DEAL_INFO.IsChecked;
+          bool flag2 = false;
+          if ((isChecked2.GetValueOrDefault() == flag2 ? (isChecked2.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_TASK_DEAL_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.SI_STR_INFO:
+          bool? isChecked3 = this.cbSI_STR_INFO.IsChecked;
+          bool flag3 = false;
+          if ((isChecked3.GetValueOrDefault() == flag3 ? (isChecked3.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.SI_STR_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.SI_ALARM_INFO:
+          bool? isChecked4 = this.cbSI_ALARM_INFO.IsChecked;
+          bool flag4 = false;
+          if ((isChecked4.GetValueOrDefault() == flag4 ? (isChecked4.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.SI_ALARM_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.OM_BRKDWN_ALARM_INFO:
+          bool? isChecked5 = this.cbOM_BRKDWN_ALARM_INFO.IsChecked;
+          bool flag5 = false;
+          if ((isChecked5.GetValueOrDefault() == flag5 ? (isChecked5.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.OM_BRKDWN_ALARM_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.OM_EVENT_ALARM_INFO:
+          bool? isChecked6 = this.cbOM_EVENT_ALARM_INFO.IsChecked;
+          bool flag6 = false;
+          if ((isChecked6.GetValueOrDefault() == flag6 ? (isChecked6.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.OM_EVENT_ALARM_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.OM_ALARM_CLEAR_INFO:
+          bool? isChecked7 = this.cbOM_ALARM_CLEAR_INFO.IsChecked;
+          bool flag7 = false;
+          if ((isChecked7.GetValueOrDefault() == flag7 ? (isChecked7.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.OM_ALARM_CLEAR_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.OM_EVENT_NOTIFY_INFO:
+          bool? isChecked8 = this.cbOM_EVENT_NOTIFY_INFO.IsChecked;
+          bool flag8 = false;
+          if ((isChecked8.GetValueOrDefault() == flag8 ? (isChecked8.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.OM_EVENT_NOTIFY_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_GETOP_INFO:
+          bool? isChecked9 = this.cbENB_GETOP_INFO.IsChecked;
+          bool flag9 = false;
+          if ((isChecked9.GetValueOrDefault() == flag9 ? (isChecked9.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_GETOP_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_SETOP_INFO:
+          bool? isChecked10 = this.cbENB_SETOP_INFO.IsChecked;
+          bool flag10 = false;
+          if ((isChecked10.GetValueOrDefault() == flag10 ? (isChecked10.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_SETOP_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_GETOP_ERR_INFO:
+          bool? isChecked11 = this.cbENB_GETOP_ERR_INFO.IsChecked;
+          bool flag11 = false;
+          if ((isChecked11.GetValueOrDefault() == flag11 ? (isChecked11.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_GETOP_ERR_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_SETOP_ERR_INFO:
+          bool? isChecked12 = this.cbENB_SETOP_ERR_INFO.IsChecked;
+          bool flag12 = false;
+          if ((isChecked12.GetValueOrDefault() == flag12 ? (isChecked12.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_SETOP_ERR_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_VARY_INFO:
+          bool? isChecked13 = this.cbENB_VARY_INFO.IsChecked;
+          bool flag13 = false;
+          if ((isChecked13.GetValueOrDefault() == flag13 ? (isChecked13.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_VARY_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_OTHER_INFO:
+          bool? isChecked14 = this.cbENB_OTHER_INFO.IsChecked;
+          bool flag14 = false;
+          if ((isChecked14.GetValueOrDefault() == flag14 ? (isChecked14.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_OTHER_INFO].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+        case InfoTypeEnum.ENB_OTHER_INFO_IMPORT:
+          bool? isChecked15 = this.cbENB_OTHER_INFO_IMPORT.IsChecked;
+          bool flag15 = false;
+          if ((isChecked15.GetValueOrDefault() == flag15 ? (isChecked15.HasValue ? 1 : 0) : 0) != 0)
+            break;
+          using (List<LogInfoTitle>.Enumerator enumerator = this.g_AllLog[strIP][InfoTypeEnum.ENB_OTHER_INFO_IMPORT].GetEnumerator())
+          {
+            while (enumerator.MoveNext())
+              this.LogList.Add(enumerator.Current);
+            break;
+          }
+      }
+    }
+
+    private void Button_Click_6(object sender, RoutedEventArgs e)
+    {
+      List<string> listIP = new List<string>();
+      foreach (KeyValuePair<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>> keyValuePair in this.g_AllLog)
+        listIP.Add(keyValuePair.Key);
+      if (listIP.Count == 0)
+      {
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog6"));
+      }
+      else
+        new OutputWin((IEnumerable<string>) listIP, this.g_AllLog).ShowDialog();
+    }
+
+    private void Button_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.lockButton.Content != null && !this.bLock)
+      {
+        this.lockButton.Content = (object) LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnLock");
+        this.bLock = true;
+        System.Windows.Controls.ToolTip toolTip = new System.Windows.Controls.ToolTip();
+        toolTip.Content = (object) LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnLock1");
+        this.lockButton.ToolTip = (object) toolTip;
+      }
+      else
+      {
+        if (this.lockButton.Content != null)
+          this.lockButton.Content = (object) LanguageServices.Current.GetTextValue("BaseInfo_LogManager_Lock");
+        this.bLock = false;
+        System.Windows.Controls.ToolTip toolTip = new System.Windows.Controls.ToolTip();
+        toolTip.Content = (object) LanguageServices.Current.GetTextValue("BaseInfo_LogManager_Lock1");
+        this.lockButton.ToolTip = (object) toolTip;
+      }
+    }
+
+    private void cbSelectAll_Checked(object sender, RoutedEventArgs e)
+    {
+      this.cbENB_INFO.IsChecked = new bool?(true);
+      this.cbENB_GETOP_ERR_INFO.IsChecked = new bool?(true);
+      this.cbENB_GETOP_INFO.IsChecked = new bool?(true);
+      this.cbENB_OTHER_INFO.IsChecked = new bool?(true);
+      this.cbENB_OTHER_INFO_IMPORT.IsChecked = new bool?(true);
+      this.cbENB_SETOP_ERR_INFO.IsChecked = new bool?(true);
+      this.cbENB_SETOP_INFO.IsChecked = new bool?(true);
+      this.cbENB_TASK_DEAL_INFO.IsChecked = new bool?(true);
+      this.cbENB_VARY_INFO.IsChecked = new bool?(true);
+      this.cbOM_ALARM_CLEAR_INFO.IsChecked = new bool?(true);
+      this.cbOM_BRKDWN_ALARM_INFO.IsChecked = new bool?(true);
+      this.cbOM_EVENT_ALARM_INFO.IsChecked = new bool?(true);
+      this.cbOM_EVENT_NOTIFY_INFO.IsChecked = new bool?(true);
+      this.cbSI_ALARM_INFO.IsChecked = new bool?(true);
+      this.cbSI_STR_INFO.IsChecked = new bool?(true);
+      this.cbCUSTOM_ERROR_INFO.IsChecked = new bool?(true);
+      this.cbCUSTOM_TIP_INFO.IsChecked = new bool?(true);
+    }
+
+    private void cbSelectAll_Unchecked(object sender, RoutedEventArgs e)
+    {
+      this.cbENB_INFO.IsChecked = new bool?(false);
+      this.cbENB_GETOP_ERR_INFO.IsChecked = new bool?(false);
+      this.cbENB_GETOP_INFO.IsChecked = new bool?(false);
+      this.cbENB_OTHER_INFO.IsChecked = new bool?(false);
+      this.cbENB_OTHER_INFO_IMPORT.IsChecked = new bool?(false);
+      this.cbENB_SETOP_ERR_INFO.IsChecked = new bool?(false);
+      this.cbENB_SETOP_INFO.IsChecked = new bool?(false);
+      this.cbENB_TASK_DEAL_INFO.IsChecked = new bool?(false);
+      this.cbENB_VARY_INFO.IsChecked = new bool?(false);
+      this.cbOM_ALARM_CLEAR_INFO.IsChecked = new bool?(false);
+      this.cbOM_BRKDWN_ALARM_INFO.IsChecked = new bool?(false);
+      this.cbOM_EVENT_ALARM_INFO.IsChecked = new bool?(false);
+      this.cbOM_EVENT_NOTIFY_INFO.IsChecked = new bool?(false);
+      this.cbSI_ALARM_INFO.IsChecked = new bool?(false);
+      this.cbSI_STR_INFO.IsChecked = new bool?(false);
+      this.cbCUSTOM_ERROR_INFO.IsChecked = new bool?(false);
+      this.cbCUSTOM_TIP_INFO.IsChecked = new bool?(false);
+    }
+
+    private void Button_Click_7(object sender, RoutedEventArgs e) => new LogColorSetting(this.LogList, this.LogColorUpdate).ShowDialog();
+
+    private void cbCUSTOM_ERROR_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.CUSTOM_ERROR_INFO, true);
+
+    private void cbCUSTOM_ERROR_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.CUSTOM_ERROR_INFO, false);
+
+    private void cbCUSTOM_TIP_INFO_Checked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.CUSTOM_TIP_INFO, true);
+
+    private void cbCUSTOM_TIP_INFO_Unchecked(object sender, RoutedEventArgs e) => this.AddOrRemoveLogInfo(InfoTypeEnum.CUSTOM_TIP_INFO, false);
+
+    private void ButtonLocUp_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.LogList.Count == 0)
+        return;
+      (this.UiLogInfo.View as TableView).ScrollIntoView(this.UiLogInfo.GetRow(0));
+      this.UiLogInfo.Focus();
+    }
+
+    private void ButtonLocDw_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.LogList.Count == 0)
+        return;
+      (this.UiLogInfo.View as TableView).ScrollIntoView(this.UiLogInfo.GetRow(this.LogList.Count - 1));
+      this.UiLogInfo.Focus();
+    }
+
+    private void TextBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+      if (sender is TextBox textBox && textBox.LineCount > 1)
+      {
+        LogInfoDetails logInfoDetails = new LogInfoDetails(textBox.DataContext as LogInfoTitle);
+        logInfoDetails.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        logInfoDetails.ShowDialog();
+      }
+      e.Handled = false;
+    }
+
+    private void ListViewItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      try
+      {
+        if (!(sender.GetType() == typeof (ListViewItem)))
+          return;
+        ListViewItem listViewItem = sender as ListViewItem;
+        if (listViewItem.Content.Equals(this.UiLogInfo.SelectedItem))
+          return;
+        listViewItem.IsSelected = true;
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Debug("信息浏览异常：" + ex.Message + "\n" + ex.StackTrace, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 1638, nameof (ListViewItem_PreviewMouseLeftButtonDown));
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnknownException"));
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/loginfoshow/loginfoshow.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.Button_Click);
+          break;
+        case 2:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.Button_Click_2);
+          break;
+        case 3:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.Button_Click_3);
+          break;
+        case 4:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.Button_Click_5);
+          break;
+        case 5:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.Button_Click_4);
+          break;
+        case 6:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.ButtonLocUp_Click);
+          break;
+        case 7:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.ButtonLocDw_Click);
+          break;
+        case 8:
+          this.listViewWidth = (System.Windows.Controls.Grid) target;
+          break;
+        case 9:
+          this.lockButton = (Button) target;
+          break;
+        case 10:
+          this.locatedUpButton = (Button) target;
+          break;
+        case 11:
+          this.locatedDwButton = (Button) target;
+          break;
+        case 12:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.Button_Click_6);
+          break;
+        case 13:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.Button_Click_7);
+          break;
+        case 14:
+          this.UiLogInfo = (GridControl) target;
+          break;
+        case 15:
+          this.view = (TableView) target;
+          break;
+        case 16:
+          this.cbENB_INFO = (CheckBox) target;
+          this.cbENB_INFO.Checked += new RoutedEventHandler(this.cbENB_INFO_Checked);
+          this.cbENB_INFO.Unchecked += new RoutedEventHandler(this.cbENB_INFO_Unchecked);
+          break;
+        case 17:
+          this.cbENB_TASK_DEAL_INFO = (CheckBox) target;
+          this.cbENB_TASK_DEAL_INFO.Checked += new RoutedEventHandler(this.cbENB_TASK_DEAL_INFO_Checked);
+          this.cbENB_TASK_DEAL_INFO.Unchecked += new RoutedEventHandler(this.cbENB_TASK_DEAL_INFO_Unchecked);
+          break;
+        case 18:
+          this.cbSI_STR_INFO = (CheckBox) target;
+          this.cbSI_STR_INFO.Checked += new RoutedEventHandler(this.cbSI_STR_INFO_Checked);
+          this.cbSI_STR_INFO.Unchecked += new RoutedEventHandler(this.cbSI_STR_INFO_Unchecked);
+          break;
+        case 19:
+          this.cbSI_ALARM_INFO = (CheckBox) target;
+          this.cbSI_ALARM_INFO.Checked += new RoutedEventHandler(this.cbSI_ALARM_INFO_Checked);
+          this.cbSI_ALARM_INFO.Unchecked += new RoutedEventHandler(this.cbSI_ALARM_INFO_Unchecked);
+          break;
+        case 20:
+          this.cbOM_BRKDWN_ALARM_INFO = (CheckBox) target;
+          this.cbOM_BRKDWN_ALARM_INFO.Checked += new RoutedEventHandler(this.cbOM_BRKDWN_ALARM_INFO_Checked);
+          this.cbOM_BRKDWN_ALARM_INFO.Unchecked += new RoutedEventHandler(this.cbOM_BRKDWN_ALARM_INFO_Unchecked);
+          break;
+        case 21:
+          this.cbOM_EVENT_ALARM_INFO = (CheckBox) target;
+          this.cbOM_EVENT_ALARM_INFO.Checked += new RoutedEventHandler(this.cbOM_EVENT_ALARM_INFO_Checked);
+          this.cbOM_EVENT_ALARM_INFO.Unchecked += new RoutedEventHandler(this.cbOM_EVENT_ALARM_INFO_Unchecked);
+          break;
+        case 22:
+          this.cbOM_ALARM_CLEAR_INFO = (CheckBox) target;
+          this.cbOM_ALARM_CLEAR_INFO.Checked += new RoutedEventHandler(this.cbOM_ALARM_CLEAR_INFO_Checked);
+          this.cbOM_ALARM_CLEAR_INFO.Unchecked += new RoutedEventHandler(this.cbOM_ALARM_CLEAR_INFO_Unchecked);
+          break;
+        case 23:
+          this.cbOM_EVENT_NOTIFY_INFO = (CheckBox) target;
+          this.cbOM_EVENT_NOTIFY_INFO.Checked += new RoutedEventHandler(this.cbOM_EVENT_NOTIFY_INFO_Checked);
+          this.cbOM_EVENT_NOTIFY_INFO.Unchecked += new RoutedEventHandler(this.cbOM_EVENT_NOTIFY_INFO_Unchecked);
+          break;
+        case 24:
+          this.cbENB_GETOP_INFO = (CheckBox) target;
+          this.cbENB_GETOP_INFO.Checked += new RoutedEventHandler(this.cbENB_GETOP_INFO_Checked);
+          this.cbENB_GETOP_INFO.Unchecked += new RoutedEventHandler(this.cbENB_GETOP_INFO_Unchecked);
+          break;
+        case 25:
+          this.cbENB_SETOP_INFO = (CheckBox) target;
+          this.cbENB_SETOP_INFO.Checked += new RoutedEventHandler(this.cbENB_SETOP_INFO_Checked);
+          this.cbENB_SETOP_INFO.Unchecked += new RoutedEventHandler(this.cbENB_SETOP_INFO_Unchecked);
+          break;
+        case 26:
+          this.cbENB_GETOP_ERR_INFO = (CheckBox) target;
+          this.cbENB_GETOP_ERR_INFO.Checked += new RoutedEventHandler(this.cbENB_GETOP_ERR_INFO_Checked);
+          this.cbENB_GETOP_ERR_INFO.Unchecked += new RoutedEventHandler(this.cbENB_GETOP_ERR_INFO_Unchecked);
+          break;
+        case 27:
+          this.cbENB_SETOP_ERR_INFO = (CheckBox) target;
+          this.cbENB_SETOP_ERR_INFO.Checked += new RoutedEventHandler(this.cbENB_SETOP_ERR_INFO_Checked);
+          this.cbENB_SETOP_ERR_INFO.Unchecked += new RoutedEventHandler(this.cbENB_SETOP_ERR_INFO_Unchecked);
+          break;
+        case 28:
+          this.cbENB_VARY_INFO = (CheckBox) target;
+          this.cbENB_VARY_INFO.Checked += new RoutedEventHandler(this.cbENB_VARY_INFO_Checked);
+          this.cbENB_VARY_INFO.Unchecked += new RoutedEventHandler(this.cbENB_VARY_INFO_Unchecked);
+          break;
+        case 29:
+          this.cbENB_OTHER_INFO = (CheckBox) target;
+          this.cbENB_OTHER_INFO.Checked += new RoutedEventHandler(this.cbENB_OTHER_INFO_Checked);
+          this.cbENB_OTHER_INFO.Unchecked += new RoutedEventHandler(this.cbENB_OTHER_INFO_Unchecked);
+          break;
+        case 30:
+          this.cbENB_OTHER_INFO_IMPORT = (CheckBox) target;
+          this.cbENB_OTHER_INFO_IMPORT.Checked += new RoutedEventHandler(this.cbENB_OTHER_INFO_IMPORT_Checked);
+          this.cbENB_OTHER_INFO_IMPORT.Unchecked += new RoutedEventHandler(this.cbENB_OTHER_INFO_IMPORT_Unchecked);
+          break;
+        case 31:
+          this.cbCUSTOM_ERROR_INFO = (CheckBox) target;
+          this.cbCUSTOM_ERROR_INFO.Checked += new RoutedEventHandler(this.cbCUSTOM_ERROR_INFO_Checked);
+          this.cbCUSTOM_ERROR_INFO.Unchecked += new RoutedEventHandler(this.cbCUSTOM_ERROR_INFO_Unchecked);
+          break;
+        case 32:
+          this.cbCUSTOM_TIP_INFO = (CheckBox) target;
+          this.cbCUSTOM_TIP_INFO.Checked += new RoutedEventHandler(this.cbCUSTOM_TIP_INFO_Checked);
+          this.cbCUSTOM_TIP_INFO.Unchecked += new RoutedEventHandler(this.cbCUSTOM_TIP_INFO_Unchecked);
+          break;
+        case 33:
+          this.cbSelectAll = (CheckBox) target;
+          this.cbSelectAll.Checked += new RoutedEventHandler(this.cbSelectAll_Checked);
+          this.cbSelectAll.Unchecked += new RoutedEventHandler(this.cbSelectAll_Unchecked);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

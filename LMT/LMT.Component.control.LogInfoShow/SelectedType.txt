@@ -1,0 +1,21 @@
+using System.ComponentModel;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class SelectedType : INotifyPropertyChanged
+  {
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void RaisePropertyChanged(string strPropertyName)
+    {
+      PropertyChangedEventHandler propertyChanged = this.PropertyChanged;
+      if (propertyChanged == null)
+        return;
+      propertyChanged((object) this, new PropertyChangedEventArgs(strPropertyName));
+    }
+
+    public string TextType { get; set; }
+
+    public int LogCountInOneType { get; set; }
+  }
+}

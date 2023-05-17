@@ -1,0 +1,34 @@
+
+using System.ComponentModel;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class SelectedIP : INotifyPropertyChanged
+  {
+    private bool bIsSelectedIP;
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void RaisePropertyChanged(string strPropertyName)
+    {
+      PropertyChangedEventHandler propertyChanged = this.PropertyChanged;
+      if (propertyChanged == null)
+        return;
+      propertyChanged((object) this, new PropertyChangedEventArgs(strPropertyName));
+    }
+
+    public string TextIP { get; set; }
+
+    public bool IsSelectedIP
+    {
+      get => this.bIsSelectedIP;
+      set
+      {
+        this.bIsSelectedIP = value;
+        this.RaisePropertyChanged(nameof (IsSelectedIP));
+      }
+    }
+
+    public int LogCount { get; set; }
+  }
+}

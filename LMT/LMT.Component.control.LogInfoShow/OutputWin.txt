@@ -1,0 +1,198 @@
+using CommonUtility;
+using DevExpress.Xpf.Editors;
+using DevExpress.Xpf.Grid;
+using MsgQueue;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class OutputWin : CustomWindow, IComponentConnector
+  {
+    private Dictionary<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>> g_outputLogInfo;
+    private string m_strIp = "";
+    public ObservableCollection<SelectedType> LvTypeList = new ObservableCollection<SelectedType>();
+    internal GridControl lvTypeGridControl;
+    internal TableView lvTypeTableView;
+    internal ButtonEdit pathToOutput;
+    private bool _contentLoaded;
+
+    public OutputWin(
+      IEnumerable<string> listIP,
+      Dictionary<string, Dictionary<InfoTypeEnum, List<LogInfoTitle>>> g_AllLog)
+    {
+      this.InitializeComponent();
+      this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      this.Topmost = true;
+      this.g_outputLogInfo = g_AllLog;
+      int length = Enum.GetValues(typeof (InfoTypeEnum)).Length;
+      foreach (string key1 in listIP)
+      {
+        this.m_strIp = key1;
+        SelectedIP selectedIp = new SelectedIP()
+        {
+          TextIP = key1,
+          IsSelectedIP = true
+        };
+        for (int key2 = 0; key2 < length; ++key2)
+        {
+          if (this.g_outputLogInfo[key1].ContainsKey((InfoTypeEnum) key2))
+            selectedIp.LogCount += this.g_outputLogInfo[key1][(InfoTypeEnum) key2].Count;
+        }
+      }
+      this.Title = LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog") + string.Format("({0})", (object) this.m_strIp);
+      this.InitTypeCheckBox(this.m_strIp);
+      this.lvTypeGridControl.ItemsSource = (object) this.LvTypeList;
+    }
+
+    private void InitTypeCheckBox(string strIp)
+    {
+      foreach (InfoTypeEnum infoTypeEnum in (InfoTypeEnum[]) Enum.GetValues(typeof (InfoTypeEnum)))
+      {
+        string descByType = InfoTypeConvert.GetDescByType(infoTypeEnum);
+        if (!string.IsNullOrEmpty(descByType))
+        {
+          SelectedType selectedType = new SelectedType()
+          {
+            TextType = descByType
+          };
+          if (this.g_outputLogInfo[strIp].ContainsKey(infoTypeEnum))
+            selectedType.LogCountInOneType = this.g_outputLogInfo[strIp][infoTypeEnum].Count;
+          this.LvTypeList.Add(selectedType);
+        }
+      }
+    }
+
+    private void Button_Click(object sender, RoutedEventArgs e)
+    {
+      SaveFileDialog saveFileDialog = new SaveFileDialog();
+      saveFileDialog.InitialDirectory = "C:\\";
+      saveFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      saveFileDialog.DefaultExt = "xls";
+      saveFileDialog.AddExtension = true;
+      saveFileDialog.FileName = this.m_strIp + "_InfoLog_" + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") ?? "";
+      if (saveFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.pathToOutput.Text = saveFileDialog.FileName;
+    }
+
+    private void Button_Click_1(object sender, RoutedEventArgs e)
+    {
+      if (this.pathToOutput.Text == string.Empty)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog1"), LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog"), messageBoxImage: CustomMessageBoxIcon.Warning);
+      }
+      else
+      {
+        string text = this.pathToOutput.Text;
+        List<string> stringList = new List<string>();
+        List<InfoTypeEnum> infoTypeEnumList = new List<InfoTypeEnum>();
+        stringList.Add(this.m_strIp);
+        if (stringList.Count == 0)
+        {
+          int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog2"), LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog"), messageBoxImage: CustomMessageBoxIcon.Error);
+        }
+        else
+        {
+          foreach (SelectedType selectedItem in (IEnumerable) this.lvTypeGridControl.SelectedItems)
+          {
+            string textType = selectedItem.TextType;
+            infoTypeEnumList.Add(this.GetEnumByString(textType));
+          }
+          if (infoTypeEnumList.Count == 0)
+          {
+            int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog3"), LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog"), messageBoxImage: CustomMessageBoxIcon.Error);
+          }
+          else
+          {
+            bool flag = true;
+            for (int index = 1; index <= stringList.Count; ++index)
+            {
+              DataTable data = new DataTable();
+              data.Columns.Add(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_Time"), typeof (string));
+              data.Columns.Add(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_Type"), typeof (string));
+              data.Columns.Add(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_Content"), typeof (string));
+              foreach (InfoTypeEnum key in infoTypeEnumList)
+              {
+                if (this.g_outputLogInfo[stringList[index - 1]].ContainsKey(key))
+                {
+                  foreach (LogInfoTitle logInfoTitle in this.g_outputLogInfo[stringList[index - 1]][key])
+                    data.Rows.Add((object) logInfoTitle.LogTime, (object) logInfoTitle.LogType, (object) logInfoTitle.LogInfo);
+                }
+              }
+              if (CommExcelHelper.DataTableToExcel(text, data, "Log") == -1)
+              {
+                flag = false;
+                int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog4"), LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog"), messageBoxImage: CustomMessageBoxIcon.Error);
+              }
+            }
+            if (flag)
+            {
+              int num5 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_ExportLog5"));
+            }
+            this.Close();
+          }
+        }
+      }
+    }
+
+    private InfoTypeEnum GetEnumByString(string levelText) => InfoTypeConvert.GetTypeByDesc(levelText);
+
+    private void MenuItem_Click(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void MenuItem_Click_1(object sender, RoutedEventArgs e)
+    {
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/loginfoshow/outputwin.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.lvTypeGridControl = (GridControl) target;
+          break;
+        case 2:
+          this.lvTypeTableView = (TableView) target;
+          break;
+        case 3:
+          this.pathToOutput = (ButtonEdit) target;
+          break;
+        case 4:
+          ((CommandButtonInfo) target).Click += new RoutedEventHandler(this.Button_Click);
+          break;
+        case 5:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.Button_Click_1);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

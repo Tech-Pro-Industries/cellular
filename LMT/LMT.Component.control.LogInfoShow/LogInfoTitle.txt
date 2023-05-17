@@ -1,0 +1,76 @@
+using MsgQueue;
+using System.ComponentModel;
+using System.Windows.Media;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class LogInfoTitle : INotifyPropertyChanged
+  {
+    private string strLogTime;
+    private string strLogType;
+    private string strLogInfo;
+    private Brush clrLogColor;
+    private Brush clrLogBackColor;
+    private InfoTypeEnum enumType;
+    private string strTargetIP;
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void RaisePropertyChanged(string strPropertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(strPropertyName));
+    }
+
+    public string TargetIP
+    {
+      get => this.strTargetIP;
+      set => this.strTargetIP = value;
+    }
+
+    public InfoTypeEnum Type
+    {
+      get => this.enumType;
+      set => this.enumType = value;
+    }
+
+    public string LogTime
+    {
+      get => this.strLogTime;
+      set => this.strLogTime = value;
+    }
+
+    public string LogType
+    {
+      get => this.strLogType;
+      set => this.strLogType = value;
+    }
+
+    public string LogInfo
+    {
+      get => this.strLogInfo;
+      set => this.strLogInfo = value;
+    }
+
+    public Brush LogColor
+    {
+      get => this.clrLogColor;
+      set
+      {
+        this.clrLogColor = value;
+        this.RaisePropertyChanged(nameof (LogColor));
+      }
+    }
+
+    public Brush LogBackColor
+    {
+      get => this.clrLogBackColor;
+      set
+      {
+        this.clrLogBackColor = value;
+        this.RaisePropertyChanged("clrLogBackColor");
+      }
+    }
+  }
+}

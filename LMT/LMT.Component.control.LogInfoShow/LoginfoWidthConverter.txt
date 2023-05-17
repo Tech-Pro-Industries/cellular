@@ -1,0 +1,27 @@
+using LogManager;
+using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Data;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  internal class LogInfoWidthConverter : IValueConverter
+  {
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+      double valueOrDefault = (value as double?).GetValueOrDefault();
+      Log.Debug("信息浏览界面数值转换函数中的值：" + valueOrDefault.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LogInfoShow\\LogInfoShow.xaml.cs", 1731, nameof (Convert));
+      return (object) (valueOrDefault > 10.0 ? valueOrDefault - 10.0 : 0.0);
+    }
+
+    public object ConvertBack(
+      object value,
+      Type targetTypes,
+      object parameter,
+      CultureInfo culture)
+    {
+      return DependencyProperty.UnsetValue;
+    }
+  }
+}

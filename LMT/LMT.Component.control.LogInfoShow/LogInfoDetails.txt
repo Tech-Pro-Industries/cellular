@@ -1,0 +1,81 @@
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class LogInfoDetails : CustomWindow, IComponentConnector
+  {
+    internal TextBox TargetIp;
+    internal TextBox LogTime;
+    internal TextBox LogType;
+    internal TextBox LogInfo;
+    internal CheckBox IsWrap;
+    internal Button CloseBt;
+    private bool _contentLoaded;
+
+    public LogInfoDetails(LogInfoTitle info)
+    {
+      this.InitializeComponent();
+      this.TargetIp.Text = info.TargetIP;
+      this.LogTime.Text = info.LogTime;
+      this.LogType.Text = info.LogType;
+      this.LogInfo.Text = info.LogInfo;
+    }
+
+    private void IsWrap_Checked(object sender, RoutedEventArgs e) => this.LogInfo.TextWrapping = TextWrapping.Wrap;
+
+    private void IsWrap_Unchecked(object sender, RoutedEventArgs e) => this.LogInfo.TextWrapping = TextWrapping.NoWrap;
+
+    private void CloseBt_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/loginfoshow/loginfodetails.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.TargetIp = (TextBox) target;
+          break;
+        case 2:
+          this.LogTime = (TextBox) target;
+          break;
+        case 3:
+          this.LogType = (TextBox) target;
+          break;
+        case 4:
+          this.LogInfo = (TextBox) target;
+          break;
+        case 5:
+          this.IsWrap = (CheckBox) target;
+          this.IsWrap.Checked += new RoutedEventHandler(this.IsWrap_Checked);
+          this.IsWrap.Unchecked += new RoutedEventHandler(this.IsWrap_Unchecked);
+          break;
+        case 6:
+          this.CloseBt = (Button) target;
+          this.CloseBt.Click += new RoutedEventHandler(this.CloseBt_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

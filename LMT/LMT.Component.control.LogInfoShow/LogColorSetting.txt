@@ -1,0 +1,130 @@
+using LMT.Component.Control.LogInfoShow.ViewModel;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control.LogInfoShow
+{
+  public class LogColorSetting : CustomWindow, IComponentConnector
+  {
+    internal LogColorSetting ColorSettingWindow;
+    internal Label lbEnbInfoColorText;
+    internal Label lbEnbInfoColor;
+    internal Label lbTaskDealInfoColorText;
+    internal Label lbTaskDealInfoColor;
+    internal Label lbSiStrInfoColor;
+    internal Label lbSiAlarmInfoColor;
+    internal Label lbBreakDownAlarmInfoColor;
+    internal Label lbEventAlarmInfoColor;
+    internal Label lbAlarmClearInfoColor;
+    internal Label lbEventNotifyInfoColor;
+    internal Label lbGetOpInfoColor;
+    internal Label lbSetOpInfoColor;
+    internal Label lbGetOpErrInfoColor;
+    internal Label lbSetOpErrInfoColor;
+    internal Label lbVaryInfoColor;
+    internal Label lbOtherInfoColor;
+    internal Label lbOtherInfoImportColor;
+    internal Label lbCustomErrInfoColor;
+    internal Label lbCustomTipInfoColor;
+    private bool _contentLoaded;
+
+    public LogColorSetting(
+      ObservableCollection<LogInfoTitle> items,
+      LogColorConverter logColorUpdate)
+    {
+      this.InitializeComponent();
+      this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      this.DataContext = (object) new LogInfoColorSet(items, logColorUpdate);
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/loginfoshow/logcolorsetting.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.ColorSettingWindow = (LogColorSetting) target;
+          break;
+        case 2:
+          this.lbEnbInfoColorText = (Label) target;
+          break;
+        case 3:
+          this.lbEnbInfoColor = (Label) target;
+          break;
+        case 4:
+          this.lbTaskDealInfoColorText = (Label) target;
+          break;
+        case 5:
+          this.lbTaskDealInfoColor = (Label) target;
+          break;
+        case 6:
+          this.lbSiStrInfoColor = (Label) target;
+          break;
+        case 7:
+          this.lbSiAlarmInfoColor = (Label) target;
+          break;
+        case 8:
+          this.lbBreakDownAlarmInfoColor = (Label) target;
+          break;
+        case 9:
+          this.lbEventAlarmInfoColor = (Label) target;
+          break;
+        case 10:
+          this.lbAlarmClearInfoColor = (Label) target;
+          break;
+        case 11:
+          this.lbEventNotifyInfoColor = (Label) target;
+          break;
+        case 12:
+          this.lbGetOpInfoColor = (Label) target;
+          break;
+        case 13:
+          this.lbSetOpInfoColor = (Label) target;
+          break;
+        case 14:
+          this.lbGetOpErrInfoColor = (Label) target;
+          break;
+        case 15:
+          this.lbSetOpErrInfoColor = (Label) target;
+          break;
+        case 16:
+          this.lbVaryInfoColor = (Label) target;
+          break;
+        case 17:
+          this.lbOtherInfoColor = (Label) target;
+          break;
+        case 18:
+          this.lbOtherInfoImportColor = (Label) target;
+          break;
+        case 19:
+          this.lbCustomErrInfoColor = (Label) target;
+          break;
+        case 20:
+          this.lbCustomTipInfoColor = (Label) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}
