@@ -1,0 +1,17 @@
+using System.Windows;
+
+namespace LMT.Component.ViewModel
+{
+  public class BindingProxy : Freezable
+  {
+    public static readonly DependencyProperty DataProperty = DependencyProperty.Register(nameof (Data), typeof (object), typeof (BindingProxy), (PropertyMetadata) new UIPropertyMetadata((PropertyChangedCallback) null));
+
+    protected override Freezable CreateInstanceCore() => (Freezable) new BindingProxy();
+
+    public object Data
+    {
+      get => this.GetValue(BindingProxy.DataProperty);
+      set => this.SetValue(BindingProxy.DataProperty, value);
+    }
+  }
+}

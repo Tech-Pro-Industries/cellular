@@ -1,0 +1,270 @@
+using CommonUtility;
+using SCMTResources.CustomControls.ColorPicker;
+using System;
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Input;
+
+namespace LMT.Component.ViewModel
+{
+  public class PrbColorSettingVM : INotifyPropertyChanged
+  {
+    private string _IDLEColor;
+    private string _OVEREDGEColor;
+    private string _PRACHColor;
+    private string _PUCCHColor;
+    private string _SR1Color;
+    private string _SR2Color;
+    private string _SR3Color;
+    private string _CSIColor;
+    private string _ACK0Color;
+    private string _ACK1Color;
+    private string _ConflictColor;
+
+    public PrbColorSettingVM()
+    {
+      this.IDLEColor = Singleton<ColorValue>.GetInstance().PRB00;
+      this.OVEREDGEColor = Singleton<ColorValue>.GetInstance().PRB01;
+      this.PARCHColor = Singleton<ColorValue>.GetInstance().PRB02;
+      this.PUCCHColor = Singleton<ColorValue>.GetInstance().PRB04;
+      this.SR1Color = Singleton<ColorValue>.GetInstance().PRB08;
+      this.SR2Color = Singleton<ColorValue>.GetInstance().PRB10;
+      this.SR3Color = Singleton<ColorValue>.GetInstance().PRB20;
+      this.CSIColor = Singleton<ColorValue>.GetInstance().PRB40;
+      this.ACK0Color = Singleton<ColorValue>.GetInstance().PRB80;
+      this.ACK1Color = Singleton<ColorValue>.GetInstance().PRB100;
+      this.ConflictColor = Singleton<ColorValue>.GetInstance().PRBConflict;
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public string IDLEColor
+    {
+      get => this._IDLEColor;
+      set
+      {
+        this._IDLEColor = value;
+        this.NotifyPropertyChange(nameof (IDLEColor));
+      }
+    }
+
+    public string OVEREDGEColor
+    {
+      get => this._OVEREDGEColor;
+      set
+      {
+        this._OVEREDGEColor = value;
+        this.NotifyPropertyChange(nameof (OVEREDGEColor));
+      }
+    }
+
+    public string PARCHColor
+    {
+      get => this._PRACHColor;
+      set
+      {
+        this._PRACHColor = value;
+        this.NotifyPropertyChange(nameof (PARCHColor));
+      }
+    }
+
+    public string PUCCHColor
+    {
+      get => this._PUCCHColor;
+      set
+      {
+        this._PUCCHColor = value;
+        this.NotifyPropertyChange(nameof (PUCCHColor));
+      }
+    }
+
+    public string SR1Color
+    {
+      get => this._SR1Color;
+      set
+      {
+        this._SR1Color = value;
+        this.NotifyPropertyChange(nameof (SR1Color));
+      }
+    }
+
+    public string SR2Color
+    {
+      get => this._SR2Color;
+      set
+      {
+        this._SR2Color = value;
+        this.NotifyPropertyChange(nameof (SR2Color));
+      }
+    }
+
+    public string SR3Color
+    {
+      get => this._SR3Color;
+      set
+      {
+        this._SR3Color = value;
+        this.NotifyPropertyChange(nameof (SR3Color));
+      }
+    }
+
+    public string CSIColor
+    {
+      get => this._CSIColor;
+      set
+      {
+        this._CSIColor = value;
+        this.NotifyPropertyChange(nameof (CSIColor));
+      }
+    }
+
+    public string ACK0Color
+    {
+      get => this._ACK0Color;
+      set
+      {
+        this._ACK0Color = value;
+        this.NotifyPropertyChange(nameof (ACK0Color));
+      }
+    }
+
+    public string ACK1Color
+    {
+      get => this._ACK1Color;
+      set
+      {
+        this._ACK1Color = value;
+        this.NotifyPropertyChange(nameof (ACK1Color));
+      }
+    }
+
+    public string ConflictColor
+    {
+      get => this._ConflictColor;
+      set
+      {
+        this._ConflictColor = value;
+        this.NotifyPropertyChange(nameof (ConflictColor));
+      }
+    }
+
+    private void ChangeColorExecute(string lbName)
+    {
+      SCMTResources.CustomControls.ColorPicker.ColorPicker colorPicker = new SCMTResources.CustomControls.ColorPicker.ColorPicker();
+      if (colorPicker.ShowDialog() != ColorPickerResult.OK)
+        return;
+      string colorName = colorPicker.ColorName;
+      // ISSUE: reference to a compiler-generated method
+      switch (\u003CPrivateImplementationDetails\u003E.ComputeStringHash(lbName))
+      {
+        case 1508794646:
+          if (!(lbName == "ACK0"))
+            break;
+          this.ACK0Color = colorName;
+          break;
+        case 1525572265:
+          if (!(lbName == "ACK1"))
+            break;
+          this.ACK1Color = colorName;
+          break;
+        case 1679258547:
+          if (!(lbName == "SR1"))
+            break;
+          this.SR1Color = colorName;
+          break;
+        case 1696036166:
+          if (!(lbName == "SR2"))
+            break;
+          this.SR2Color = colorName;
+          break;
+        case 1712813785:
+          if (!(lbName == "SR3"))
+            break;
+          this.SR3Color = colorName;
+          break;
+        case 2418131790:
+          if (!(lbName == "CSI"))
+            break;
+          this.CSIColor = colorName;
+          break;
+        case 2888952874:
+          if (!(lbName == "OVEREDGE"))
+            break;
+          this.OVEREDGEColor = colorName;
+          break;
+        case 3237151635:
+          if (!(lbName == "IDLE"))
+            break;
+          this.IDLEColor = colorName;
+          break;
+        case 4260387035:
+          if (!(lbName == "PARCH"))
+            break;
+          this.PARCHColor = colorName;
+          break;
+        case 4273604128:
+          if (!(lbName == "PUCCH-C"))
+            break;
+          this.PUCCHColor = colorName;
+          break;
+      }
+    }
+
+    private bool CanChangeColorExecute(string lbName) => true;
+
+    public ICommand ChangeColor => (ICommand) new RelayCommand<string>(new Action<string>(this.ChangeColorExecute), new Predicate<string>(this.CanChangeColorExecute));
+
+    private void RestoreDefaultsExecute()
+    {
+      this.IDLEColor = Singleton<ColorValue>.GetInstance().PRB00;
+      this.OVEREDGEColor = Singleton<ColorValue>.GetInstance().PRB01;
+      this.PARCHColor = Singleton<ColorValue>.GetInstance().PRB02;
+      this.PUCCHColor = Singleton<ColorValue>.GetInstance().PRB04;
+      this.SR1Color = Singleton<ColorValue>.GetInstance().PRB08;
+      this.SR2Color = Singleton<ColorValue>.GetInstance().PRB10;
+      this.SR3Color = Singleton<ColorValue>.GetInstance().PRB20;
+      this.CSIColor = Singleton<ColorValue>.GetInstance().PRB40;
+      this.ACK0Color = Singleton<ColorValue>.GetInstance().PRB80;
+      this.ACK1Color = Singleton<ColorValue>.GetInstance().PRB100;
+      this.ConflictColor = Singleton<ColorValue>.GetInstance().PRBConflict;
+    }
+
+    private bool CanRestoreDefaultsExecute() => true;
+
+    public ICommand RestoreDefaults => (ICommand) new RelayCommand(new Action(this.RestoreDefaultsExecute), new Func<bool>(this.CanRestoreDefaultsExecute));
+
+    private void UpdateExecute(Window wd)
+    {
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB00Color, this.IDLEColor);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB01Color, this.OVEREDGEColor);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB02Color, this.PARCHColor);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB04Color, this.PUCCHColor);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB08Color, this.SR1Color);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB10Color, this.SR2Color);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB20Color, this.SR3Color);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB40Color, this.CSIColor);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB80Color, this.ACK0Color);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRB100Color, this.ACK1Color);
+      Singleton<ColorValue>.GetInstance().setColor(PrbColor.PRBConflictColor, this.ConflictColor);
+      Singleton<ColorValue>.GetInstance().prbColorChanged();
+      wd.Close();
+    }
+
+    private bool CanUpdateExecute(Window wd) => true;
+
+    public ICommand Update => (ICommand) new RelayCommand<Window>(new Action<Window>(this.UpdateExecute), new Predicate<Window>(this.CanUpdateExecute));
+
+    private void CancelExecute(Window wd) => wd.Close();
+
+    private bool CanCancelExecute(Window wd) => true;
+
+    public ICommand Cancel => (ICommand) new RelayCommand<Window>(new Action<Window>(this.CancelExecute), new Predicate<Window>(this.CanCancelExecute));
+  }
+}

@@ -1,0 +1,454 @@
+using CommonUtility;
+using LMT.Component.Control;
+using LMT.Component.Model;
+using LogManager;
+using PRB;
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Data;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+
+namespace LMT.Component.ViewModel
+{
+  public class PrbShowVM : INotifyPropertyChanged
+  {
+    private int _showid;
+    private DataTable _dtPrb;
+    private List<string> _prbList;
+    private List<string> _prbConflict;
+    private List<string> _prbSpecialList;
+    private string _strPrb;
+    private ObservableCollection<LogInfoTitle> _logList;
+    private string _cellId;
+    private DataGrid _dg;
+    private string _resultMessage;
+    public OMLMTA_OMLMT_GetCellResRspMsg prbInfo;
+    public string strIP;
+
+    public PrbShowVM(string ip)
+    {
+      this._showid = 0;
+      this._prbList = new List<string>();
+      this._prbConflict = new List<string>();
+      this._dtPrb = new DataTable();
+      this.LogList = new ObservableCollection<LogInfoTitle>();
+      this._prbSpecialList = new List<string>();
+      this.InitData();
+      this.CreateDataTableColumn();
+      Singleton<ColorValue>.GetInstance().prbColorChanged = new ColorValue.PrbColorChanged(this.ChangeColor);
+    }
+
+    public DataTable DtPrb
+    {
+      get => this._dtPrb;
+      set
+      {
+        this._dtPrb = value;
+        this.NotifyPropertyChange(nameof (DtPrb));
+      }
+    }
+
+    public ObservableCollection<LogInfoTitle> LogList
+    {
+      get => this._logList;
+      set
+      {
+        this._logList = value;
+        this.NotifyPropertyChange(nameof (LogList));
+      }
+    }
+
+    public string ResultMessage
+    {
+      get => this._resultMessage;
+      set
+      {
+        this._resultMessage = value;
+        this.NotifyPropertyChange(nameof (ResultMessage));
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void InitData()
+    {
+      this._prbList.Add("IDLE");
+      this._prbList.Add("OVEREDGE");
+      this._prbList.Add("PRACH");
+      this._prbList.Add("PUCCH-C");
+      this._prbList.Add("SR1");
+      this._prbList.Add("SR2");
+      this._prbList.Add("SR3");
+      this._prbList.Add("CSI");
+      this._prbList.Add("ACK0");
+      this._prbList.Add("ACK1");
+      for (int index = 0; index < 13; ++index)
+        this._prbConflict.Add("");
+      this._prbConflict.Add(",PRB0");
+    }
+
+    public void getCellId(string cellId) => this._cellId = cellId;
+
+    private bool CreateDataTableColumn()
+    {
+      bool dataTableColumn = true;
+      try
+      {
+        this._dtPrb.Columns.Add("Sequence", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB0", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB1", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB2", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB3", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB4", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB5", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB6", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB7", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB8", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB9", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB10", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB11", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB12", Type.GetType("System.String"));
+        this._dtPrb.Columns.Add("PRB13", Type.GetType("System.String"));
+      }
+      catch
+      {
+        dataTableColumn = false;
+      }
+      return dataTableColumn;
+    }
+
+    public void ReadPrbData()
+    {
+      if (this.prbInfo == null)
+      {
+        int num = (int) CustomMessageBox.Show("Can not get PRB info");
+      }
+      else
+      {
+        if (this.DtPrb != null && this.DtPrb.Rows.Count > 0)
+          this.DtPrb.Clear();
+        if (this.prbInfo.struCellResMsgRspContiner.u8ResultInd == (byte) 0)
+        {
+          for (int index = 0; index < 273; ++index)
+          {
+            DataRow row = this.DtPrb.NewRow();
+            ++this._showid;
+            row["Sequence"] = (object) this._showid.ToString();
+            row["PRB0"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 0]);
+            row["PRB1"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 1]);
+            row["PRB2"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 2]);
+            row["PRB3"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 3]);
+            row["PRB4"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 4]);
+            row["PRB5"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 5]);
+            row["PRB6"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 6]);
+            row["PRB7"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 7]);
+            row["PRB8"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 8]);
+            row["PRB9"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 9]);
+            row["PRB10"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 10]);
+            row["PRB11"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 11]);
+            row["PRB12"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 12]);
+            row["PRB13"] = (object) this.GetPrbRealInfo(this.prbInfo.struCellResMsgRspContiner.u16ResBitMap[index, 13]);
+            this.DtPrb.Rows.Add(row);
+          }
+          string str1 = string.Empty + this.prbInfo.struCellResMsgRspContiner.strMappingResultInfo + "\n" + "预计可以支持的UE数：" + this.prbInfo.struCellResMsgRspContiner.struHlResCounter.u16UeResNum.ToString() + "\n\n" + "SRS资源项统计：\n";
+          RRCOM_STRU_SrsCounterPrint srsResCounterPrint = this.prbInfo.struCellResMsgRspContiner.struHlResCounter.struSrsResCounterPrint;
+          string str2 = str1 + "\tSRS资源分配的模式：" + srsResCounterPrint.u8SrsResourceAllocType.ToString();
+          if (srsResCounterPrint.u8SrsResourceAllocType == (byte) 1)
+            str2 += "（固定模式）\n";
+          else if (srsResCounterPrint.u8SrsResourceAllocType == (byte) 2)
+            str2 += "（自适应模式）\n";
+          for (int index = 0; index < (int) srsResCounterPrint.u8SrsResourceAllocType; ++index)
+            str2 = str2 + string.Format("\t\t[{0}]\n", (object) (index + 1)) + "\t\t1端口的SRS池资源统计个数：" + (object) srsResCounterPrint.struSrsCounterAutoMode[index].u16SrsResourceOnePortCounter + "\n" + "\t\t2端口的SRS池资源统计个数：" + (object) srsResCounterPrint.struSrsCounterAutoMode[index].u16SrsResourceTwoPortCounter + "\n" + "\t\t4端口的SRS池资源统计个数：" + (object) srsResCounterPrint.struSrsCounterAutoMode[index].u16SrsResourceFourPortCounter + "\n";
+          string str3 = str2 + "\nCSI资源项统计：\n";
+          RRCOM_STRU_CsiCounterPrint struCsiCounterPrint = this.prbInfo.struCellResMsgRspContiner.struHlResCounter.struCsiCounterPrint;
+          string str4 = str3 + "\t使用的PUCCH Format格式：" + (object) struCsiCounterPrint.u8PucchFormat + "\n" + "\tCSI资源统计个数：" + (object) struCsiCounterPrint.u16CsiResourceCounter + "\n\n" + "\nSR资源项统计：\n";
+          RRCOM_STRU_SrCounterPrint struSrCounterPrint = this.prbInfo.struCellResMsgRspContiner.struHlResCounter.struSrCounterPrint;
+          string str5 = str4 + "\tSR资源池个数：" + (object) struSrCounterPrint.u8NofSrResourcePool + "\n";
+          for (int index = 0; index < (int) struSrCounterPrint.u8NofSrResourcePool; ++index)
+            str5 = str5 + string.Format("\t\t[{0}]\n", (object) (index + 1)) + "\t\t使用的PUCCH Format格式：" + struSrCounterPrint.u8PucchFormat[index].ToString() + "\n" + "\t\tSR资源统计个数：" + struSrCounterPrint.u16SrResourceCounter[index].ToString() + "\n";
+          string str6 = str5 + "\nACK资源项统计：\n";
+          RRCOM_STRU_AckCounterPrint ackResCounterPrint = this.prbInfo.struCellResMsgRspContiner.struHlResCounter.struAckResCounterPrint;
+          string str7 = str6 + "\t支持的ACK Set数：" + (object) ackResCounterPrint.u8NofAckSet + "\n";
+          for (int index = 0; index < (int) ackResCounterPrint.u8NofAckSet; ++index)
+            str7 = str7 + string.Format("\t\t[{0}]\n", (object) (index + 1)) + "\t\t使用的PUCCH Format格式：" + (object) ackResCounterPrint.u8PucchFormat[index] + "\n" + "\t\t支持的ACK组数：" + (object) ackResCounterPrint.u8AckGroupCounter[index] + "\n" + "\t\t支持的ACK Set中资源统计个数：" + (object) ackResCounterPrint.u8AckResourceCounter[index] + "\n";
+          this.ResultMessage = str7;
+        }
+        else
+        {
+          if (this.prbInfo.struCellResMsgRspContiner.u8ResultInd != (byte) 1)
+            return;
+          string empty = string.Empty;
+          RRCOM_STRU_FailureInfo rrcomFailureInfo = this.prbInfo.struCellResMsgRspContiner.struRRCOM_FailureInfo;
+          string str8 = empty + "失败原因：";
+          switch (rrcomFailureInfo.u8FailCause)
+          {
+            case 0:
+              str8 += "当前小区已激活";
+              break;
+            case 1:
+              str8 += "缺少表项";
+              break;
+            case 2:
+              str8 += "表项参数配置错误";
+              break;
+            case byte.MaxValue:
+              str8 += "未知原因";
+              break;
+          }
+          string str9 = str8 + "\n\n" + "缺少表项或者错误表项的父节点号：" + rrcomFailureInfo.strFatherNo + "\n\n";
+          if (rrcomFailureInfo.u8LeafNoFlag == (byte) 1)
+            str9 = str9 + "存在问题的叶子节点：" + rrcomFailureInfo.strLeafNo;
+          this.ResultMessage = str9;
+        }
+      }
+    }
+
+    private string GetPrbRealInfo(ushort u16Data)
+    {
+      switch (u16Data)
+      {
+        case 0:
+          Log.Debug(string.Format("源数据：{0}，结果 IDLE", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 301, nameof (GetPrbRealInfo));
+          return "IDLE";
+        case 1:
+          Log.Debug(string.Format("源数据：{0}，结果 OVEREDGE", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 304, nameof (GetPrbRealInfo));
+          return "OVEREDGE";
+        case 2:
+          Log.Debug(string.Format("源数据：{0}，结果 PRACH", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 307, nameof (GetPrbRealInfo));
+          return "PRACH";
+        case 4:
+          Log.Debug(string.Format("源数据：{0}，结果 PUCCH-C", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 310, nameof (GetPrbRealInfo));
+          return "PUCCH-C";
+        case 8:
+          Log.Debug(string.Format("源数据：{0}，结果 SR1", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 313, nameof (GetPrbRealInfo));
+          return "SR1";
+        case 16:
+          Log.Debug(string.Format("源数据：{0}，结果 SR2", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 316, nameof (GetPrbRealInfo));
+          return "SR2";
+        case 32:
+          Log.Debug(string.Format("源数据：{0}，结果 SR3", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 319, nameof (GetPrbRealInfo));
+          return "SR3";
+        case 64:
+          Log.Debug(string.Format("源数据：{0}，结果 CSI", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 322, nameof (GetPrbRealInfo));
+          return "CSI";
+        case 128:
+          Log.Debug(string.Format("源数据：{0}，结果 ACK0", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 325, nameof (GetPrbRealInfo));
+          return "ACK0";
+        case 256:
+          Log.Debug(string.Format("源数据：{0}，结果 ACK1", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 328, nameof (GetPrbRealInfo));
+          return "ACK1";
+        default:
+          Log.Debug(string.Format("源数据：{0}，结果 Conflict", (object) u16Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\ViewModel\\PrbShowVM.cs", 331, nameof (GetPrbRealInfo));
+          return this.GetConflictPRBInfo(u16Data);
+      }
+    }
+
+    private string GetConflictPRBInfo(ushort u16Data)
+    {
+      string empty = string.Empty;
+      if (((int) u16Data & 1) != 0)
+        empty += "OVEREDGE,";
+      if (((int) u16Data & 2) != 0)
+        empty += "PRACH,";
+      if (((int) u16Data & 4) != 0)
+        empty += "PUCCH-C,";
+      if (((int) u16Data & 8) != 0)
+        empty += "SR1,";
+      if (((int) u16Data & 16) != 0)
+        empty += "SR2,";
+      if (((int) u16Data & 32) != 0)
+        empty += "SR3,";
+      if (((int) u16Data & 64) != 0)
+        empty += "CSI,";
+      if (((int) u16Data & 128) != 0)
+        empty += "ACK0,";
+      if (((int) u16Data & 256) != 0)
+        empty += "ACK1,";
+      string conflictPrbInfo = empty.Trim(',');
+      if (((int) u16Data & 4096) != 0)
+        conflictPrbInfo += ";";
+      return conflictPrbInfo;
+    }
+
+    private void ChangedPrbLineExecute(DataGrid dg)
+    {
+      if (dg.SelectedItem == null)
+        return;
+      int selectedIndex = dg.SelectedIndex;
+      string a = (string) null;
+      DataRowView selectedItem = dg.SelectedItem as DataRowView;
+      SelectPrbVM sVM = new SelectPrbVM(this._prbList);
+      sVM.getPrbChange += new SelectPrbVM.GetPrbChange(this.GetPrbChange);
+      SelectPrb selectPrb = new SelectPrb(sVM);
+      selectPrb.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      selectPrb.ShowDialog();
+      if (!string.IsNullOrEmpty(this._strPrb))
+      {
+        for (int columnIndex = 1; columnIndex < ((IEnumerable<object>) selectedItem.Row.ItemArray).Count<object>(); ++columnIndex)
+        {
+          if (!(this.DtPrb.Rows[selectedIndex][columnIndex] is string str) || !str.Contains("PRB0,"))
+            this.DtPrb.Rows[selectedIndex][columnIndex] = (object) this._strPrb;
+        }
+      }
+      if (!string.Equals(a, this._strPrb) && this._strPrb != null)
+      {
+        LogInfoTitle logInfoTitle = new LogInfoTitle();
+        DateTime now = DateTime.Now;
+        logInfoTitle.StrLogTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+        logInfoTitle.StrLogType = "PRB修改";
+        logInfoTitle.StrLogInfo = "第" + (selectedIndex + 1).ToString() + " 行修改为: " + this._strPrb;
+        this.LogList.Add(logInfoTitle);
+      }
+      this._strPrb = (string) null;
+    }
+
+    private bool CanChangedPrbLineExecute(DataGrid dg) => true;
+
+    private void GetPrbChange(string strPrb) => this._strPrb = strPrb;
+
+    private void ChangedPrbLinesExecute(DataGrid dg)
+    {
+      if (dg.SelectedItems == null)
+        return;
+      int count = dg.SelectedItems.Count;
+      int selectedIndex = dg.SelectedIndex;
+      string a = (string) null;
+      DataRowView selectedItem = dg.SelectedItem as DataRowView;
+      SelectPrbVM sVM = new SelectPrbVM(this._prbList);
+      sVM.getPrbChange += new SelectPrbVM.GetPrbChange(this.GetPrbChange);
+      SelectPrb selectPrb = new SelectPrb(sVM);
+      selectPrb.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      selectPrb.ShowDialog();
+      if (!string.IsNullOrEmpty(this._strPrb) && selectedItem != null)
+      {
+        for (int index = selectedIndex; index < selectedIndex + count; ++index)
+        {
+          for (int columnIndex = 1; columnIndex < ((IEnumerable<object>) selectedItem.Row.ItemArray).Count<object>(); ++columnIndex)
+          {
+            if (!(this.DtPrb.Rows[index][columnIndex] is string str) || !str.Contains("PRB0,"))
+              this.DtPrb.Rows[index][columnIndex] = (object) this._strPrb;
+          }
+        }
+      }
+      if (!string.Equals(a, this._strPrb) && this._strPrb != null)
+      {
+        LogInfoTitle logInfoTitle = new LogInfoTitle();
+        DateTime now = DateTime.Now;
+        logInfoTitle.StrLogTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+        logInfoTitle.StrLogType = "PRB修改";
+        logInfoTitle.StrLogInfo = "第" + (selectedIndex + 1).ToString() + " 行至" + (selectedIndex + 1 + count).ToString() + " 行修改为: " + this._strPrb;
+        this.LogList.Add(logInfoTitle);
+      }
+      this._strPrb = (string) null;
+    }
+
+    private bool CanChangedPrbLinesExecute(DataGrid dg) => true;
+
+    private void PrbChangedComboboxExecute(DataGrid dg)
+    {
+      IList<DataGridCellInfo> selectedCells = dg.SelectedCells;
+      string a = (string) null;
+      if (!selectedCells.Any<DataGridCellInfo>())
+        return;
+      int index = dg.Items.IndexOf(selectedCells.First<DataGridCellInfo>().Item);
+      int displayIndex = selectedCells.First<DataGridCellInfo>().Column.DisplayIndex;
+      object selectedItem = dg.SelectedItem;
+      SelectPrbVM sVM;
+      if (this.DtPrb.Rows[index][displayIndex].ToString().Contains("PRB0,"))
+      {
+        this._prbSpecialList = new List<string>();
+        this._prbSpecialList.Add("PRB0");
+        sVM = new SelectPrbVM(this._prbSpecialList);
+      }
+      else
+        sVM = new SelectPrbVM(this._prbList);
+      this._prbSpecialList.Clear();
+      sVM.getPrbChange += new SelectPrbVM.GetPrbChange(this.GetPrbChange);
+      SelectPrb selectPrb = new SelectPrb(sVM);
+      selectPrb.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      selectPrb.ShowDialog();
+      if (!string.IsNullOrEmpty(this._strPrb) && index != -1 && displayIndex != -1)
+      {
+        a = this.DtPrb.Rows[index][displayIndex].ToString();
+        this.DtPrb.Rows[index][displayIndex] = (object) this._strPrb;
+      }
+      if (!string.Equals(a, this._strPrb) && this._strPrb != null)
+      {
+        LogInfoTitle logInfoTitle = new LogInfoTitle();
+        DateTime now = DateTime.Now;
+        logInfoTitle.StrLogTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+        logInfoTitle.StrLogType = "PRB修改";
+        logInfoTitle.StrLogInfo = "第" + (index + 1).ToString() + " 行第" + (object) displayIndex + " 列由" + a + " 修改为: " + this._strPrb;
+        this.LogList.Add(logInfoTitle);
+      }
+      this._strPrb = (string) null;
+    }
+
+    private bool CanPrbChangedComboboxExecute(DataGrid dg) => true;
+
+    private void ReadDataExecute(DataGrid dg)
+    {
+      if (dg == null)
+        return;
+      new PRBCellIdSelect(this.strIP).ShowDialog();
+      this._showid = 0;
+      this.LogList.Clear();
+      this._dg = dg;
+      LogInfoTitle logInfoTitle = new LogInfoTitle();
+      DateTime now = DateTime.Now;
+      logInfoTitle.StrLogTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+      logInfoTitle.StrLogType = "数据读取";
+      logInfoTitle.StrLogInfo = "数据读取成功";
+      this.LogList.Add(logInfoTitle);
+    }
+
+    private bool CanReadDataExecute(DataGrid dg) => true;
+
+    private void SetColorExecute()
+    {
+      PrbColorSetting prbColorSetting = new PrbColorSetting();
+      prbColorSetting.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      prbColorSetting.ShowDialog();
+    }
+
+    private bool CanSetColorExecute() => true;
+
+    private void ChangeColor()
+    {
+      DataTable dataTable = this.DtPrb.Copy();
+      this.DtPrb.Clear();
+      this.DtPrb = dataTable;
+    }
+
+    private void ConfirmExecute(DataGrid dg)
+    {
+    }
+
+    private bool CanConfirmExecute(DataGrid dg) => true;
+
+    public ICommand ChangedPrbLine => (ICommand) new RelayCommand<DataGrid>(new Action<DataGrid>(this.ChangedPrbLineExecute), new Predicate<DataGrid>(this.CanChangedPrbLineExecute));
+
+    public ICommand ChangedPrbLines => (ICommand) new RelayCommand<DataGrid>(new Action<DataGrid>(this.ChangedPrbLinesExecute), new Predicate<DataGrid>(this.CanChangedPrbLinesExecute));
+
+    public ICommand PrbChangedCombobox => (ICommand) new RelayCommand<DataGrid>(new Action<DataGrid>(this.PrbChangedComboboxExecute), new Predicate<DataGrid>(this.CanPrbChangedComboboxExecute));
+
+    public ICommand ReadData => (ICommand) new RelayCommand<DataGrid>(new Action<DataGrid>(this.ReadDataExecute), new Predicate<DataGrid>(this.CanReadDataExecute));
+
+    public ICommand Confirm => (ICommand) new RelayCommand<DataGrid>(new Action<DataGrid>(this.ConfirmExecute), new Predicate<DataGrid>(this.CanConfirmExecute));
+
+    public ICommand SetColor => (ICommand) new RelayCommand(new Action(this.SetColorExecute), new Func<bool>(this.CanSetColorExecute));
+  }
+}

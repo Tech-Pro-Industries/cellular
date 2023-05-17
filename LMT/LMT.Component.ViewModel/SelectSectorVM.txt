@@ -1,0 +1,106 @@
+using CommonUtility;
+using LMT.Utils;
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Windows.Input;
+
+namespace LMT.Component.ViewModel
+{
+  public class SelectSectorVM : INotifyPropertyChanged
+  {
+    private string _ip;
+    private Dictionary<string, Dictionary<string, string>> _cellInfoList;
+    private Dictionary<int, string> _cellIdList;
+    private string cellId;
+    public SelectSectorVM.SelectCellId selectCellId;
+
+    public SelectSectorVM(string ip)
+    {
+      this._ip = ip;
+      this._cellInfoList = new Dictionary<string, Dictionary<string, string>>();
+      this._cellIdList = new Dictionary<int, string>();
+      this.GetCellID();
+    }
+
+    public Dictionary<int, string> CellIdList
+    {
+      get => this._cellIdList;
+      set
+      {
+        this._cellIdList = value;
+        this.NotifyPropertyChange(nameof (CellIdList));
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void GetCellID()
+    {
+      if (CSEnbHelper.GetStationFrameType(this._ip) == EnbTypeEnum.ENB_EMB6116)
+      {
+        this._cellInfoList = DataGridUtils.GetTableLineInfo("nrCellCfgEntry", true, this._ip, (string) null);
+        try
+        {
+          int key1 = -1;
+          if (!this._cellIdList.ContainsKey(key1))
+          {
+            this._cellIdList.Add(key1, "=请选择小区ID=");
+            ++key1;
+          }
+          foreach (string key2 in this._cellInfoList.Keys)
+          {
+            string str = key2.Substring(1, key2.Length - 1);
+            if (!this._cellIdList.ContainsKey(key1))
+            {
+              this._cellIdList.Add(key1, str);
+              ++key1;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          int num = (int) CustomMessageBox.Show("Get nrCellCfgLcId failed, nrCellCfgEntry is not exist" + ex.ToString());
+        }
+      }
+      else
+      {
+        this._cellInfoList = DataGridUtils.GetTableLineInfo("CellCfgEntry", true, this._ip, (string) null);
+        if (this._cellInfoList != null)
+          return;
+        int num = (int) CustomMessageBox.Show("Get cellCfgLcId failed, CellCfgEntry is not exist");
+      }
+    }
+
+    private void CellIdChangedExecute(KeyValuePair<int, string> pair) => this.cellId = pair.Value;
+
+    private bool CanCellIdChangedExecute(KeyValuePair<int, string> pair) => true;
+
+    private void ConfirmExecute(CustomWindow cw)
+    {
+      if (cw == null)
+        return;
+      cw.Close();
+      if (string.IsNullOrEmpty(this.cellId) || string.Equals(this.cellId, "=请选择小区ID="))
+        return;
+      this.selectCellId(this.cellId);
+      this.cellId = (string) null;
+    }
+
+    private bool CanConfirmExecute(CustomWindow cw) => true;
+
+    public ICommand Confirm => (ICommand) new RelayCommand<CustomWindow>(new Action<CustomWindow>(this.ConfirmExecute), new Predicate<CustomWindow>(this.CanConfirmExecute));
+
+    public ICommand CellIdChanged => (ICommand) new RelayCommand<KeyValuePair<int, string>>(new Action<KeyValuePair<int, string>>(this.CellIdChangedExecute), new Predicate<KeyValuePair<int, string>>(this.CanCellIdChangedExecute));
+
+    public delegate void SelectCellId(string str);
+  }
+}

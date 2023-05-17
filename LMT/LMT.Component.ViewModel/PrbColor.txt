@@ -1,0 +1,18 @@
+namespace LMT.Component.ViewModel
+{
+  public enum PrbColor
+  {
+    PRB00Color,
+    PRB01Color,
+    PRB02Color,
+    PRB04Color,
+    PRB08Color,
+    PRB10Color,
+    PRB20Color,
+    PRB40Color,
+    PRB80Color,
+    PRB100Color,
+    PRBConflictColor,
+    PRBMulti,
+  }
+}

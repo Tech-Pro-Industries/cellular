@@ -1,0 +1,44 @@
+using System;
+using System.Diagnostics;
+using System.Windows.Input;
+
+namespace LMT.Component.ViewModel
+{
+  public class RelayCommand<T> : ICommand
+  {
+    private readonly Predicate<T> _canExecute;
+    private readonly Action<T> _execute;
+
+    public RelayCommand(Action<T> execute)
+      : this(execute, (Predicate<T>) null)
+    {
+    }
+
+    public RelayCommand(Action<T> execute, Predicate<T> canExecute)
+    {
+      this._execute = execute != null ? execute : throw new ArgumentNullException(nameof (execute));
+      this._canExecute = canExecute;
+    }
+
+    public event EventHandler CanExecuteChanged
+    {
+      add
+      {
+        if (this._canExecute == null)
+          return;
+        CommandManager.RequerySuggested += value;
+      }
+      remove
+      {
+        if (this._canExecute == null)
+          return;
+        CommandManager.RequerySuggested -= value;
+      }
+    }
+
+    [DebuggerStepThrough]
+    public bool CanExecute(object parameter) => this._canExecute == null || this._canExecute((T) parameter);
+
+    public void Execute(object parameter) => this._execute((T) parameter);
+  }
+}

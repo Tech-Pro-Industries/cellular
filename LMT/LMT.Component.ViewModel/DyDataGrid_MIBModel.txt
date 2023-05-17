@@ -1,0 +1,152 @@
+using MIBDataParser;
+using System;
+using System.Collections.Generic;
+using System.Dynamic;
+using System.Linq;
+
+namespace LMT.Component.ViewModel
+{
+  public class DyDataGrid_MIBModel : DynamicObject
+  {
+    public Dictionary<string, object> Properties = new Dictionary<string, object>();
+    public Dictionary<string, string> ColName_Property = new Dictionary<string, string>();
+    public object TableProperty = new object();
+
+    public List<Tuple<string, string, object>> PropertyList { get; set; }
+
+    public override bool TrySetMember(SetMemberBinder binder, object value)
+    {
+      if (!this.Properties.Keys.Contains<string>(binder.Name))
+        this.Properties.Add(binder.Name, value);
+      return true;
+    }
+
+    public override bool TryInvokeMember(
+      InvokeMemberBinder binder,
+      object[] args,
+      out object result)
+    {
+      if (binder.Name == "AddProperty" && binder.CallInfo.ArgumentCount == 3)
+      {
+        if (!(args[0] is string key1) || this.Properties.ContainsKey(key1))
+        {
+          result = (object) null;
+          return true;
+        }
+        if (this.Properties.Count > 0 && this.Properties.ContainsKey(key1))
+        {
+          result = (object) null;
+          return true;
+        }
+        object obj = args[1];
+        this.Properties.Add(key1, obj);
+        string key2 = args[2] as string;
+        if (string.IsNullOrEmpty(key2))
+        {
+          result = (object) null;
+          return false;
+        }
+        if (this.ColName_Property.ContainsKey(key2))
+        {
+          result = (object) null;
+          return true;
+        }
+        this.ColName_Property.Add(key2, key1);
+        this.PropertyList.Add(new Tuple<string, string, object>(key1, key2, obj));
+        result = obj;
+        return true;
+      }
+      if (binder.Name == "JudgePropertyName_StartEditing" && binder.CallInfo.ArgumentCount == 1)
+      {
+        if (!(args[0] is string key3))
+        {
+          result = (object) null;
+          return false;
+        }
+        if (this.ColName_Property.ContainsKey(key3))
+        {
+          string key4 = this.ColName_Property[key3];
+          if (this.Properties.ContainsKey(key4))
+          {
+            object property = this.Properties[key4];
+            if (property is GridCell gridCell)
+              gridCell.EditingCallback();
+            result = property;
+            return true;
+          }
+        }
+        else
+        {
+          result = (object) null;
+          return false;
+        }
+      }
+      if (binder.Name == "AddTableProperty" && binder.CallInfo.ArgumentCount == 1)
+      {
+        if ((args[0] is MibTableInfo mibTableInfo ? mibTableInfo.nameCh : (string) null) == null)
+        {
+          result = (object) null;
+          return false;
+        }
+        object obj = args[0];
+        this.TableProperty = obj;
+        result = obj;
+        return true;
+      }
+      if (binder.Name == "AddParaProperty" && binder.CallInfo.ArgumentCount == 3)
+      {
+        if (!(args[0] is string key5) || this.Properties.ContainsKey(key5))
+        {
+          result = (object) null;
+          return false;
+        }
+        object obj = args[1];
+        this.Properties.Add(key5, obj);
+        if (!(args[2] is string key6))
+        {
+          result = (object) null;
+          return false;
+        }
+        if (!this.ColName_Property.ContainsKey(key6))
+          this.ColName_Property.Add(key6, key5);
+        this.PropertyList.Add(new Tuple<string, string, object>(key5, key6, obj));
+        result = obj;
+        return true;
+      }
+      if (binder.Name == "JudgeParaPropertyName_StartEditing" && binder.CallInfo.ArgumentCount == 1)
+      {
+        if (!(args[0] is string key7))
+        {
+          result = (object) null;
+          return false;
+        }
+        if (this.ColName_Property.ContainsKey(key7))
+        {
+          string key8 = this.ColName_Property[key7];
+          if (this.Properties.ContainsKey(key8))
+          {
+            object property = this.Properties[key8];
+            if (property is GridCell gridCell)
+              gridCell.EditingCallback();
+            result = property;
+            return true;
+          }
+        }
+        else
+        {
+          result = (object) null;
+          return false;
+        }
+      }
+      return base.TryInvokeMember(binder, args, out result);
+    }
+
+    public override bool TryGetMember(GetMemberBinder binder, out object result)
+    {
+      result = (object) null;
+      return !this.Properties.ContainsKey(binder.Name) || this.Properties.TryGetValue(binder.Name, out result);
+    }
+
+    public DyDataGrid_MIBModel() => this.PropertyList = new List<Tuple<string, string, object>>();
+  }
+}

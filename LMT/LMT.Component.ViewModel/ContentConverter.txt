@@ -1,0 +1,55 @@
+using CommonUtility;
+using System;
+using System.Globalization;
+using System.Windows.Data;
+
+namespace LMT.Component.ViewModel
+{
+  public class ContentConverter : IValueConverter
+  {
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+      string str = value.ToString().Trim();
+      if (!string.IsNullOrEmpty(str))
+      {
+        if (str.Contains(",") && !str.Contains(";"))
+          return (object) Singleton<ColorValue>.GetInstance().PRBConflict;
+        if (str.Contains(",") && str.Contains(";"))
+          return (object) Singleton<ColorValue>.GetInstance().PRBMulti;
+        switch (str)
+        {
+          case "IDLE":
+            return (object) Singleton<ColorValue>.GetInstance().PRB00;
+          case "OVEREDGE":
+            return (object) Singleton<ColorValue>.GetInstance().PRB01;
+          case "PRACH":
+            return (object) Singleton<ColorValue>.GetInstance().PRB02;
+          case "PUCCH-C":
+            return (object) Singleton<ColorValue>.GetInstance().PRB04;
+          case "SR1":
+            return (object) Singleton<ColorValue>.GetInstance().PRB08;
+          case "SR2":
+            return (object) Singleton<ColorValue>.GetInstance().PRB10;
+          case "SR3":
+            return (object) Singleton<ColorValue>.GetInstance().PRB20;
+          case "CSI":
+            return (object) Singleton<ColorValue>.GetInstance().PRB40;
+          case "ACK0":
+            return (object) Singleton<ColorValue>.GetInstance().PRB80;
+          case "ACK1":
+            return (object) Singleton<ColorValue>.GetInstance().PRB100;
+        }
+      }
+      return (object) null;
+    }
+
+    public object ConvertBack(
+      object value,
+      Type targetType,
+      object parameter,
+      CultureInfo culture)
+    {
+      throw new NotImplementedException();
+    }
+  }
+}

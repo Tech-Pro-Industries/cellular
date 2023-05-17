@@ -1,0 +1,75 @@
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Windows.Input;
+
+namespace LMT.Component.ViewModel
+{
+  public class SelectPrbVM : INotifyPropertyChanged
+  {
+    private Dictionary<int, string> _prbList;
+    private string _selectPrb;
+    public SelectPrbVM.GetPrbChange getPrbChange;
+
+    public Dictionary<int, string> PrbList
+    {
+      get => this._prbList;
+      set
+      {
+        this._prbList = value;
+        this.NotifyPropertyChange(nameof (PrbList));
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public SelectPrbVM(List<string> list)
+    {
+      this._prbList = new Dictionary<int, string>();
+      if (this._prbList.ContainsKey(-1))
+        return;
+      this._prbList.Add(-1, "=请选择=");
+      for (int index = 0; index < list.Count; ++index)
+      {
+        if (!this._prbList.ContainsKey(index))
+          this._prbList.Add(index, list[index]);
+      }
+    }
+
+    private void PrbChangedExecute(KeyValuePair<int, string> pair)
+    {
+      if (pair.Value == null)
+        return;
+      this._selectPrb = pair.Value;
+    }
+
+    private bool CanPrbChangedExecute(KeyValuePair<int, string> pair) => true;
+
+    private void ClosePrbWindowExecute(CustomWindow win)
+    {
+      if (win == null)
+        return;
+      win.Close();
+      if (string.IsNullOrEmpty(this._selectPrb) || string.Equals(this._selectPrb, "=请选择="))
+        return;
+      this.getPrbChange(this._selectPrb);
+      this._selectPrb = (string) null;
+    }
+
+    private bool CanClosePrbWindowExecute(CustomWindow win) => true;
+
+    public ICommand PrbChanged => (ICommand) new RelayCommand<KeyValuePair<int, string>>(new Action<KeyValuePair<int, string>>(this.PrbChangedExecute), new Predicate<KeyValuePair<int, string>>(this.CanPrbChangedExecute));
+
+    public ICommand ClosePrbWindow => (ICommand) new RelayCommand<CustomWindow>(new Action<CustomWindow>(this.ClosePrbWindowExecute), new Predicate<CustomWindow>(this.CanClosePrbWindowExecute));
+
+    public delegate void GetPrbChange(string str);
+  }
+}

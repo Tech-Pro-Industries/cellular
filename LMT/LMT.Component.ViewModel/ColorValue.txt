@@ -1,0 +1,96 @@
+using CommonUtility;
+
+namespace LMT.Component.ViewModel
+{
+  public class ColorValue : Singleton<ColorValue>
+  {
+    public ColorValue.PrbColorChanged prbColorChanged;
+
+    public string PRB00 { get; set; }
+
+    public string PRB01 { get; set; }
+
+    public string PRB02 { get; set; }
+
+    public string PRB04 { get; set; }
+
+    public string PRB08 { get; set; }
+
+    public string PRB10 { get; set; }
+
+    public string PRB20 { get; set; }
+
+    public string PRB40 { get; set; }
+
+    public string PRB80 { get; set; }
+
+    public string PRB100 { get; set; }
+
+    public string PRBConflict { get; set; }
+
+    public string PRBMulti { get; set; }
+
+    public ColorValue()
+    {
+      this.PRB00 = "White";
+      this.PRB01 = "#ffc6ff00";
+      this.PRB02 = "#ff96ff00";
+      this.PRB04 = "#ff80ffff";
+      this.PRB08 = "#ffff8000";
+      this.PRB10 = "#ffff80ff";
+      this.PRB20 = "LightGray";
+      this.PRB40 = "DeepSkyBlue";
+      this.PRB80 = "SkyBlue";
+      this.PRB100 = "Yellow";
+      this.PRBConflict = "Red";
+      this.PRBMulti = "#8000FF";
+    }
+
+    public void setColor(PrbColor prbColor, string color)
+    {
+      switch (prbColor)
+      {
+        case PrbColor.PRB00Color:
+          this.PRB00 = color;
+          break;
+        case PrbColor.PRB01Color:
+          this.PRB01 = color;
+          break;
+        case PrbColor.PRB02Color:
+          this.PRB02 = color;
+          break;
+        case PrbColor.PRB04Color:
+          this.PRB04 = color;
+          break;
+        case PrbColor.PRB08Color:
+          this.PRB08 = color;
+          break;
+        case PrbColor.PRB10Color:
+          this.PRB10 = color;
+          break;
+        case PrbColor.PRB20Color:
+          this.PRB20 = color;
+          break;
+        case PrbColor.PRB40Color:
+          this.PRB40 = color;
+          break;
+        case PrbColor.PRB80Color:
+          this.PRB80 = color;
+          break;
+        case PrbColor.PRB100Color:
+          this.PRB100 = color;
+          break;
+        case PrbColor.PRBConflictColor:
+          this.PRBConflict = color;
+          break;
+        case PrbColor.PRBMulti:
+          this.PRBMulti = color;
+          break;
+      }
+    }
+
+    public void changedColor() => this.prbColorChanged();
+
+    public delegate void PrbColorChanged();
+  }
+}
