@@ -1,0 +1,8 @@
+namespace LMT.Utils
+{
+  public class WrapOrder
+  {
+    public string mib;
+    public int order;
+  }
+}

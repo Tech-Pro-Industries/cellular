@@ -1,0 +1,76 @@
+using LMT.ViewModel;
+using System.Collections;
+using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace LMT.Utils
+{
+  public class TreeViewHelper
+  {
+    private static Dictionary<DependencyObject, TreeViewHelper.TreeViewSelectedItemBehavior> behaviors = new Dictionary<DependencyObject, TreeViewHelper.TreeViewSelectedItemBehavior>();
+    public static readonly DependencyProperty SelectedItemProperty = DependencyProperty.RegisterAttached("SelectedItem", typeof (object), typeof (TreeViewHelper), (PropertyMetadata) new UIPropertyMetadata((object) null, new PropertyChangedCallback(TreeViewHelper.SelectedItemChanged)));
+
+    public static object GetSelectedItem(DependencyObject obj) => obj.GetValue(TreeViewHelper.SelectedItemProperty);
+
+    public static void SetSelectedItem(DependencyObject obj, object value) => obj.SetValue(TreeViewHelper.SelectedItemProperty, value);
+
+    private static void SelectedItemChanged(
+      DependencyObject obj,
+      DependencyPropertyChangedEventArgs e)
+    {
+      if (!(obj is TreeView))
+        return;
+      if (!TreeViewHelper.behaviors.ContainsKey(obj))
+        TreeViewHelper.behaviors.Add(obj, new TreeViewHelper.TreeViewSelectedItemBehavior(obj as TreeView));
+      TreeViewHelper.behaviors[obj].ChangeSelectedItem(e.NewValue);
+    }
+
+    private class TreeViewSelectedItemBehavior
+    {
+      private TreeView view;
+
+      public TreeViewSelectedItemBehavior(TreeView view)
+      {
+        this.view = view;
+        view.SelectedItemChanged += (RoutedPropertyChangedEventHandler<object>) ((sender, e) => TreeViewHelper.SetSelectedItem((DependencyObject) view, e.NewValue));
+      }
+
+      internal void ChangeSelectedItem(object p)
+      {
+        if (!(p is ObjNodeModel data))
+          return;
+        this.view.UpdateLayout();
+        foreach (object obj in (IEnumerable) this.view.Items)
+        {
+          TreeViewItem tvi = (TreeViewItem) this.view.ItemContainerGenerator.ContainerFromItem(obj);
+          if (tvi != null && this.SetSelect(tvi, data))
+            break;
+        }
+      }
+
+      private bool SetSelect(TreeViewItem tvi, ObjNodeModel data)
+      {
+        if (tvi == null || data == null || tvi.Items.Count <= 0)
+          return false;
+        foreach (object obj in (IEnumerable) tvi.Items)
+        {
+          ObjNodeModel objNodeModel = (ObjNodeModel) obj;
+          TreeViewItem tvi1 = (TreeViewItem) tvi.ItemContainerGenerator.ContainerFromItem(obj);
+          if (tvi1 != null && objNodeModel != null)
+          {
+            if (data.ObjID == objNodeModel.ObjID && data.ObjName == objNodeModel.ObjName)
+            {
+              tvi1.IsSelected = true;
+              tvi1.BringIntoView();
+              return true;
+            }
+            if (tvi1.Items.Count > 0)
+              this.SetSelect(tvi1, data);
+          }
+        }
+        return false;
+      }
+    }
+  }
+}

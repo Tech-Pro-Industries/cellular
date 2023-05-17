@@ -1,0 +1,941 @@
+using BidCfgParser;
+using CfgFileOperation.UIShowManger;
+using CommonUtility;
+using DataConsistencyParse;
+using LinkPath;
+using LMT.Component.ViewModel;
+using LMT.View;
+using LMT.ViewModel;
+using LmtbSnmp;
+using LogManager;
+using MIBDataParser;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using UILanguageHelper;
+
+namespace LMT.Utils
+{
+  public class DataGridUtils
+  {
+    public static bool UpdateGridByPdu(Dictionary<string, object> dataSource, CDTLmtbPdu lmtPdu)
+    {
+      if (lmtPdu == null)
+      {
+        Log.Error("参数lmtPdu为空!", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 41, nameof (UpdateGridByPdu));
+        return false;
+      }
+      for (int index = 0; index < lmtPdu.VbCount(); ++index)
+      {
+        CDTLmtbVb cdtLmtbVb = new CDTLmtbVb();
+        lmtPdu.GetVbByIndex(index, ref cdtLmtbVb);
+        MibLeafInfo mibNodeInfoByOid = SnmpToDatabase.GetMibNodeInfoByOid(cdtLmtbVb.Oid.Substring(0, cdtLmtbVb.Oid.LastIndexOf('.')), CSEnbHelper.GetCurEnbAddr());
+        if (mibNodeInfoByOid != null)
+        {
+          string childNameMib = mibNodeInfoByOid.childNameMib;
+          if (dataSource.ContainsKey(childNameMib))
+          {
+            object obj = dataSource[childNameMib];
+            if (typeof (DataGrid_Cell_MIB_ENUM) == obj.GetType())
+            {
+              DataGrid_Cell_MIB_ENUM dataGridCellMibEnum = (DataGrid_Cell_MIB_ENUM) obj;
+              dataGridCellMibEnum.m_CurrentValue = Convert.ToInt32(cdtLmtbVb.Value);
+              dataGridCellMibEnum.m_Content = dataGridCellMibEnum.m_AllContent[Convert.ToInt32(cdtLmtbVb.Value)];
+            }
+            else if (typeof (DataGrid_Cell_MIB) == obj.GetType())
+              ((GridCell) obj).m_Content = cdtLmtbVb.Value;
+          }
+        }
+      }
+      return true;
+    }
+
+    public static bool MakeSnmpVbs(
+      Dictionary<string, object> lineData,
+      Dictionary<string, string> enName2Value,
+      ref List<CDTLmtbVb> setVbs,
+      out string strErr,
+      UICmdOperatorType cmdType,
+      string strTargetIp)
+    {
+      strErr = "";
+      string str1 = (string) null;
+      if (setVbs == null)
+        setVbs = new List<CDTLmtbVb>();
+      foreach (KeyValuePair<string, object> keyValuePair in lineData)
+      {
+        string str2 = (string) null;
+        string key = keyValuePair.Key;
+        object obj = keyValuePair.Value;
+        if (!"indexlist".Equals(key))
+        {
+          if (typeof (DataGrid_Cell_MIB_ENUM) == obj.GetType())
+          {
+            DataGrid_Cell_MIB_ENUM dataGridCellMibEnum = (DataGrid_Cell_MIB_ENUM) obj;
+            str2 = dataGridCellMibEnum.oid;
+            str1 = dataGridCellMibEnum.m_CurrentValue.ToString();
+          }
+          else if (typeof (DataGrid_Cell_MIB) == obj.GetType())
+          {
+            DataGrid_Cell_MIB dataGridCellMib = (DataGrid_Cell_MIB) obj;
+            str2 = dataGridCellMib.oid;
+            str1 = dataGridCellMib.m_Content;
+          }
+          else if (typeof (DataGrid_Cell_MIB_BIT) == obj.GetType())
+          {
+            DataGrid_Cell_MIB_BIT dataGridCellMibBit = (DataGrid_Cell_MIB_BIT) obj;
+            str2 = dataGridCellMibBit.oid;
+            str1 = dataGridCellMibBit.m_Content;
+          }
+          string strInputValue = !enName2Value.ContainsKey(key) ? str1 : enName2Value[key];
+          if (string.IsNullOrEmpty(str2))
+          {
+            strErr = LanguageServices.Current.GetTextValue("BaseInfo_Log_124");
+            Log.Error(strErr, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 164, nameof (MakeSnmpVbs));
+            return false;
+          }
+          MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(key, strTargetIp);
+          if (mibNodeInfoByName == null)
+          {
+            strErr = string.Format(string.Format("{0}，enName:{1}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_125"), (object) 0), (object) key);
+            Log.Error(strErr, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 173, nameof (MakeSnmpVbs));
+            return false;
+          }
+          if (!(mibNodeInfoByName.ASNType == "RowStatus") || cmdType != UICmdOperatorType.Modify && cmdType != UICmdOperatorType.Other)
+          {
+            if (string.Equals("BITS", mibNodeInfoByName.mibSyntax, StringComparison.OrdinalIgnoreCase))
+            {
+              uint outValue;
+              SnmpMibUtil.GetBitsTypeValueFromDesc(mibNodeInfoByName.managerValueRange, strInputValue, out outValue);
+              strInputValue = outValue.ToString();
+            }
+            setVbs.Add(new CDTLmtbVb()
+            {
+              Oid = str2,
+              Value = strInputValue,
+              SnmpSyntax = LmtbSnmpEx.GetSyntax(mibNodeInfoByName.mibSyntax)
+            });
+          }
+        }
+      }
+      return true;
+    }
+
+    public static bool MakeEnName2Value(
+      Dictionary<string, object> lineData,
+      ref Dictionary<string, string> enName2Value)
+    {
+      if (enName2Value == null)
+        enName2Value = new Dictionary<string, string>();
+      string str = (string) null;
+      foreach (KeyValuePair<string, object> keyValuePair in lineData)
+      {
+        string key = keyValuePair.Key;
+        if (typeof (DataGrid_Cell_MIB_ENUM) == keyValuePair.Value.GetType())
+          str = ((DataGrid_Cell_MIB_ENUM) keyValuePair.Value).m_CurrentValue.ToString();
+        else if (typeof (DataGrid_Cell_MIB) == keyValuePair.Value.GetType())
+          str = ((GridCell) keyValuePair.Value).m_Content;
+        else if (typeof (DataGrid_Cell_MIB_BIT) == keyValuePair.Value.GetType())
+          str = ((GridCell) keyValuePair.Value).m_Content;
+        if (!enName2Value.ContainsKey(key))
+          enName2Value.Add(key, str);
+      }
+      return true;
+    }
+
+    public static bool GetMibIndex(
+      Dictionary<string, object> lineData,
+      int nIdxGrade,
+      out string strIndex)
+    {
+      strIndex = "";
+      string fulloid = (string) null;
+      foreach (KeyValuePair<string, object> keyValuePair in lineData)
+      {
+        if (!keyValuePair.Key.Equals("indexlist"))
+        {
+          if (typeof (DataGrid_Cell_MIB_ENUM) == keyValuePair.Value.GetType())
+            fulloid = ((GridCell) keyValuePair.Value).oid;
+          else if (typeof (DataGrid_Cell_MIB) == keyValuePair.Value.GetType())
+            fulloid = ((GridCell) keyValuePair.Value).oid;
+          if (!string.IsNullOrEmpty(fulloid))
+          {
+            string indexValueByGrade = MibStringHelper.GetIndexValueByGrade(fulloid, nIdxGrade);
+            if (indexValueByGrade != null)
+            {
+              Log.Debug(string.Format("根据oid:{0}截取出{1}维索引：{2}", (object) fulloid, (object) nIdxGrade, (object) indexValueByGrade), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 294, nameof (GetMibIndex));
+              strIndex = indexValueByGrade;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    public static bool GetOidAndEnName(
+      DataGridCellInfo cellInfo,
+      out string oid,
+      out string mibNameEn)
+    {
+      oid = (string) null;
+      mibNameEn = (string) null;
+      string key = cellInfo.Column.Header.ToString();
+      DyDataGrid_MIBModel dataGridMibModel = (DyDataGrid_MIBModel) cellInfo.Item;
+      Dictionary<string, object> properties = dataGridMibModel.Properties;
+      Dictionary<string, string> colNameProperty = dataGridMibModel.ColName_Property;
+      if (!colNameProperty.ContainsKey(key))
+        return false;
+      mibNameEn = colNameProperty[key];
+      if (properties.ContainsKey(mibNameEn))
+      {
+        object obj = properties[mibNameEn];
+        if (typeof (DataGrid_Cell_MIB_ENUM) == obj.GetType())
+        {
+          DataGrid_Cell_MIB_ENUM dataGridCellMibEnum = (DataGrid_Cell_MIB_ENUM) obj;
+          oid = dataGridCellMibEnum.oid;
+        }
+        else if (typeof (DataGrid_Cell_MIB) == obj.GetType())
+        {
+          DataGrid_Cell_MIB dataGridCellMib = (DataGrid_Cell_MIB) obj;
+          oid = dataGridCellMib.oid;
+        }
+      }
+      return true;
+    }
+
+    public static bool GetValueFromCurrentCell(
+      DyDataGrid_MIBModel mibModel,
+      string cnHeader,
+      out string value,
+      out string mibNameEn,
+      out string oid,
+      out string cellContent,
+      out bool isBit)
+    {
+      value = (string) null;
+      mibNameEn = (string) null;
+      oid = (string) null;
+      cellContent = (string) null;
+      isBit = false;
+      if (mibModel == null)
+        return false;
+      Dictionary<string, object> properties = mibModel.Properties;
+      if (properties == null)
+        return false;
+      Dictionary<string, string> colNameProperty = mibModel.ColName_Property;
+      if (colNameProperty == null || !colNameProperty.ContainsKey(cnHeader))
+        return false;
+      mibNameEn = colNameProperty[cnHeader];
+      if (!properties.ContainsKey(mibNameEn))
+        return false;
+      object obj = properties[mibNameEn];
+      if (typeof (DataGrid_Cell_MIB_ENUM) == obj.GetType())
+      {
+        DataGrid_Cell_MIB_ENUM dataGridCellMibEnum = (DataGrid_Cell_MIB_ENUM) obj;
+        int mCurrentValue = dataGridCellMibEnum.m_CurrentValue;
+        value = mCurrentValue.ToString();
+        cellContent = dataGridCellMibEnum.m_AllContent.ContainsKey(mCurrentValue) ? dataGridCellMibEnum.m_AllContent[mCurrentValue] : "";
+        oid = dataGridCellMibEnum.oid;
+      }
+      else if (typeof (DataGrid_Cell_MIB) == obj.GetType())
+      {
+        DataGrid_Cell_MIB dataGridCellMib = (DataGrid_Cell_MIB) obj;
+        value = dataGridCellMib.m_Content;
+        oid = dataGridCellMib.oid;
+        if (dataGridCellMib.cellDataType == DataGrid_CellDataType.DateTime)
+          value = Convert.ToDateTime(value.ToString()).ToString("yyyy-MM-dd HH:mm:ss");
+        cellContent = value;
+      }
+      else
+      {
+        if (!(typeof (DataGrid_Cell_MIB_BIT) == obj.GetType()))
+          return false;
+        DataGrid_Cell_MIB_BIT dataGridCellMibBit = (DataGrid_Cell_MIB_BIT) obj;
+        value = dataGridCellMibBit.m_Content;
+        oid = dataGridCellMibBit.oid;
+        cellContent = value;
+        isBit = true;
+      }
+      return true;
+    }
+
+    public static bool IsValueChanged(
+      Dictionary<string, object> lineData,
+      string mibNameEn,
+      string strValue)
+    {
+      if (!lineData.ContainsKey(mibNameEn))
+        return false;
+      object obj = lineData[mibNameEn];
+      if (typeof (DataGrid_Cell_MIB_ENUM) == obj.GetType())
+      {
+        if (((DataGrid_Cell_MIB_ENUM) obj).m_CurrentValue != Convert.ToInt32(strValue))
+          return true;
+      }
+      else if (typeof (DataGrid_Cell_MIB) == obj.GetType())
+      {
+        if (string.Compare(((GridCell) obj).m_Content, strValue) != 0)
+          return true;
+      }
+      else if (typeof (DataGrid_Cell_MIB_BIT) == obj.GetType())
+      {
+        string.Compare(((GridCell) obj).m_Content, strValue);
+        return true;
+      }
+      return false;
+    }
+
+    public static bool GetIndexNodeInfo(
+      string index,
+      MibTableInfo tbl,
+      ref string oid,
+      ref string showInfo,
+      string ipOrVer)
+    {
+      if (tbl == null)
+        return false;
+      string[] strArray = index.Trim('.').Split('.');
+      int index1 = 0;
+      foreach (MibLeafInfo child in tbl.childList)
+      {
+        if (child.IsIndex.Equals("True"))
+        {
+          showInfo = showInfo + child.childNameCh + DataGridUtils.GetShowContentIndex(child.childOid, strArray[index1], ipOrVer) + " ";
+          ++index1;
+        }
+      }
+      oid = SnmpToDatabase.GetMibPrefix() + tbl.oid;
+      return true;
+    }
+
+    public static bool GetIndexFromLmtbPdu(CDTLmtbPdu lmtPdu, int nIndexNum, ref string index)
+    {
+      if (lmtPdu.VbCount() > 0)
+      {
+        string oid = lmtPdu.GetVbByIndexEx(0)?.Oid;
+        if (string.IsNullOrEmpty(oid))
+          return false;
+        index = MibStringHelper.GetIndexValueByGrade(oid, nIndexNum);
+      }
+      return true;
+    }
+
+    public static string GetShowContentIndex(string oid, string value, string ipOrVer)
+    {
+      MibLeafInfo mibNodeInfoByOid = SnmpToDatabase.GetMibNodeInfoByOid(oid, ipOrVer);
+      string showContentIndex;
+      switch (SnmpToDatabase.GetMibNodeDataType(mibNodeInfoByOid.childNameMib, ipOrVer))
+      {
+        case DataGrid_CellDataType.enumType:
+          Dictionary<int, string> enumContent = SnmpToDatabase.ConvertSnmpValueToEnumContent(mibNodeInfoByOid.childNameMib, ipOrVer);
+          showContentIndex = enumContent == null || enumContent.Count <= 0 ? value : enumContent.FirstOrDefault<KeyValuePair<int, string>>((Func<KeyValuePair<int, string>, bool>) (q => q.Key.ToString() == value)).Value;
+          break;
+        case DataGrid_CellDataType.bitType:
+          showContentIndex = SnmpToDatabase.ConvertSnmpValueToString(mibNodeInfoByOid.childNameMib, value, ipOrVer) as string;
+          break;
+        default:
+          showContentIndex = value;
+          break;
+      }
+      return showContentIndex;
+    }
+
+    public static bool MakeSnmpVbs(
+      Dictionary<string, string> oID2Value,
+      Dictionary<string, string> oID2enName,
+      ref List<CDTLmtbVb> setVbs,
+      out string strErr,
+      UICmdOperatorType cmdType,
+      string strTargetIp)
+    {
+      strErr = "";
+      if (setVbs == null)
+        setVbs = new List<CDTLmtbVb>();
+      foreach (KeyValuePair<string, string> keyValuePair in oID2Value)
+      {
+        string key = keyValuePair.Key;
+        string strInputValue = keyValuePair.Value;
+        if (oID2enName.ContainsKey(key))
+        {
+          string mibName = oID2enName[key];
+          if (string.IsNullOrEmpty(key))
+          {
+            Log.Error("无法获取oid！", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 612, nameof (MakeSnmpVbs));
+            return false;
+          }
+          MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(mibName, strTargetIp);
+          if (mibNodeInfoByName == null)
+          {
+            Log.Error(string.Format("获取Mib节点错误，enName:{0}", (object) mibName), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 620, nameof (MakeSnmpVbs));
+            return false;
+          }
+          if (!(mibNodeInfoByName.ASNType == "RowStatus") || cmdType != UICmdOperatorType.Modify && cmdType != UICmdOperatorType.Other)
+          {
+            if (string.Equals("BITS", mibNodeInfoByName.mibSyntax, StringComparison.OrdinalIgnoreCase))
+            {
+              uint outValue;
+              SnmpMibUtil.GetBitsTypeValueFromDesc(mibNodeInfoByName.managerValueRange, strInputValue, out outValue);
+              strInputValue = outValue.ToString();
+            }
+            setVbs.Add(new CDTLmtbVb()
+            {
+              Oid = key,
+              Value = strInputValue,
+              SnmpSyntax = LmtbSnmpEx.GetSyntax(mibNodeInfoByName.mibSyntax)
+            });
+          }
+        }
+      }
+      return true;
+    }
+
+    public static void SetMainDataGridLineData(
+      ref Dictionary<string, Dictionary<string, string>> lineData,
+      List<Dictionary<string, string>> nextResult,
+      int IndexCount)
+    {
+      if (nextResult.Count == 0)
+        return;
+      if (lineData == null)
+        lineData = new Dictionary<string, Dictionary<string, string>>();
+      if (IndexCount > 0)
+      {
+        foreach (Dictionary<string, string> dictionary in nextResult)
+        {
+          string key = "";
+          int num = 0;
+          foreach (KeyValuePair<string, string> keyValuePair in dictionary)
+          {
+            if (num == 0)
+            {
+              string[] strArray = keyValuePair.Key.Split('.');
+              for (int index = strArray.Length - IndexCount; index < strArray.Length; ++index)
+                key = key + "." + strArray[index];
+            }
+            if (!lineData.ContainsKey(key))
+            {
+              lineData.Add(key, new Dictionary<string, string>());
+              lineData[key].Add(keyValuePair.Key, keyValuePair.Value);
+            }
+            else if (!lineData[key].ContainsKey(keyValuePair.Key))
+              lineData[key].Add(keyValuePair.Key, keyValuePair.Value);
+            ++num;
+          }
+        }
+      }
+      else
+      {
+        if (IndexCount != 0)
+          return;
+        foreach (Dictionary<string, string> dictionary in nextResult)
+        {
+          string key = ".0";
+          foreach (KeyValuePair<string, string> keyValuePair in dictionary)
+          {
+            if (!lineData.ContainsKey(key))
+            {
+              lineData.Add(key, new Dictionary<string, string>());
+              lineData[key].Add(keyValuePair.Key, keyValuePair.Value);
+            }
+            else if (!lineData[key].ContainsKey(keyValuePair.Key))
+              lineData[key].Add(keyValuePair.Key, keyValuePair.Value);
+          }
+        }
+      }
+    }
+
+    public static Dictionary<string, Dictionary<string, string>> GetTableLineInfo(
+      string tableName,
+      bool isOnLine,
+      string ip,
+      string cfgUUID)
+    {
+      try
+      {
+        Dictionary<string, Dictionary<string, string>> lineData = new Dictionary<string, Dictionary<string, string>>();
+        if (isOnLine)
+        {
+          MibTableInfo mibDataByTableName = Database.GetInstance().GetMibDataByTableName(tableName, ip);
+          if (mibDataByTableName == null)
+            return (Dictionary<string, Dictionary<string, string>>) null;
+          List<CmdMibInfo> cmdsInfoByEntryName = Database.GetInstance().GetCmdsInfoByEntryName(tableName, ip);
+          if (cmdsInfoByEntryName == null || cmdsInfoByEntryName.Count == 0)
+            return (Dictionary<string, Dictionary<string, string>>) null;
+          List<CmdMibInfo> all = cmdsInfoByEntryName.FindAll((Predicate<CmdMibInfo>) (p => p.m_cmdType.Equals("0")));
+          if (all.Count == 0)
+            return lineData;
+          ILmtbSnmp snmpInstance = DTLinkPathMgr.GetSnmpInstance(ip);
+          List<string> oidList = new List<string>();
+          foreach (CmdMibInfo cmdMibInfo in all)
+          {
+            if (cmdMibInfo.IsMONameShow())
+            {
+              oidList.Clear();
+              foreach (string oid in cmdMibInfo.m_leaflist)
+              {
+                MibLeafInfo mibNodeInfoByOid = SnmpToDatabase.GetMibNodeInfoByOid(oid, ip);
+                if ((mibNodeInfoByOid != null ? (mibNodeInfoByOid.IsRowStatus() ? 1 : 0) : 1) == 0 && mibNodeInfoByOid.IsValidMib())
+                {
+                  string str = SnmpToDatabase.GetMibPrefix() + oid;
+                  oidList.Add(str);
+                }
+              }
+              List<Dictionary<string, string>> oidValueTable;
+              if (!snmpInstance.SnmpGetNextLoop(ip, oidList, out oidValueTable))
+                Log.Error("执行SnmpGetNextLoop()方法错误！", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 777, nameof (GetTableLineInfo));
+              if (oidValueTable != null && oidValueTable.Count > 0)
+                DataGridUtils.SetMainDataGridLineData(ref lineData, oidValueTable, mibDataByTableName.indexNum);
+            }
+          }
+        }
+        else
+          lineData = CfgLogicMid.GetInstance().ConverCfgTableInfoToDataGrid(cfgUUID, tableName, out string _);
+        return lineData;
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 795, nameof (GetTableLineInfo));
+        return (Dictionary<string, Dictionary<string, string>>) null;
+      }
+    }
+
+    public static MibLeafInfo GetRowStatusInfo(CmdMibInfo info, string ip)
+    {
+      if (info == null)
+        return (MibLeafInfo) null;
+      MibLeafInfo rowStatusInfo = (MibLeafInfo) null;
+      foreach (string oid in info.m_leaflist)
+      {
+        rowStatusInfo = Database.GetInstance().GetMibDataByOid(oid, ip);
+        if (rowStatusInfo.ASNType.Equals("RowStatus"))
+          return rowStatusInfo;
+      }
+      return rowStatusInfo;
+    }
+
+    public static MibLeafInfo GetRowStatusInfo(string tableName, string ip)
+    {
+      if (string.IsNullOrWhiteSpace(tableName))
+        return (MibLeafInfo) null;
+      MibTableInfo mibDataByTableName = Database.GetInstance().GetMibDataByTableName(tableName, ip);
+      if (mibDataByTableName == null)
+        return (MibLeafInfo) null;
+      foreach (MibLeafInfo child in mibDataByTableName.childList)
+      {
+        if (child.ASNType.Equals("RowStatus"))
+          return child;
+      }
+      return (MibLeafInfo) null;
+    }
+
+    public static bool AddAndModifyCmd(
+      Dictionary<string, string> oidToValue,
+      Dictionary<string, string> oidToenName,
+      string ip,
+      UICmdOperatorType cmdType,
+      ref CDTLmtbPdu lmtPdu,
+      out string err)
+    {
+      err = "";
+      List<CDTLmtbVb> setVbs1 = new List<CDTLmtbVb>();
+      if (!DataGridUtils.MakeSnmpVbs(oidToValue, oidToenName, ref setVbs1, out err, cmdType, ip))
+      {
+        Log.Error(err, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 868, nameof (AddAndModifyCmd));
+        return false;
+      }
+      HashSet<List<CDTLmtbVb>> needSendVbsSet = new HashSet<List<CDTLmtbVb>>();
+      needSendVbsSet.Add(setVbs1);
+      if (cmdType == UICmdOperatorType.Modify)
+        DataGridUtils.FakeNrCellActiveVbs(ref needSendVbsSet, oidToenName, ip);
+      if (cmdType == UICmdOperatorType.Add)
+        DataGridUtils.FakeNrCellActiveVbs(ref needSendVbsSet, oidToenName, ip, "nrLocalCellConfigTrigger");
+      foreach (List<CDTLmtbVb> setVbs2 in needSendVbsSet)
+      {
+        if (CDTCmdExecuteMgr.VbsSetSync(setVbs2, out long _, ip, ref lmtPdu) != 0)
+        {
+          err = string.Format("参数配置失败，EnbIP:{0}", (object) ip);
+          Log.Error(err, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 895, nameof (AddAndModifyCmd));
+          return false;
+        }
+      }
+      return true;
+    }
+
+    public static bool FakeNrCellActiveVbs(
+      ref HashSet<List<CDTLmtbVb>> needSendVbsSet,
+      Dictionary<string, string> oidToenName,
+      string strTargetIp,
+      string strLimitMibName = "nrCellActiveTrigger")
+    {
+      if (needSendVbsSet == null)
+        return false;
+      if (needSendVbsSet.Count == 0 || !oidToenName.Values.Contains<string>(strLimitMibName) || !Singleton<BidHelper>.Instance.IsActiveBid())
+        return true;
+      string fromCmdExeResult = CommLinkPath.GetMibValueFromCmdExeResult(".0", "GetNRCellCfgInfo", "nrCellCfgAntStreamType", strTargetIp);
+      if (string.IsNullOrEmpty(fromCmdExeResult) || fromCmdExeResult != "15")
+      {
+        Log.Info(string.Format("[FAKE] nrCellCfgAntStreamType value is {0}, return only", (object) fromCmdExeResult), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 939, nameof (FakeNrCellActiveVbs));
+        return true;
+      }
+      List<CDTLmtbVb> cdtLmtbVbList = (List<CDTLmtbVb>) null;
+      Dictionary<string, bool> dictionary1 = new Dictionary<string, bool>();
+      foreach (List<CDTLmtbVb> source in needSendVbsSet)
+      {
+        if (source != null && source.Count != 0)
+        {
+          string indexValueByGrade = MibStringHelper.GetIndexValueByGrade(source.ElementAt<CDTLmtbVb>(0).Oid, 1);
+          if (!string.IsNullOrEmpty(indexValueByGrade))
+          {
+            string key = indexValueByGrade.Trim('.');
+            if (key == "0")
+              cdtLmtbVbList = source;
+            else
+              dictionary1[key] = true;
+          }
+        }
+      }
+      if (cdtLmtbVbList == null)
+        return true;
+      Dictionary<string, List<CDTLmtbVb>> dictionary2 = new Dictionary<string, List<CDTLmtbVb>>();
+      foreach (CDTLmtbVb cdtLmtbVb in cdtLmtbVbList)
+      {
+        if (!string.IsNullOrEmpty(cdtLmtbVb.Oid))
+        {
+          for (int index = 1; index <= 1; ++index)
+          {
+            string str = string.Format(".{0}", (object) index);
+            if (!dictionary1.ContainsKey(str))
+            {
+              CDTLmtbVb pVb;
+              cdtLmtbVb.Copy(out pVb);
+              pVb.Oid = MibStringHelper.ReplaceFullOidIndex(pVb.Oid, 1, str);
+              if (dictionary2.ContainsKey(str))
+                (dictionary2[str] ?? new List<CDTLmtbVb>()).Add(pVb);
+              else
+                dictionary2.Add(str, new List<CDTLmtbVb>()
+                {
+                  pVb
+                });
+            }
+          }
+        }
+      }
+      foreach (KeyValuePair<string, List<CDTLmtbVb>> keyValuePair in dictionary2)
+      {
+        if (keyValuePair.Value != null && keyValuePair.Value.Count != 0)
+          needSendVbsSet.Add(keyValuePair.Value);
+      }
+      return true;
+    }
+
+    public static void UpdateMibTableDataGrid(
+      string tabName,
+      string gnbIp,
+      NodeBControlPage mainPage,
+      CancellationToken tocken,
+      bool isAscend = true)
+    {
+      try
+      {
+        if (string.IsNullOrEmpty(tabName) || string.IsNullOrEmpty(gnbIp) || tabName.Equals("/"))
+          return;
+        MibTableInfo reData;
+        string err1;
+        if (!Database.GetInstance().GetMibDataByTableName(tabName, out reData, gnbIp, out err1))
+        {
+          Log.Error(err1, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 1053, nameof (UpdateMibTableDataGrid));
+        }
+        else
+        {
+          List<CmdMibInfo> cmdsInfoByEntryName = Database.GetInstance().GetCmdsInfoByEntryName(reData.nameMib, gnbIp);
+          if (cmdsInfoByEntryName == null || cmdsInfoByEntryName.Count == 0)
+          {
+            Log.Error(string.Format("未找到表：{0}相关的命令", (object) reData.nameMib), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 1061, nameof (UpdateMibTableDataGrid));
+          }
+          else
+          {
+            List<CmdMibInfo> all = cmdsInfoByEntryName.FindAll((Predicate<CmdMibInfo>) (p => p.IsQueryCmd() && !p.m_bIgnoreThisCmd));
+            string mibPrefix = SnmpToDatabase.GetMibPrefix();
+            Dictionary<string, string> oid_cn = new Dictionary<string, string>();
+            Dictionary<string, string> oid_en = new Dictionary<string, string>();
+            foreach (MibLeafInfo child in reData.childList)
+            {
+              if ("True".Equals(child.IsIndex, StringComparison.OrdinalIgnoreCase))
+              {
+                if (!oid_en.ContainsKey(mibPrefix + child.childOid))
+                  oid_en.Add(mibPrefix + child.childOid, child.childNameMib);
+                if (!oid_cn.ContainsKey(mibPrefix + child.childOid))
+                  oid_cn.Add(mibPrefix + child.childOid, child.childNameCh);
+              }
+            }
+            ILmtbSnmp lmtbSnmp = (ILmtbSnmp) null;
+            if (mainPage.IsOnLine)
+              lmtbSnmp = DTLinkPathMgr.GetSnmpInstance(gnbIp);
+            List<string> oidList = new List<string>();
+            int num1 = 0;
+            mainPage.ShowProgressBar(0.0, Visibility.Visible);
+            Dictionary<string, Dictionary<string, string>> lineData = new Dictionary<string, Dictionary<string, string>>();
+            foreach (CmdMibInfo cmdMibInfo in all)
+            {
+              ++num1;
+              if (cmdMibInfo.IsMONameShow())
+              {
+                oidList.Clear();
+                foreach (string oid in cmdMibInfo.m_leaflist)
+                {
+                  MibLeafInfo mibNodeInfoByOid = SnmpToDatabase.GetMibNodeInfoByOid(oid, gnbIp);
+                  if ((mibNodeInfoByOid != null ? (mibNodeInfoByOid.IsRowStatus() ? 1 : 0) : 1) == 0 && mibNodeInfoByOid.IsValidMib())
+                  {
+                    string key = mibPrefix + oid;
+                    oidList.Add(key);
+                    if (!oid_en.ContainsKey(key) && (mainPage.IsOnLine || !mainPage.MainTabVM.IsCfgFile || !mibNodeInfoByOid.ICFWriteAble.Equals("×")))
+                    {
+                      oid_en.Add(key, mibNodeInfoByOid.childNameMib);
+                      oid_cn.Add(key, mibNodeInfoByOid.childNameCh);
+                    }
+                  }
+                }
+                if (mainPage.IsOnLine && lmtbSnmp != null && !reData.nameMib.Equals("alarmCauseEntry"))
+                {
+                  List<Dictionary<string, string>> oidValueTable;
+                  if (!lmtbSnmp.SnmpGetNextLoop(gnbIp, oidList, out oidValueTable, tocken))
+                    Log.Error("执行SnmpGetNextLoop()方法错误！", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 1139, nameof (UpdateMibTableDataGrid));
+                  if (oidValueTable != null && oidValueTable.Count > 0)
+                    DataGridUtils.SetMainDataGridLineData(ref lineData, oidValueTable, reData.indexNum);
+                }
+                if (tocken.IsCancellationRequested)
+                {
+                  mainPage.ShowProgressBar(100.0, Visibility.Visible);
+                  break;
+                }
+                double num2 = (double) num1 / (double) all.Count * 100.0;
+                mainPage.ShowProgressBar(num2, Visibility.Visible);
+              }
+            }
+            if (!mainPage.IsOnLine)
+            {
+              string err2;
+              lineData = !mainPage.MainTabVM.IsCfgFile ? Singleton<ParseDataConsistencyFile>.GetInstance().SetDicForIndexToOidAndValue(mainPage.MainTabVM.TabName, reData, out err2) : CfgLogicMid.GetInstance().ConverCfgTableInfoToDataGrid(mainPage.MainTabVM.TabName, reData.nameMib, out err2);
+            }
+            if (reData != null && reData.indexNum > 0 && lineData != null && lineData.Count > 0)
+              lineData = DataGridUtils.SortMibDataToIndex(lineData, reData.indexNum, isAscend);
+            mainPage.UpdateAllMibDataGrid(lineData, oid_cn, oid_en, reData);
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\DataGridUtils.cs", 1177, nameof (UpdateMibTableDataGrid));
+        throw;
+      }
+    }
+
+    public static Dictionary<string, Dictionary<string, string>> SortMibDataToIndex(
+      Dictionary<string, Dictionary<string, string>> dicList,
+      int indexNum,
+      bool isAscend = true)
+    {
+      if (dicList == null || dicList.Count == 0)
+        return dicList;
+      Dictionary<string, Dictionary<string, string>> sortDic = new Dictionary<string, Dictionary<string, string>>();
+      List<string> list = dicList.Keys.ToList<string>();
+      if (list.Count == 0)
+        return dicList;
+      DataGridUtils.MutiIndexSort(sortDic, dicList, list, 0, indexNum, isAscend);
+      return sortDic.Count == dicList.Count ? sortDic : dicList;
+    }
+
+    private static void MutiIndexSort(
+      Dictionary<string, Dictionary<string, string>> sortDic,
+      Dictionary<string, Dictionary<string, string>> dicList,
+      List<string> listKeys,
+      int nNum,
+      int indexNum,
+      bool isAscend)
+    {
+      int num = nNum;
+      Dictionary<int, List<string>> index = DataGridUtils.CompareToIndex(listKeys, nNum, indexNum, isAscend);
+      if (index == null)
+        return;
+      int nNum1 = num + 1;
+      foreach (KeyValuePair<int, List<string>> keyValuePair in index)
+      {
+        if (nNum1 == indexNum)
+        {
+          foreach (string key in keyValuePair.Value)
+          {
+            if (!sortDic.ContainsKey(key))
+              sortDic.Add(key, dicList[key]);
+          }
+        }
+        else
+          DataGridUtils.MutiIndexSort(sortDic, dicList, keyValuePair.Value, nNum1, indexNum, isAscend);
+      }
+    }
+
+    private static Dictionary<int, List<string>> CompareToIndex(
+      List<string> listKeys,
+      int nNum,
+      int nTotal,
+      bool isAscend)
+    {
+      if (nNum >= nTotal)
+        return (Dictionary<int, List<string>>) null;
+      Dictionary<int, List<string>> source = new Dictionary<int, List<string>>();
+      List<string> stringList = new List<string>();
+      foreach (string listKey in listKeys)
+      {
+        List<string> list = ((IEnumerable<string>) listKey.Split('.')).ToList<string>();
+        list.RemoveAll((Predicate<string>) (p => string.IsNullOrEmpty(p)));
+        if (list.Count <= nNum)
+          return (Dictionary<int, List<string>>) null;
+        int result;
+        if (int.TryParse(list[nNum], out result))
+        {
+          if (!source.ContainsKey(result))
+            source.Add(result, new List<string>()
+            {
+              listKey
+            });
+          else
+            source[result].Add(listKey);
+        }
+      }
+      return !isAscend ? source.OrderByDescending<KeyValuePair<int, List<string>>, int>((Func<KeyValuePair<int, List<string>>, int>) (p => p.Key)).ToDictionary<KeyValuePair<int, List<string>>, int, List<string>>((Func<KeyValuePair<int, List<string>>, int>) (p => p.Key), (Func<KeyValuePair<int, List<string>>, List<string>>) (p => p.Value)) : source.OrderBy<KeyValuePair<int, List<string>>, int>((Func<KeyValuePair<int, List<string>>, int>) (p => p.Key)).ToDictionary<KeyValuePair<int, List<string>>, int, List<string>>((Func<KeyValuePair<int, List<string>>, int>) (p => p.Key), (Func<KeyValuePair<int, List<string>>, List<string>>) (p => p.Value));
+    }
+
+    public static bool IsAscend(
+      Dictionary<string, Dictionary<string, string>> dicList,
+      int indexNum)
+    {
+      if (dicList == null || dicList.Count < 1)
+        return true;
+      List<string> list1 = dicList.Keys.ToList<string>();
+      List<string> list2 = ((IEnumerable<string>) list1[0].Split('.')).ToList<string>();
+      list2.RemoveAll(new Predicate<string>(string.IsNullOrEmpty));
+      List<string> list3 = ((IEnumerable<string>) list1[1].Split('.')).ToList<string>();
+      list3.RemoveAll(new Predicate<string>(string.IsNullOrEmpty));
+      int index = 0;
+      try
+      {
+        for (; index < indexNum; ++index)
+        {
+          int num = int.Parse(list2[index]);
+          if (num.CompareTo(int.Parse(list3[index])) < 0)
+            return true;
+          num = int.Parse(list2[index]);
+          if (num.CompareTo(int.Parse(list3[index])) > 0)
+            return false;
+        }
+      }
+      catch (Exception ex)
+      {
+        return false;
+      }
+      return true;
+    }
+
+    public static Uri SetObjTreeImage(string tabName, string gnbIp)
+    {
+      Uri uri = new Uri("/SCMTResources;component/Images/TreeView/NoExistTable.png", UriKind.Relative);
+      if (!tabName.Equals("/") && !string.IsNullOrEmpty(tabName) && Database.GetInstance().GetMibDataByTableName(tabName, gnbIp) != null)
+        uri = new Uri("/SCMTResources;component/Images/TreeView/ExistTable.png", UriKind.Relative);
+      return uri;
+    }
+
+    public static string GetAllParentPath(
+      ObservableCollection<ObjNodeModel> listObjNode,
+      MibTableInfo mibTable)
+    {
+      if (listObjNode == null || mibTable == null)
+        return "";
+      string allParentPath1 = "";
+      string mibName = mibTable.nameMib;
+      mibName = mibName.Replace("Entry", "Table");
+      ObjNodeModel objNode = listObjNode.ToList<ObjNodeModel>().Find((Predicate<ObjNodeModel>) (p => p.ObjTableName.Equals(mibName)));
+      if (objNode == null)
+        return allParentPath1;
+      int objParentId = objNode.ObjParentID;
+      string allParentPath2 = objNode.ObjName;
+      while (objParentId != 0)
+      {
+        ObjNodeModel objNodeModel = listObjNode.ToList<ObjNodeModel>().Find((Predicate<ObjNodeModel>) (p => p.ObjID.Equals(objNode.ObjParentID)));
+        if (objNodeModel != null)
+        {
+          objParentId = objNodeModel.ObjParentID;
+          allParentPath2 = objNodeModel.ObjName + "/" + allParentPath2;
+          objNode = objNodeModel;
+        }
+        else
+          break;
+      }
+      return allParentPath2;
+    }
+
+    public static void GetNROrLTECellAllTableInfo(
+      ObservableCollection<ObjNodeModel> listObjNode,
+      ref Dictionary<string, List<string>> CellTableInfo,
+      bool isOnLine,
+      string cfgUUID)
+    {
+      if (CellTableInfo == null)
+        CellTableInfo = new Dictionary<string, List<string>>();
+      ObjNodeModel objTreeInfo1 = listObjNode.ToList<ObjNodeModel>().Find((Predicate<ObjNodeModel>) (p => p.ObjTableName.Equals("nrCellCfgTable")));
+      if (objTreeInfo1 != null)
+        DataGridUtils.GetTreeObj(objTreeInfo1, ref CellTableInfo, isOnLine, cfgUUID);
+      ObjNodeModel objTreeInfo2 = listObjNode.ToList<ObjNodeModel>().Find((Predicate<ObjNodeModel>) (p => p.ObjTableName.Equals("cellCfgTable")));
+      if (objTreeInfo2 == null)
+        return;
+      DataGridUtils.GetTreeObj(objTreeInfo2, ref CellTableInfo, isOnLine, cfgUUID, "LTE");
+    }
+
+    private static bool GetTreeObj(
+      ObjNodeModel objTreeInfo,
+      ref Dictionary<string, List<string>> CellTableInfo,
+      bool isOnLine,
+      string cfgUUID,
+      string celltype = "NR")
+    {
+      if (objTreeInfo == null)
+        return false;
+      DataGridUtils.SetCellTableInfo(objTreeInfo, ref CellTableInfo, isOnLine, cfgUUID, celltype);
+      foreach (ObjNodeModel objSub in (Collection<ObjNodeModel>) objTreeInfo.ObjSubList)
+      {
+        if (objSub == null)
+          return false;
+        DataGridUtils.SetCellTableInfo(objSub, ref CellTableInfo, isOnLine, cfgUUID, celltype);
+        if (objSub.ObjSubList.Count > 0)
+          DataGridUtils.GetTreeObj(objSub, ref CellTableInfo, isOnLine, cfgUUID, celltype);
+      }
+      return true;
+    }
+
+    private static void SetCellTableInfo(
+      ObjNodeModel objTreeInfo,
+      ref Dictionary<string, List<string>> CellTableInfo,
+      bool isOnLine,
+      string cfgUUID,
+      string celltype = "NR")
+    {
+      if (objTreeInfo == null || objTreeInfo.ObjTableName.Equals("/") || !isOnLine && !CfgLogicMid.GetInstance().IsExistCfgTbName(false, objTreeInfo.ObjTableName, cfgUUID))
+        return;
+      if (!CellTableInfo.ContainsKey(celltype))
+      {
+        CellTableInfo.Add(celltype, new List<string>()
+        {
+          objTreeInfo.ObjTableName
+        });
+      }
+      else
+      {
+        if (CellTableInfo[celltype].Contains(objTreeInfo.ObjTableName))
+          return;
+        CellTableInfo[celltype].Add(objTreeInfo.ObjTableName);
+      }
+    }
+  }
+}

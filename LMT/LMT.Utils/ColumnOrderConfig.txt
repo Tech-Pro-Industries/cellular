@@ -1,0 +1,9 @@
+using System.Collections.Generic;
+
+namespace LMT.Utils
+{
+  public class ColumnOrderConfig
+  {
+    public List<ColumnOrders> columnOrderConfigs;
+  }
+}

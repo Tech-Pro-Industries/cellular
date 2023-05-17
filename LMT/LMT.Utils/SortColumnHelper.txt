@@ -1,0 +1,77 @@
+using CommonUtility;
+using MIBDataParser;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace LMT.Utils
+{
+  internal sealed class SortColumnHelper : Singleton<SortColumnHelper>
+  {
+    private ColumnOrderConfig coconfig;
+
+    private SortColumnHelper() => this.LoadConfig();
+
+    internal void ReorderOid(
+      ref Dictionary<string, string> oid_cn,
+      Dictionary<string, string> oid_en,
+      MibTableInfo tableInfo)
+    {
+      if (this.coconfig == null || this.coconfig.columnOrderConfigs == null || this.coconfig.columnOrderConfigs.Count == 0 || tableInfo == null || oid_cn == null || oid_en == null || oid_cn.Count == 0 || oid_en.Count == 0)
+        return;
+      string tblName = tableInfo.nameMib;
+      ColumnOrders columnOrders = this.coconfig.columnOrderConfigs.FirstOrDefault<ColumnOrders>((Func<ColumnOrders, bool>) (cfg => cfg.tableName.Equals(tblName, StringComparison.OrdinalIgnoreCase)));
+      if (columnOrders == null)
+        return;
+      Dictionary<string, int> dictionary = new Dictionary<string, int>();
+      Dictionary<string, string> source = new Dictionary<string, string>();
+      foreach (WrapOrder orderPair in columnOrders.orderPairs)
+      {
+        string mibname = orderPair.mib;
+        int order = orderPair.order;
+        KeyValuePair<string, string> keyValuePair = oid_en.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (oid2mibname => oid2mibname.Value.Equals(mibname, StringComparison.OrdinalIgnoreCase)));
+        if (!(keyValuePair.Value != mibname))
+        {
+          string key = keyValuePair.Key;
+          dictionary[key] = order;
+          string str;
+          if (oid_cn.TryGetValue(key, out str))
+          {
+            source[key] = str;
+            oid_cn.Remove(key);
+          }
+        }
+      }
+      List<KeyValuePair<string, string>> list = oid_cn.ToList<KeyValuePair<string, string>>();
+      Dictionary<string, int>.Enumerator enumerator = dictionary.GetEnumerator();
+      while (enumerator.MoveNext())
+      {
+        string oid = enumerator.Current.Key;
+        int index = enumerator.Current.Value;
+        KeyValuePair<string, string> keyValuePair = source.First<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (oz => oz.Key == oid));
+        if (index < 0 || index > list.Count)
+          list.Add(keyValuePair);
+        else
+          list.Insert(index, keyValuePair);
+      }
+      enumerator.Dispose();
+      oid_cn = list.ToDictionary<KeyValuePair<string, string>, string, string>((Func<KeyValuePair<string, string>, string>) (kv => kv.Key), (Func<KeyValuePair<string, string>, string>) (kv => kv.Value));
+    }
+
+    internal void SetColumnOrderConfigs(ColumnOrders config)
+    {
+    }
+
+    private void LoadConfig()
+    {
+      string str = FilePathHelper.GetConfigPath() + "ColumnOrderConfig.json";
+      if (!File.Exists(str))
+        return;
+      string fileContent = FileRdWrHelper.GetFileContent(str);
+      if (string.IsNullOrEmpty(fileContent))
+        return;
+      this.coconfig = JsonHelper.SerializeJsonToObject<ColumnOrderConfig>(fileContent, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Utils\\SortColumnHelper.cs", 109, nameof (LoadConfig));
+    }
+  }
+}
