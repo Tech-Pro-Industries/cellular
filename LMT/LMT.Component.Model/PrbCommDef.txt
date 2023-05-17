@@ -1,0 +1,9 @@
+namespace LMT.Component.Model
+{
+  public class PrbCommDef
+  {
+    public const string prbReadData = "数据读取";
+    public const string prbChange = "PRB修改";
+    public const string prbConflick = "PRB冲突";
+  }
+}

@@ -1,0 +1,50 @@
+using System.ComponentModel;
+
+namespace LMT.Component.Model
+{
+  public class LogInfoTitle : INotifyPropertyChanged
+  {
+    private string _strLogTime;
+    private string _strLogType;
+    private string _strLogInfo;
+
+    public string StrLogTime
+    {
+      get => this._strLogTime;
+      set
+      {
+        this._strLogTime = value;
+        this.NotifyPropertyChange(nameof (StrLogTime));
+      }
+    }
+
+    public string StrLogType
+    {
+      get => this._strLogType;
+      set
+      {
+        this._strLogType = value;
+        this.NotifyPropertyChange(nameof (StrLogType));
+      }
+    }
+
+    public string StrLogInfo
+    {
+      get => this._strLogInfo;
+      set
+      {
+        this._strLogInfo = value;
+        this.NotifyPropertyChange(nameof (StrLogInfo));
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+  }
+}
