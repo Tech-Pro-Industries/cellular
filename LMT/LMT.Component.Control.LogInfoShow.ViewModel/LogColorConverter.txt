@@ -1,0 +1,239 @@
+using MsgQueue;
+using System.Collections.ObjectModel;
+using System.Windows.Media;
+
+namespace LMT.Component.Control.LogInfoShow.ViewModel
+{
+  public class LogColorConverter
+  {
+    public string EnbInfo { get; set; }
+
+    public string TaskDealInfo { get; set; }
+
+    public string SiStrInfo { get; set; }
+
+    public string SiAlarmInfo { get; set; }
+
+    public string BreakDownAlarmInfo { get; set; }
+
+    public string EventAlarmInfo { get; set; }
+
+    public string AlarmClearInfo { get; set; }
+
+    public string EventNotifyInfo { get; set; }
+
+    public string GetOpInfo { get; set; }
+
+    public string SetOpInfo { get; set; }
+
+    public string GetOpErrInfo { get; set; }
+
+    public string SetOpErrInfo { get; set; }
+
+    public string VaryInfo { get; set; }
+
+    public string OtherInfo { get; set; }
+
+    public string OtherInfoImport { get; set; }
+
+    public string CustomErrInfo { get; set; }
+
+    public string CustomTipInfo { get; set; }
+
+    public LogColorConverter()
+    {
+      this.EnbInfo = this.GetDefaultColor(InfoTypeEnum.ENB_INFO);
+      this.TaskDealInfo = this.GetDefaultColor(InfoTypeEnum.ENB_SETOP_INFO);
+      this.SiStrInfo = this.GetDefaultColor(InfoTypeEnum.SI_STR_INFO);
+      this.SiAlarmInfo = this.GetDefaultColor(InfoTypeEnum.SI_ALARM_INFO);
+      this.BreakDownAlarmInfo = this.GetDefaultColor(InfoTypeEnum.OM_BRKDWN_ALARM_INFO);
+      this.EventAlarmInfo = this.GetDefaultColor(InfoTypeEnum.OM_EVENT_ALARM_INFO);
+      this.AlarmClearInfo = this.GetDefaultColor(InfoTypeEnum.OM_ALARM_CLEAR_INFO);
+      this.EventNotifyInfo = this.GetDefaultColor(InfoTypeEnum.OM_EVENT_NOTIFY_INFO);
+      this.GetOpInfo = this.GetDefaultColor(InfoTypeEnum.ENB_GETOP_INFO);
+      this.SetOpInfo = this.GetDefaultColor(InfoTypeEnum.ENB_SETOP_INFO);
+      this.GetOpErrInfo = this.GetDefaultColor(InfoTypeEnum.ENB_GETOP_ERR_INFO);
+      this.SetOpErrInfo = this.GetDefaultColor(InfoTypeEnum.ENB_SETOP_ERR_INFO);
+      this.VaryInfo = this.GetDefaultColor(InfoTypeEnum.ENB_VARY_INFO);
+      this.OtherInfo = this.GetDefaultColor(InfoTypeEnum.ENB_OTHER_INFO);
+      this.OtherInfoImport = this.GetDefaultColor(InfoTypeEnum.ENB_OTHER_INFO_IMPORT);
+      this.CustomErrInfo = this.GetDefaultColor(InfoTypeEnum.CUSTOM_ERROR_INFO);
+      this.CustomTipInfo = this.GetDefaultColor(InfoTypeEnum.CUSTOM_TIP_INFO);
+    }
+
+    public void setColor(InfoTypeEnum level, string value)
+    {
+      switch (level)
+      {
+        case InfoTypeEnum.ENB_INFO:
+          this.EnbInfo = value;
+          break;
+        case InfoTypeEnum.ENB_TASK_DEAL_INFO:
+          this.TaskDealInfo = value;
+          break;
+        case InfoTypeEnum.SI_STR_INFO:
+          this.SiStrInfo = value;
+          break;
+        case InfoTypeEnum.SI_ALARM_INFO:
+          this.SiAlarmInfo = value;
+          break;
+        case InfoTypeEnum.OM_BRKDWN_ALARM_INFO:
+          this.BreakDownAlarmInfo = value;
+          break;
+        case InfoTypeEnum.OM_EVENT_ALARM_INFO:
+          this.EventAlarmInfo = value;
+          break;
+        case InfoTypeEnum.OM_ALARM_CLEAR_INFO:
+          this.AlarmClearInfo = value;
+          break;
+        case InfoTypeEnum.OM_EVENT_NOTIFY_INFO:
+          this.EventNotifyInfo = value;
+          break;
+        case InfoTypeEnum.ENB_GETOP_INFO:
+          this.GetOpInfo = value;
+          break;
+        case InfoTypeEnum.ENB_SETOP_INFO:
+          this.SetOpInfo = value;
+          break;
+        case InfoTypeEnum.ENB_GETOP_ERR_INFO:
+          this.GetOpErrInfo = value;
+          break;
+        case InfoTypeEnum.ENB_SETOP_ERR_INFO:
+          this.SetOpErrInfo = value;
+          break;
+        case InfoTypeEnum.ENB_VARY_INFO:
+          this.VaryInfo = value;
+          break;
+        case InfoTypeEnum.ENB_OTHER_INFO:
+          this.OtherInfo = value;
+          break;
+        case InfoTypeEnum.ENB_OTHER_INFO_IMPORT:
+          this.OtherInfoImport = value;
+          break;
+        case InfoTypeEnum.CUSTOM_ERROR_INFO:
+          this.CustomErrInfo = value;
+          break;
+        case InfoTypeEnum.CUSTOM_TIP_INFO:
+          this.CustomTipInfo = value;
+          break;
+      }
+    }
+
+    public string GetDefaultColor(InfoTypeEnum level)
+    {
+      Color color = Color.FromRgb((byte) 0, (byte) 0, (byte) 0);
+      string defaultColor;
+      switch (level)
+      {
+        case InfoTypeEnum.SI_ALARM_INFO:
+          defaultColor = Color.FromRgb((byte) 205, (byte) 60, (byte) 221).ToString();
+          break;
+        case InfoTypeEnum.OM_BRKDWN_ALARM_INFO:
+          defaultColor = Color.FromRgb(byte.MaxValue, (byte) 0, (byte) 0).ToString();
+          break;
+        case InfoTypeEnum.OM_EVENT_ALARM_INFO:
+          defaultColor = Color.FromRgb((byte) 233, (byte) 149, (byte) 22).ToString();
+          break;
+        case InfoTypeEnum.OM_ALARM_CLEAR_INFO:
+          defaultColor = Color.FromRgb((byte) 176, (byte) 176, (byte) 176).ToString();
+          break;
+        case InfoTypeEnum.OM_EVENT_NOTIFY_INFO:
+          defaultColor = Color.FromRgb((byte) 36, (byte) 36, byte.MaxValue).ToString();
+          break;
+        case InfoTypeEnum.ENB_OTHER_INFO_IMPORT:
+          defaultColor = Color.FromRgb((byte) 205, (byte) 60, (byte) 221).ToString();
+          break;
+        default:
+          defaultColor = color.ToString();
+          break;
+      }
+      return defaultColor;
+    }
+
+    public Brush GetColor(InfoTypeEnum level)
+    {
+      Brush color = (Brush) null;
+      BrushConverter brushConverter = new BrushConverter();
+      switch (level)
+      {
+        case InfoTypeEnum.ENB_INFO:
+          string enbInfo = this.EnbInfo;
+          color = (Brush) brushConverter.ConvertFromString(enbInfo);
+          break;
+        case InfoTypeEnum.ENB_TASK_DEAL_INFO:
+          string taskDealInfo = this.TaskDealInfo;
+          color = (Brush) brushConverter.ConvertFromString(taskDealInfo);
+          break;
+        case InfoTypeEnum.SI_STR_INFO:
+          string siStrInfo = this.SiStrInfo;
+          color = (Brush) brushConverter.ConvertFromString(siStrInfo);
+          break;
+        case InfoTypeEnum.SI_ALARM_INFO:
+          string siAlarmInfo = this.SiAlarmInfo;
+          color = (Brush) brushConverter.ConvertFromString(siAlarmInfo);
+          break;
+        case InfoTypeEnum.OM_BRKDWN_ALARM_INFO:
+          string breakDownAlarmInfo = this.BreakDownAlarmInfo;
+          color = (Brush) brushConverter.ConvertFromString(breakDownAlarmInfo);
+          break;
+        case InfoTypeEnum.OM_EVENT_ALARM_INFO:
+          string eventAlarmInfo = this.EventAlarmInfo;
+          color = (Brush) brushConverter.ConvertFromString(eventAlarmInfo);
+          break;
+        case InfoTypeEnum.OM_ALARM_CLEAR_INFO:
+          string alarmClearInfo = this.AlarmClearInfo;
+          color = (Brush) brushConverter.ConvertFromString(alarmClearInfo);
+          break;
+        case InfoTypeEnum.OM_EVENT_NOTIFY_INFO:
+          string eventNotifyInfo = this.EventNotifyInfo;
+          color = (Brush) brushConverter.ConvertFromString(eventNotifyInfo);
+          break;
+        case InfoTypeEnum.ENB_GETOP_INFO:
+          string getOpInfo = this.GetOpInfo;
+          color = (Brush) brushConverter.ConvertFromString(getOpInfo);
+          break;
+        case InfoTypeEnum.ENB_SETOP_INFO:
+          string setOpInfo = this.SetOpInfo;
+          color = (Brush) brushConverter.ConvertFromString(setOpInfo);
+          break;
+        case InfoTypeEnum.ENB_GETOP_ERR_INFO:
+          string getOpErrInfo = this.GetOpErrInfo;
+          color = (Brush) brushConverter.ConvertFromString(getOpErrInfo);
+          break;
+        case InfoTypeEnum.ENB_SETOP_ERR_INFO:
+          string setOpErrInfo = this.SetOpErrInfo;
+          color = (Brush) brushConverter.ConvertFromString(setOpErrInfo);
+          break;
+        case InfoTypeEnum.ENB_VARY_INFO:
+          string varyInfo = this.VaryInfo;
+          color = (Brush) brushConverter.ConvertFromString(varyInfo);
+          break;
+        case InfoTypeEnum.ENB_OTHER_INFO:
+          string otherInfo = this.OtherInfo;
+          color = (Brush) brushConverter.ConvertFromString(otherInfo);
+          break;
+        case InfoTypeEnum.ENB_OTHER_INFO_IMPORT:
+          string otherInfoImport = this.OtherInfoImport;
+          color = (Brush) brushConverter.ConvertFromString(otherInfoImport);
+          break;
+        case InfoTypeEnum.CUSTOM_ERROR_INFO:
+          string customErrInfo = this.CustomErrInfo;
+          color = (Brush) brushConverter.ConvertFromString(customErrInfo);
+          break;
+        case InfoTypeEnum.CUSTOM_TIP_INFO:
+          string customTipInfo = this.CustomTipInfo;
+          color = (Brush) brushConverter.ConvertFromString(customTipInfo);
+          break;
+      }
+      return color;
+    }
+
+    public void ColorChange(ObservableCollection<LogInfoTitle> items)
+    {
+      if (items.Count == 0)
+        return;
+      foreach (LogInfoTitle logInfoTitle in (Collection<LogInfoTitle>) items)
+        logInfoTitle.LogColor = this.GetColor(logInfoTitle.Type);
+    }
+  }
+}

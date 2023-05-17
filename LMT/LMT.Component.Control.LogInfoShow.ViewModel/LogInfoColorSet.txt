@@ -1,0 +1,402 @@
+using CommonUtility;
+using MsgQueue;
+using SCMTResources.CustomControls.ColorPicker;
+using System;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+
+namespace LMT.Component.Control.LogInfoShow.ViewModel
+{
+  internal class LogInfoColorSet : DependencyObject, INotifyPropertyChanged
+  {
+    private LogColorConverter LogColorCovert = new LogColorConverter();
+    private ObservableCollection<LogInfoTitle> m_items;
+    private string _enbInfoColor;
+    private string _taskDealInfoColor;
+    private string _siStrInfoColor;
+    private string _siAlarmInfoColor;
+    private string _breakDownAlarmInfoColor;
+    private string _eventAlarmInfoColor;
+    private string _alarmClearInfoColor;
+    private string _eventNotifyInfoColor;
+    private string _getOpInfoColor;
+    private string _setOpInfoColor;
+    private string _getOpErrInfoColor;
+    private string _setOpErrInfoColor;
+    private string _varyInfoColor;
+    private string _otherInfoColor;
+    private string _otherInfoImportColor;
+    private string _customErrInfoColor;
+    private string _customTipInfoColor;
+
+    public LogInfoColorSet(
+      ObservableCollection<LogInfoTitle> items,
+      LogColorConverter logColorUpdate)
+    {
+      this.m_items = items;
+      this.LogColorCovert = logColorUpdate;
+      this.EnbInfoColor = this.LogColorCovert.EnbInfo;
+      this.TaskDealInfoColor = this.LogColorCovert.TaskDealInfo;
+      this.SiStrInfoColor = this.LogColorCovert.SiStrInfo;
+      this.SiAlarmInfoColor = this.LogColorCovert.SiAlarmInfo;
+      this.BreakDownAlarmInfoColor = this.LogColorCovert.BreakDownAlarmInfo;
+      this.EventAlarmInfoColor = this.LogColorCovert.EventAlarmInfo;
+      this.AlarmClearInfoColor = this.LogColorCovert.AlarmClearInfo;
+      this.EventNotifyInfoColor = this.LogColorCovert.EventNotifyInfo;
+      this.GetOpInfoColor = this.LogColorCovert.GetOpInfo;
+      this.SetOpInfoColor = this.LogColorCovert.SetOpInfo;
+      this.GetOpErrInfoColor = this.LogColorCovert.GetOpErrInfo;
+      this.SetOpErrInfoColor = this.LogColorCovert.SetOpErrInfo;
+      this.VaryInfoColor = this.LogColorCovert.VaryInfo;
+      this.OtherInfoColor = this.LogColorCovert.OtherInfo;
+      this.OtherInfoImportColor = this.LogColorCovert.OtherInfoImport;
+      this.CustomErrInfoColor = this.LogColorCovert.CustomErrInfo;
+      this.CustomTipInfoColor = this.LogColorCovert.CustomTipInfo;
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public string EnbInfoColor
+    {
+      get => this._enbInfoColor;
+      set
+      {
+        this._enbInfoColor = value;
+        this.NotifyPropertyChange(nameof (EnbInfoColor));
+      }
+    }
+
+    public string TaskDealInfoColor
+    {
+      get => this._taskDealInfoColor;
+      set
+      {
+        this._taskDealInfoColor = value;
+        this.NotifyPropertyChange(nameof (TaskDealInfoColor));
+      }
+    }
+
+    public string SiStrInfoColor
+    {
+      get => this._siStrInfoColor;
+      set
+      {
+        this._siStrInfoColor = value;
+        this.NotifyPropertyChange(nameof (SiStrInfoColor));
+      }
+    }
+
+    public string SiAlarmInfoColor
+    {
+      get => this._siAlarmInfoColor;
+      set
+      {
+        this._siAlarmInfoColor = value;
+        this.NotifyPropertyChange(nameof (SiAlarmInfoColor));
+      }
+    }
+
+    public string BreakDownAlarmInfoColor
+    {
+      get => this._breakDownAlarmInfoColor;
+      set
+      {
+        this._breakDownAlarmInfoColor = value;
+        this.NotifyPropertyChange(nameof (BreakDownAlarmInfoColor));
+      }
+    }
+
+    public string EventAlarmInfoColor
+    {
+      get => this._eventAlarmInfoColor;
+      set
+      {
+        this._eventAlarmInfoColor = value;
+        this.NotifyPropertyChange(nameof (EventAlarmInfoColor));
+      }
+    }
+
+    public string AlarmClearInfoColor
+    {
+      get => this._alarmClearInfoColor;
+      set
+      {
+        this._alarmClearInfoColor = value;
+        this.NotifyPropertyChange(nameof (AlarmClearInfoColor));
+      }
+    }
+
+    public string EventNotifyInfoColor
+    {
+      get => this._eventNotifyInfoColor;
+      set
+      {
+        this._eventNotifyInfoColor = value;
+        this.NotifyPropertyChange(nameof (EventNotifyInfoColor));
+      }
+    }
+
+    public string GetOpInfoColor
+    {
+      get => this._getOpInfoColor;
+      set
+      {
+        this._getOpInfoColor = value;
+        this.NotifyPropertyChange(nameof (GetOpInfoColor));
+      }
+    }
+
+    public string SetOpInfoColor
+    {
+      get => this._setOpInfoColor;
+      set
+      {
+        this._setOpInfoColor = value;
+        this.NotifyPropertyChange(nameof (SetOpInfoColor));
+      }
+    }
+
+    public string GetOpErrInfoColor
+    {
+      get => this._getOpErrInfoColor;
+      set
+      {
+        this._getOpErrInfoColor = value;
+        this.NotifyPropertyChange(nameof (GetOpErrInfoColor));
+      }
+    }
+
+    public string SetOpErrInfoColor
+    {
+      get => this._setOpErrInfoColor;
+      set
+      {
+        this._setOpErrInfoColor = value;
+        this.NotifyPropertyChange(nameof (SetOpErrInfoColor));
+      }
+    }
+
+    public string VaryInfoColor
+    {
+      get => this._varyInfoColor;
+      set
+      {
+        this._varyInfoColor = value;
+        this.NotifyPropertyChange(nameof (VaryInfoColor));
+      }
+    }
+
+    public string OtherInfoColor
+    {
+      get => this._otherInfoColor;
+      set
+      {
+        this._otherInfoColor = value;
+        this.NotifyPropertyChange(nameof (OtherInfoColor));
+      }
+    }
+
+    public string OtherInfoImportColor
+    {
+      get => this._otherInfoImportColor;
+      set
+      {
+        this._otherInfoImportColor = value;
+        this.NotifyPropertyChange(nameof (OtherInfoImportColor));
+      }
+    }
+
+    public string CustomErrInfoColor
+    {
+      get => this._customErrInfoColor;
+      set
+      {
+        this._customErrInfoColor = value;
+        this.NotifyPropertyChange(nameof (CustomErrInfoColor));
+      }
+    }
+
+    public string CustomTipInfoColor
+    {
+      get => this._customTipInfoColor;
+      set
+      {
+        this._customTipInfoColor = value;
+        this.NotifyPropertyChange(nameof (CustomTipInfoColor));
+      }
+    }
+
+    private void ChangeColorExecute(object label)
+    {
+      if (label == null || !(label is Label))
+        return;
+      Label label1 = label as Label;
+      SCMTResources.CustomControls.ColorPicker.ColorPicker colorPicker = new SCMTResources.CustomControls.ColorPicker.ColorPicker();
+      if (colorPicker.ShowDialog(label1.Background.ToString()) != ColorPickerResult.OK)
+        return;
+      string colorName = colorPicker.ColorName;
+      string name = label1.Name;
+      // ISSUE: reference to a compiler-generated method
+      switch (\u003CPrivateImplementationDetails\u003E.ComputeStringHash(name))
+      {
+        case 307069342:
+          if (!(name == "lbBreakDownAlarmInfoColor"))
+            break;
+          this.BreakDownAlarmInfoColor = colorName;
+          break;
+        case 660178946:
+          if (!(name == "lbCustomErrInfoColor"))
+            break;
+          this.CustomErrInfoColor = colorName;
+          break;
+        case 720096197:
+          if (!(name == "lbGetOpInfoColor"))
+            break;
+          this.GetOpInfoColor = colorName;
+          break;
+        case 956633705:
+          if (!(name == "lbSetOpInfoColor"))
+            break;
+          this.SetOpInfoColor = colorName;
+          break;
+        case 1204059992:
+          if (!(name == "lbAlarmClearInfoColor"))
+            break;
+          this.AlarmClearInfoColor = colorName;
+          break;
+        case 1291046219:
+          if (!(name == "lbTaskDealInfoColor"))
+            break;
+          this.TaskDealInfoColor = colorName;
+          break;
+        case 1466276120:
+          if (!(name == "lbCustomTipInfoColor"))
+            break;
+          this.CustomTipInfoColor = colorName;
+          break;
+        case 2204150793:
+          if (!(name == "lbEventAlarmInfoColor"))
+            break;
+          this.EventAlarmInfoColor = colorName;
+          break;
+        case 2441844797:
+          if (!(name == "lbOtherInfoImportColor"))
+            break;
+          this.OtherInfoImportColor = colorName;
+          break;
+        case 3026445413:
+          if (!(name == "lbSiStrInfoColor"))
+            break;
+          this.SiStrInfoColor = colorName;
+          break;
+        case 3221407043:
+          if (!(name == "lbEventNotifyInfoColor"))
+            break;
+          this.EventNotifyInfoColor = colorName;
+          break;
+        case 3223793344:
+          if (!(name == "lbGetOpErrInfoColor"))
+            break;
+          this.GetOpErrInfoColor = colorName;
+          break;
+        case 3386958437:
+          if (!(name == "lbEnbInfoColor"))
+            break;
+          this.EnbInfoColor = colorName;
+          break;
+        case 3503348628:
+          if (!(name == "lbSetOpErrInfoColor"))
+            break;
+          this.SetOpErrInfoColor = colorName;
+          break;
+        case 3576156755:
+          if (!(name == "lbSiAlarmInfoColor"))
+            break;
+          this.SiAlarmInfoColor = colorName;
+          break;
+        case 3675119502:
+          if (!(name == "lbVaryInfoColor"))
+            break;
+          this.VaryInfoColor = colorName;
+          break;
+        case 4106870578:
+          if (!(name == "lbOtherInfoColor"))
+            break;
+          this.OtherInfoColor = colorName;
+          break;
+      }
+    }
+
+    private bool CanChangeColorExecute(object label) => true;
+
+    public ICommand ChangeColor => (ICommand) new RelayCommand<object>(new Action<object>(this.ChangeColorExecute), new Predicate<object>(this.CanChangeColorExecute));
+
+    private void RestoreDefaultsExecute()
+    {
+      this.EnbInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_INFO);
+      this.TaskDealInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_TASK_DEAL_INFO);
+      this.SiStrInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.SI_STR_INFO);
+      this.SiAlarmInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.SI_ALARM_INFO);
+      this.BreakDownAlarmInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.OM_BRKDWN_ALARM_INFO);
+      this.EventAlarmInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.OM_EVENT_ALARM_INFO);
+      this.AlarmClearInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.OM_ALARM_CLEAR_INFO);
+      this.EventNotifyInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.OM_EVENT_NOTIFY_INFO);
+      this.GetOpInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_GETOP_INFO);
+      this.SetOpInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_SETOP_INFO);
+      this.GetOpErrInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_GETOP_ERR_INFO);
+      this.SetOpErrInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_SETOP_ERR_INFO);
+      this.VaryInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_VARY_INFO);
+      this.OtherInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_OTHER_INFO);
+      this.OtherInfoImportColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.ENB_OTHER_INFO_IMPORT);
+      this.CustomErrInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.CUSTOM_ERROR_INFO);
+      this.CustomTipInfoColor = this.LogColorCovert.GetDefaultColor(InfoTypeEnum.CUSTOM_TIP_INFO);
+    }
+
+    private bool CanRestoreDefaultsExecute() => true;
+
+    public ICommand RestoreDefaults => (ICommand) new RelayCommand(new Action(this.RestoreDefaultsExecute), new Func<bool>(this.CanRestoreDefaultsExecute));
+
+    private void UpdateExecute(Window wd)
+    {
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_INFO, this.EnbInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_TASK_DEAL_INFO, this.TaskDealInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.SI_STR_INFO, this.SiStrInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.SI_ALARM_INFO, this.SiAlarmInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.OM_BRKDWN_ALARM_INFO, this.BreakDownAlarmInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.OM_EVENT_ALARM_INFO, this.EventAlarmInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.OM_ALARM_CLEAR_INFO, this.AlarmClearInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.OM_EVENT_NOTIFY_INFO, this.EventNotifyInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_GETOP_INFO, this.GetOpInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_SETOP_INFO, this.SetOpInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_GETOP_ERR_INFO, this.GetOpErrInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_SETOP_ERR_INFO, this.SetOpErrInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_VARY_INFO, this.VaryInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_OTHER_INFO, this.OtherInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.ENB_OTHER_INFO_IMPORT, this.OtherInfoImportColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.CUSTOM_ERROR_INFO, this.CustomErrInfoColor);
+      this.LogColorCovert.setColor(InfoTypeEnum.CUSTOM_TIP_INFO, this.CustomTipInfoColor);
+      this.LogColorCovert.ColorChange(this.m_items);
+      wd.Close();
+    }
+
+    private bool CanUpdateExecute(Window wd) => true;
+
+    public ICommand Update => (ICommand) new RelayCommand<Window>(new Action<Window>(this.UpdateExecute), new Predicate<Window>(this.CanUpdateExecute));
+
+    private void CancelExecute(Window wd) => wd.Close();
+
+    private bool CanCancelExecute(Window wd) => true;
+
+    public ICommand Cancel => (ICommand) new RelayCommand<Window>(new Action<Window>(this.CancelExecute), new Predicate<Window>(this.CanCancelExecute));
+  }
+}
