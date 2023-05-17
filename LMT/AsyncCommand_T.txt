@@ -1,0 +1,27 @@
+using System;
+using System.Threading.Tasks;
+using System.Windows.Input;
+
+namespace LMT
+{
+  public class AsyncCommand<T> : ICommand
+  {
+    protected readonly Predicate<T> _canExecute;
+    protected Func<T, Task> _asyncExecute;
+
+    public event EventHandler CanExecuteChanged
+    {
+      add => CommandManager.RequerySuggested += value;
+      remove => CommandManager.RequerySuggested -= value;
+    }
+
+    public AsyncCommand(Func<T, Task> asyncExecute, Predicate<T> canExecute = null)
+    {
+      this._asyncExecute = asyncExecute;
+      this._canExecute = canExecute;
+    }
+
+    public bool CanExecute(object parameter) => this._canExecute == null || this._canExecute((T) parameter);
+
+    public async void Execute(object parameter) => await this._asyncExecute((T) parameter);
+  }

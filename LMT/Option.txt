@@ -1,0 +1,29 @@
+using Newtonsoft.Json;
+using System.Collections.Generic;
+
+namespace LMT
+{
+  public class Option
+  {
+    public legend legend;
+    public List<LMT.series> series = new List<LMT.series>();
+    public xAxis xAxis;
+
+    public Option(legend legend, List<LMT.series> series)
+    {
+      this.legend = legend;
+      this.series = series;
+    }
+
+    public Option(legend legend, List<LMT.series> series, xAxis xAxis)
+    {
+      this.legend = legend;
+      this.series = series;
+      this.xAxis = xAxis;
+    }
+
+    public static string ObjectToJson(object obj) => JsonConvert.SerializeObject(obj);
+
+    public static object JsonToObject(string jsonString, object obj) => JsonConvert.DeserializeObject(jsonString, obj.GetType());
+  }
+}

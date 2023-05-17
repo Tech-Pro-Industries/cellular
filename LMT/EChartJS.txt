@@ -1,0 +1,22 @@
+using Newtonsoft.Json;
+
+namespace LMT
+{
+  public class EChartJS
+  {
+    public Option option { get; set; }
+
+    public string canvasHeight { get; set; }
+
+    public string canvasWidth { get; set; }
+
+    public EChartJS(Option option, string width, string height)
+    {
+      this.option = option;
+      this.canvasWidth = width;
+      this.canvasHeight = height;
+    }
+
+    public static string ObjectToJson(object obj) => JsonConvert.SerializeObject(obj);
+  }
+}

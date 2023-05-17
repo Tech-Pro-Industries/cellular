@@ -1,0 +1,82 @@
+using LmtbSnmp;
+using System.Collections.Generic;
+
+namespace LMT
+{
+  public class DataGridCellFactory
+  {
+    public static GridCell CreateGridCell(
+      string MibName,
+      string MibNameCN,
+      string ContentValue,
+      string oid,
+      string targetIP,
+      bool isOnLine = true,
+      bool isCfgFile = true)
+    {
+      string str1 = ContentValue;
+      DataGrid_CellDataType mibNodeDataType = SnmpToDatabase.GetMibNodeDataType(MibName, targetIP);
+      switch (mibNodeDataType)
+      {
+        case DataGrid_CellDataType.enumType:
+          Dictionary<int, string> enumContent1 = SnmpToDatabase.ConvertSnmpValueToEnumContent(MibName, targetIP);
+          int result = -1;
+          if (!string.IsNullOrWhiteSpace(str1))
+          {
+            if (int.TryParse(str1, out result))
+              str1 = SnmpToDatabase.ConvertSnmpValueToString(MibName, str1, targetIP) as string;
+          }
+          else
+          {
+            str1 = "";
+            result = -1;
+          }
+          DataGrid_Cell_MIB_ENUM gridCell1 = new DataGrid_Cell_MIB_ENUM();
+          gridCell1.m_AllContent = enumContent1;
+          gridCell1.m_Content = str1;
+          gridCell1.m_CurrentValue = result;
+          gridCell1.oid = oid;
+          gridCell1.m_bIsReadOnly = SnmpToDatabase.GetReadAndWriteStatus(MibName, targetIP, isOnLine, isCfgFile);
+          gridCell1.MibName_CN = MibNameCN;
+          gridCell1.MibName_EN = MibName;
+          gridCell1.cellDataType = mibNodeDataType;
+          return (GridCell) gridCell1;
+        case DataGrid_CellDataType.bitType:
+          Dictionary<int, string> enumContent2 = SnmpToDatabase.ConvertSnmpValueToEnumContent(MibName, targetIP);
+          string str2 = string.IsNullOrWhiteSpace(str1) ? "" : SnmpToDatabase.ConvertSnmpValueToString(MibName, str1, targetIP) as string;
+          DataGrid_Cell_MIB_BIT gridCell2 = new DataGrid_Cell_MIB_BIT();
+          gridCell2.m_AllBit = enumContent2;
+          gridCell2.m_Content = str2;
+          gridCell2.oid = oid;
+          gridCell2.m_bIsReadOnly = SnmpToDatabase.GetReadAndWriteStatus(MibName, targetIP, isOnLine, isCfgFile);
+          gridCell2.MibName_CN = MibNameCN;
+          gridCell2.MibName_EN = MibName;
+          gridCell2.cellDataType = mibNodeDataType;
+          return (GridCell) gridCell2;
+        case DataGrid_CellDataType.DateTime:
+          DataGrid_Cell_MIB gridCell3 = new DataGrid_Cell_MIB();
+          gridCell3.m_Content = str1;
+          gridCell3.oid = oid;
+          gridCell3.m_bIsReadOnly = SnmpToDatabase.GetReadAndWriteStatus(MibName, targetIP, isOnLine, isCfgFile);
+          gridCell3.MibName_CN = MibNameCN;
+          gridCell3.MibName_EN = MibName;
+          gridCell3.cellDataType = mibNodeDataType;
+          return (GridCell) gridCell3;
+        case DataGrid_CellDataType.RegularType:
+        case DataGrid_CellDataType.OID:
+        case DataGrid_CellDataType.Array:
+          string str3 = string.IsNullOrWhiteSpace(str1) ? "" : SnmpToDatabase.ConvertSnmpValueToString(MibName, str1, targetIP) as string;
+          DataGrid_Cell_MIB gridCell4 = new DataGrid_Cell_MIB();
+          gridCell4.m_Content = str3;
+          gridCell4.oid = oid;
+          gridCell4.m_bIsReadOnly = SnmpToDatabase.GetReadAndWriteStatus(MibName, targetIP, isOnLine, isCfgFile);
+          gridCell4.MibName_CN = MibNameCN;
+          gridCell4.MibName_EN = MibName;
+          gridCell4.cellDataType = mibNodeDataType;
+          return (GridCell) gridCell4;
+        default:
+          return (GridCell) null;
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+using LMT.View;
+
+namespace LMT
+{
+  public interface I_SCMT_BelongUserControl
+  {
+    void UpdateBelongControl(object sender, SearchButtonEventArgs e);
+  }
+}

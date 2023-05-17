@@ -1,0 +1,21 @@
+using LmtbSnmp;
+
+namespace LMT
+{
+  public class DataGrid_Cell_MIB : GridCell
+  {
+    public DataGrid_Cell_MIB() => this.cellDataType = DataGrid_CellDataType.RegularType;
+
+    public override void CellDragawayCallback()
+    {
+    }
+
+    public override void EditingCallback()
+    {
+    }
+
+    public override void MouseMoveOnCell()
+    {
+    }
+  }
+}

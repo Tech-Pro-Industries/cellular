@@ -1,0 +1,11 @@
+using LMT.Component.ViewModel;
+
+namespace LMT
+{
+  public class DataGridCell_MIB_MouseEventArgs
+  {
+    public string HeaderName { get; set; }
+
+    public DyDataGrid_MIBModel SelectedCell { get; set; }
+  }
+}

@@ -1,0 +1,162 @@
+using BidCfgParser;
+using CfgFileOperation.UIShowManger;
+using CommonUtility;
+using LMT.Utils;
+using LMT.ViewModel;
+using MIBDataParser;
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Windows;
+using UILanguageHelper;
+
+namespace LMT
+{
+  internal class ObjNodeControl
+  {
+    public ObservableCollection<ObjNodeModel> m_NodeList { get; set; }
+
+    public ObservableCollection<ObjNodeModel> m_RootNode { get; set; }
+
+    public static NodeBControlPage MainPage { get; set; }
+
+    public ObjNodeControl(string ip, NodeBControlPage mainPage)
+    {
+      try
+      {
+        ObjNodeControl.MainPage = mainPage;
+        ObjTreeInfo objTreeInfo;
+        string err;
+        if (!Database.GetInstance().GetObjTreeInfoByIp(ip, out objTreeInfo, out err))
+        {
+          int num = (int) CustomMessageBox.Show(string.Format("Parse file failed:DB Get objTree err.{0}.\r\n", (object) err));
+        }
+        else
+        {
+          this.PreHandleNodes(objTreeInfo);
+          this.ParseJObjectII(objTreeInfo);
+        }
+      }
+      catch (Exception ex)
+      {
+        int num = (int) CustomMessageBox.Show("Parse file failed\r\n" + (object) ex);
+      }
+    }
+
+    private void ParseJObjectII(ObjTreeInfo nodes)
+    {
+      List<ObjNodeInfo> nodeList = nodes.NodeList;
+      this.m_NodeList = new ObservableCollection<ObjNodeModel>();
+      string mibVersion = nodes.mibVersion;
+      foreach (ObjNodeInfo objNodeInfo in nodeList)
+      {
+        int objParentId = objNodeInfo.ObjParentID;
+        string objName = objNodeInfo.ObjName;
+        string mibTableName = objNodeInfo.MibTableName;
+        FontWeight weight = FontWeights.Normal;
+        if (!ObjNodeControl.MainPage.IsOnLine && CfgLogicMid.GetInstance().IsExistCfgTbName(ObjNodeControl.MainPage.IsOnLine, mibTableName, ObjNodeControl.MainPage.MainTabVM.TabName))
+          weight = FontWeights.Bold;
+        Uri objTreeUri = DataGridUtils.SetObjTreeImage(mibTableName, ObjNodeControl.MainPage.MainTabVM.GnbIp);
+        this.m_NodeList.Add(new ObjNodeModel(objNodeInfo.ObjID, objParentId, mibVersion, objName, mibTableName, weight, objTreeUri));
+      }
+      this.m_RootNode = ObjNodeControl.ArrangeParentage(this.m_NodeList);
+    }
+
+    private static ObservableCollection<ObjNodeModel> ArrangeParentage(
+      ObservableCollection<ObjNodeModel> NodeList)
+    {
+      ObservableCollection<ObjNodeModel> observableCollection = new ObservableCollection<ObjNodeModel>();
+      ObjNodeModel objNodeModel = new ObjNodeModel(0, 0, "1.0", LanguageServices.Current.GetTextValue("BaseInfo_Tree_ObjTree"), "/", FontWeights.Normal);
+      foreach (ObjNodeModel node1 in (Collection<ObjNodeModel>) NodeList)
+      {
+        if (node1.ObjParentID == 0)
+        {
+          node1.IsExpanded = true;
+          objNodeModel.IsExpanded = true;
+          objNodeModel.Add(node1);
+        }
+        else
+        {
+          foreach (ObjNodeModel node2 in (Collection<ObjNodeModel>) NodeList)
+          {
+            if (node2.ObjID == node1.ObjParentID)
+              node2.Add(node1);
+          }
+        }
+      }
+      observableCollection.Add(objNodeModel);
+      return observableCollection;
+    }
+
+    private void PreHandleNodes(ObjTreeInfo nodeList)
+    {
+      List<NameAndMib> allHideNodes = Singleton<BidHelper>.GetInstance().GetAllHideNodes();
+      if (allHideNodes != null)
+      {
+        foreach (NameAndMib nameAndMib in allHideNodes)
+        {
+          string str = nameAndMib.nameMib.Replace("Entry", "Table");
+          string nameCh = nameAndMib.nameCh;
+          List<ObjNodeInfo> objNodeByChName = ObjNodeControl.GetObjNodeByChName(nodeList, nameCh);
+          if (objNodeByChName != null && objNodeByChName.Count != 0)
+          {
+            foreach (ObjNodeInfo curNode in objNodeByChName)
+            {
+              if (curNode.MibTableName.Equals(str))
+              {
+                ObjNodeControl.DelNodeAndChildren(nodeList, curNode);
+                break;
+              }
+            }
+          }
+        }
+      }
+      List<NodeNameModify> allModifyNodes = Singleton<BidHelper>.GetInstance().GetAllModifyNodes();
+      if (allModifyNodes == null)
+        return;
+      foreach (NodeNameModify nodeNameModify in allModifyNodes)
+      {
+        string strOptionalMibName = nodeNameModify.nameMib.Replace("Entry", "Table");
+        ObjNodeControl.ReplaceNodeNameChByOldName(nodeList, nodeNameModify.originNodeNameCh, nodeNameModify.latestNodeNameCh, strOptionalMibName);
+      }
+    }
+
+    private static List<ObjNodeInfo> GetObjNodeByChName(ObjTreeInfo nodeList, string strNameCh)
+    {
+      if (string.IsNullOrEmpty(strNameCh) || nodeList == null)
+        return (List<ObjNodeInfo>) null;
+      List<ObjNodeInfo> nodeList1 = nodeList.NodeList;
+      return nodeList1 == null || nodeList1.Count < 1 ? (List<ObjNodeInfo>) null : nodeList1.FindAll((Predicate<ObjNodeInfo>) (item => item.ObjName.Equals(strNameCh)));
+    }
+
+    private static void DelNodeAndChildren(ObjTreeInfo nodeList, ObjNodeInfo curNode)
+    {
+      if (nodeList == null || curNode == null)
+        return;
+      List<ObjNodeInfo> nodeList1 = nodeList.NodeList;
+      if (nodeList1 == null || nodeList1.Count < 1)
+        return;
+      int tmpNodeId = curNode.ObjID;
+      nodeList1.RemoveAll((Predicate<ObjNodeInfo>) (item => item.ObjParentID == tmpNodeId));
+      nodeList1.RemoveAll((Predicate<ObjNodeInfo>) (item => item.ObjID == tmpNodeId));
+    }
+
+    private static void ReplaceNodeNameChByOldName(
+      ObjTreeInfo nodeList,
+      string strOldName,
+      string strNewName,
+      string strOptionalMibName = "/")
+    {
+      List<ObjNodeInfo> objNodeByChName = ObjNodeControl.GetObjNodeByChName(nodeList, strOldName);
+      if (objNodeByChName == null)
+        return;
+      for (int index = objNodeByChName.Count - 1; index >= 0; --index)
+      {
+        if (objNodeByChName.ElementAt<ObjNodeInfo>(index).MibTableName.Equals(strOptionalMibName))
+          objNodeByChName[index].ObjName = strNewName;
+      }
+    }
+  }
+}

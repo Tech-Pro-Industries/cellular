@@ -1,0 +1,29 @@
+using System.Collections.Generic;
+
+namespace LMT
+{
+  public class DataGrid_Cell_MIB_ENUM : GridCell
+  {
+    public Dictionary<int, string> m_AllContent { get; set; }
+
+    public int m_CurrentValue
+    {
+      get => this.GetValue<int>(nameof (m_CurrentValue));
+      set => this.SetValue<int>(value, nameof (m_CurrentValue));
+    }
+
+    public DataGrid_Cell_MIB_ENUM() => this.m_AllContent = new Dictionary<int, string>();
+
+    public override void CellDragawayCallback()
+    {
+    }
+
+    public override void EditingCallback()
+    {
+    }
+
+    public override void MouseMoveOnCell()
+    {
+    }
+  }
+}

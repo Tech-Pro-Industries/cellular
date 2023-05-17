@@ -1,0 +1,18 @@
+using LMT.Component.Control;
+using System.Collections.Generic;
+
+namespace LMT
+{
+  public class DataGrid_MIBDataControl
+  {
+    public DTDataGrid datagrid { get; set; }
+
+    public DataGrid_MIBDataControl(DTDataGrid dg) => this.datagrid = dg;
+
+    public void ParseMibToDataGrid(
+      Dictionary<string, string> pname_content,
+      Dictionary<string, string> pname_cn)
+    {
+    }
+  }
+}

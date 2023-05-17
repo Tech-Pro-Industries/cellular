@@ -1,0 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.Windows.Threading;
+
+namespace LMT
+{
+  public class CallbackObjectForJs
+  {
+    private DispatcherTimer timer = new DispatcherTimer();
+    public List<string> listForLegend = new List<string>();
+    public List<series> listForSeries = new List<series>();
+    public string[] listForXAxis = new string[0];
+
+    public string canvas_width { get; set; }
+
+    public string canvas_height { get; set; }
+
+    public static string OptionJsonString() => LMT.Option.ObjectToJson((object) new LMT.Option(new legend(new List<string>()), new List<series>(), new xAxis(new string[1]
+    {
+      DateTime.Now.ToString("T")
+    })));
+
+    public static double[] randomArr(int num)
+    {
+      Array array = (Array) new double[num];
+      Random random = new Random();
+      for (int index = 0; index < num; ++index)
+        array.SetValue((object) Math.Round(random.NextDouble() * 20.0, 2), index);
+      return (double[]) array;
+    }
+
+    public string Option { get; set; } = CallbackObjectForJs.OptionJsonString();
+  }
+}

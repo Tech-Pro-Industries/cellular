@@ -1,0 +1,181 @@
+using AlarmManage.BLL;
+using ChromeTabs;
+using CommonUtility;
+using LinkPath;
+using LMT.View;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Configuration;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT
+{
+  public class MainWindow : CustomWindow, IComponentConnector
+  {
+    internal MainWindow SCMTMainWindow;
+    internal CustomMenuItem UseHelpMenu;
+    internal CustomMenuItem FeedbackMenu;
+    internal CustomMenuItem ConfigMenu;
+    internal CustomMenuItem LanguageMenu;
+    internal CustomMenuItem ToolConfigMenu;
+    internal ChromeTabControl MyChromeTabControl;
+    private bool _contentLoaded;
+
+    public MainWindow(string strEndTime = "")
+    {
+      this.InitializeComponent();
+      if (ConfigFileHelper.IsEnableLangSetting())
+        this.ConfigMenu.Visibility = Visibility.Visible;
+      else
+        this.ConfigMenu.Visibility = Visibility.Collapsed;
+      if (ConfigFileHelper.IsEnglishVersion())
+      {
+        this.UseHelpMenu.Visibility = Visibility.Collapsed;
+        this.FeedbackMenu.Visibility = Visibility.Collapsed;
+      }
+      else
+      {
+        this.UseHelpMenu.Visibility = Visibility.Visible;
+        this.FeedbackMenu.Visibility = Visibility.Visible;
+      }
+      this.RegisterFunction();
+      strEndTime = strEndTime.Equals("00000000") || strEndTime.Length < 8 ? "" : LanguageServices.Current.GetTextValue("Index_LeftMenu_ExpiryDate") + strEndTime;
+      strEndTime = this.GetWelcomeInfo() + "    " + strEndTime;
+      this.EndDate = (object) strEndTime;
+    }
+
+    private string GetWelcomeInfo()
+    {
+      try
+      {
+        string str = FilePathHelper.GetAppPath() + "tools\\LmtLicense\\WelcomeInfo.cfg";
+        long length = new FileInfo(str).Length;
+        FileStream fileStream = new FileStream(str, FileMode.Open);
+        byte[] numArray = new byte[length];
+        fileStream.Read(numArray, 0, (int) length);
+        fileStream.Close();
+        return Encoding.UTF8.GetString(numArray);
+      }
+      catch (Exception ex)
+      {
+        return "";
+      }
+    }
+
+    private void RegisterFunction()
+    {
+      if (!StartToolsHelper.StartAgent(out string _))
+        ConfigFileHelper.SetUseSnmpAgentFlag(false);
+      Singleton<DTLinkPathMgr>.GetInstance().Initialize();
+      Singleton<AlarmServiceProvider>.GetInstance().InitProvider();
+    }
+
+    private void AboutUsMenu_Click(object sender, RoutedEventArgs e)
+    {
+      string appSettingValue1 = AppConfigHelper.GetAppSettingValue<string>("Local Maintain Tool", "ToolName");
+      string appSettingValue2 = AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb");
+      string str1 = !LanguageServices.Current.IsEnLanguage ? AppConfigHelper.GetAppSettingValue<string>("大唐移动通讯设备有限公司", "CompanyNameCh") : AppConfigHelper.GetAppSettingValue<string>("Datang Mobile", "CompanyName");
+      AppSettingsReader appSettingsReader = new AppSettingsReader();
+      string str2 = appSettingValue2;
+      int num = (int) CustomMessageBox.Show(appSettingValue1 + " (" + str2 + ")\r\n\r\n" + string.Format("{0}{1}\r\n", (object) LanguageServices.Current.GetTextValue("Index_HelpMenu_Version"), appSettingsReader.GetValue("version", typeof (string))) + string.Format("{0}{1}\r\n", (object) LanguageServices.Current.GetTextValue("Index_HelpMenu_ReleaseTime"), appSettingsReader.GetValue("releasetime", typeof (string))) + string.Format("\r\n\r\n{0}", (object) string.Format(LanguageServices.Current.GetTextValue("Index_HelpMenu_CopyRight"), (object) str1)));
+    }
+
+    private void MetroMenuItem_Click(object sender, RoutedEventArgs e) => new ConfigFileOperate().ShowDialog();
+
+    private void MetroMenuItem_Click_LoadDtz(object sender, RoutedEventArgs e) => new LoadLmdtz().ShowDialog();
+
+    private void Wd_Closed(object sender, EventArgs e) => this.IsEnabled = true;
+
+    private void MetroWindow_KeyDown(object sender, KeyEventArgs e)
+    {
+      if (!e.KeyboardDevice.IsKeyDown(Key.Tab) || !e.KeyboardDevice.IsKeyDown(Key.LeftCtrl))
+        return;
+      ((LMT.ViewModel.MainWindowVM) this.DataContext).NextTab();
+    }
+
+    private void AboutHelp_Click(object sender, RoutedEventArgs e) => Process.Start(FilePathHelper.GetAppPath() + ConfigFileHelper.ScmtHelpFile);
+
+    private void CustomWindow_Loaded(object sender, RoutedEventArgs e) => Application.Current.MainWindow = Window.GetWindow((DependencyObject) this);
+
+    private void ChangeLanguage_Click(object sender, RoutedEventArgs e)
+    {
+      LanguageSetting languageSetting = new LanguageSetting();
+      languageSetting.Owner = (Window) this;
+      languageSetting.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+      languageSetting.ShowDialog();
+    }
+
+    private void ToolConfigMenu_Click(object sender, RoutedEventArgs e)
+    {
+      ConfigSetting configSetting;
+      configSetting.DataContext = (object) (configSetting = new ConfigSetting());
+      configSetting.Owner = (Window) this;
+      configSetting.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+      configSetting.ShowDialog();
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/mainwindow.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.SCMTMainWindow = (MainWindow) target;
+          this.SCMTMainWindow.Loaded += new RoutedEventHandler(this.CustomWindow_Loaded);
+          this.SCMTMainWindow.KeyDown += new KeyEventHandler(this.MetroWindow_KeyDown);
+          break;
+        case 2:
+          ((MenuItem) target).Click += new RoutedEventHandler(this.AboutUsMenu_Click);
+          break;
+        case 3:
+          this.UseHelpMenu = (CustomMenuItem) target;
+          this.UseHelpMenu.Click += new RoutedEventHandler(this.AboutHelp_Click);
+          break;
+        case 4:
+          this.FeedbackMenu = (CustomMenuItem) target;
+          break;
+        case 5:
+          ((MenuItem) target).Click += new RoutedEventHandler(this.MetroMenuItem_Click_LoadDtz);
+          break;
+        case 6:
+          this.ConfigMenu = (CustomMenuItem) target;
+          break;
+        case 7:
+          this.LanguageMenu = (CustomMenuItem) target;
+          this.LanguageMenu.Click += new RoutedEventHandler(this.ChangeLanguage_Click);
+          break;
+        case 8:
+          this.ToolConfigMenu = (CustomMenuItem) target;
+          this.ToolConfigMenu.Click += new RoutedEventHandler(this.ToolConfigMenu_Click);
+          break;
+        case 9:
+          this.MyChromeTabControl = (ChromeTabControl) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

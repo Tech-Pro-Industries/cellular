@@ -1,0 +1,64 @@
+using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using System.Windows.Input;
+
+namespace LMT
+{
+  public class MainWindowVM : INotifyPropertyChanged
+  {
+    private string _title = "DTMobile Station Combine Maintain Tool";
+    private bool _btnEnabled = true;
+    private ICommand _cmdSample;
+    private ICommand _cmdSampleWithParam;
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string propertyName = null)
+    {
+      PropertyChangedEventHandler propertyChanged = this.PropertyChanged;
+      if (propertyChanged == null)
+        return;
+      propertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public string Title
+    {
+      get => this._title;
+      set
+      {
+        this._title = value;
+        this.OnPropertyChanged(nameof (Title));
+      }
+    }
+
+    public bool BtnEnabled
+    {
+      get => this._btnEnabled;
+      set
+      {
+        this._btnEnabled = value;
+        this.OnPropertyChanged(nameof (BtnEnabled));
+      }
+    }
+
+    public ICommand CmdSample => this._cmdSample ?? (this._cmdSample = (ICommand) new AsyncCommand((Func<Task>) (async () =>
+    {
+      this.Title = "Busy...";
+      this.BtnEnabled = false;
+      await Task.Delay(2000);
+      this.Title = "UICore.Demo";
+      this.BtnEnabled = true;
+    })));
+
+    public ICommand CmdSampleWithParam => this._cmdSampleWithParam ?? (this._cmdSampleWithParam = (ICommand) new AsyncCommand<string>((Func<string, Task>) (async str =>
+    {
+      this.Title = string.Format("Hello I'm {0} currently", (object) str);
+      this.BtnEnabled = false;
+      await Task.Delay(2000);
+      this.Title = "UICore.Demo";
+      this.BtnEnabled = true;
+    })));
+  }
+}

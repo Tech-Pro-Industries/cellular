@@ -1,0 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace LMT
+{
+  public class DebugParameterHelper
+  {
+    private static string[] m_arrayStartupParameter;
+
+    public static void SetStartupParameter(string[] parameters) => DebugParameterHelper.m_arrayStartupParameter = parameters;
+
+    public static bool IsNoAuth() => DebugParameterHelper.m_arrayStartupParameter != null && DebugParameterHelper.m_arrayStartupParameter.Length != 0 && ((IEnumerable<string>) DebugParameterHelper.m_arrayStartupParameter).Any<string>((Func<string, bool>) (param => param.Equals("noAuth", StringComparison.CurrentCultureIgnoreCase)));
+  }
+}

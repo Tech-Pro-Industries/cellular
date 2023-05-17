@@ -1,0 +1,11 @@
+using System.Collections.Generic;
+
+namespace LMT
+{
+  public class legend
+  {
+    public List<string> data = new List<string>();
+
+    public legend(List<string> data) => this.data = data;
+  }
+}

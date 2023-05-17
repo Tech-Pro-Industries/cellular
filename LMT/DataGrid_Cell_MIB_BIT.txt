@@ -1,0 +1,23 @@
+using System.Collections.Generic;
+
+namespace LMT
+{
+  public class DataGrid_Cell_MIB_BIT : GridCell
+  {
+    public Dictionary<int, string> m_AllBit { get; set; }
+
+    public DataGrid_Cell_MIB_BIT() => this.m_AllBit = new Dictionary<int, string>();
+
+    public override void CellDragawayCallback()
+    {
+    }
+
+    public override void EditingCallback()
+    {
+    }
+
+    public override void MouseMoveOnCell()
+    {
+    }
+  }
+}

@@ -1,0 +1,11 @@
+namespace LMT
+{
+  public enum OrderStatus
+  {
+    None,
+    New,
+    Processing,
+    Shipped,
+    Received,
+  }
+}

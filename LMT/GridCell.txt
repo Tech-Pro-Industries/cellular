@@ -1,0 +1,34 @@
+using DevExpress.Mvvm;
+using LmtbSnmp;
+
+namespace LMT
+{
+  public abstract class GridCell : BindableBase
+  {
+    public string Id;
+    public string oid;
+    public string MibName_EN;
+    public string MibName_CN;
+    public DataGrid_CellDataType cellDataType;
+
+    public bool TableType { get; set; }
+
+    public string Indexs { get; set; }
+
+    public string m_Content
+    {
+      get => this.GetValue<string>(nameof (m_Content));
+      set => this.SetValue<string>(value, nameof (m_Content));
+    }
+
+    public bool m_bIsReadOnly { get; set; }
+
+    public bool m_bIsSelected { get; set; }
+
+    public abstract void EditingCallback();
+
+    public abstract void CellDragawayCallback();
+
+    public abstract void MouseMoveOnCell();
+  }
+}

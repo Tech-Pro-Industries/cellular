@@ -1,0 +1,1699 @@
+using AlarmManage.BLL;
+using BidCfgParser;
+using CellPlanManager.View;
+using CellPlanManager.ViewModel;
+using CfgFileOperation.ExcelManger;
+using CfgFileOperation.UIShowManger;
+using CommonUtility;
+using DataConsistencyParse;
+using ExcelParase;
+using FileManager.Pages;
+using LinkPath;
+using LMT.Component.Control;
+using LMT.Component.Control.LogInfoShow;
+using LMT.Component.ViewModel;
+using LMT.Utils;
+using LMT.View;
+using LMT.ViewModel;
+using LogUploadManager.View;
+using MIBDataParser;
+using MsgDispatcher;
+using MsgQueue;
+using MTSLogSettings.View;
+using NetPlan.View;
+using ParaseRecoverManager;
+using ParaseRecoverManager.View;
+using SCMTOperationCore.Control;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Forms;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Threading;
+using UEData;
+using UICore.Controls.Metro;
+using UILanguageHelper;
+
+namespace LMT
+{
+  public class NodeBControlPage : System.Windows.Controls.UserControl, IComponentConnector
+  {
+    public DiagnosisTestWindow dtw;
+    private string Prefix = LanguageServices.Current.GetTextValue("CfgCompare_Status_MIBVer");
+    public static string m_strNodeName;
+    private string m_filePatch;
+    private int flag;
+    private static object trapLock = new object();
+    public ObjTreeVM ObjTreeViewVM;
+    public ObjTreeVM CollectTreeViewVM;
+    private bool m_bDoMibSyncFlag;
+    private bool ConnectedOrNot;
+    private FlowChartView fcv;
+    private bool bInitNetPlan;
+    private bool bInitFileManager;
+    private NetPlanMainView g_NetPlan;
+    private bool bUEPlan;
+    private ObservableCollection<ObjNodeModel> NodeList;
+    private bool isSelectd;
+    private TabItem netPlanTabItem;
+    private DiagnosisCell dcell;
+    internal NodeBControlPage NodeBPage;
+    internal Image FakeSwitchVisibility;
+    internal StackPanel lists;
+    internal ObjTreeView Obj_Collect;
+    internal ObjTreeView Obj_Root;
+    internal Expander ExpanderBaseInfo;
+    internal GlobalSearchTextBox GlobalSearch;
+    internal ScrollViewer Fav;
+    internal StackPanel FavLeaf_Lists;
+    internal System.Windows.Controls.MenuItem menuAddCfgCell;
+    internal System.Windows.Controls.MenuItem menuDeleteCfgCell;
+    internal System.Windows.Controls.TabControl MainHorizenTab;
+    internal TabItem BaseInfo;
+    internal Grid AllContent;
+    internal MainDataGrid Main_Dynamic_DataGrid;
+    internal ScrollViewer cellPlan;
+    internal TabItem FileManagerTabItem;
+    internal TabItem netPlanTab;
+    internal ScrollViewer netPlanScrollView;
+    internal ScrollViewer logUploadView;
+    internal ScrollViewer UEDataView;
+    internal StackPanel ParameterRecovery_gNB;
+    internal StackPanel stack_Prb;
+    internal StackPanel logSetting;
+    internal StackPanel PortTracking;
+    internal StackPanel stack_cellUliot;
+    internal LMT.Component.Control.LogInfoShow.LogInfoShow MainLogInfoShow;
+    internal Grid StatusInfoShow;
+    internal System.Windows.Controls.ProgressBar progressBar;
+    internal TextBlock tbMibVision;
+    internal TextBlock tbCancelQuery;
+    private bool _contentLoaded;
+
+    private void PrbResourcesCfg_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => new PrbShow(this.IP, new PrbShowVM(this.IP)).ShowDialog();
+
+    public NodeBControlPage()
+    {
+      this.InitializeComponent();
+      this.InitView();
+      this.TabControlEnable(false);
+      Task.Factory.StartNew(new Action(this.StartMustTools));
+      this.GlobalSearch.ButtonClick += new EventHandler(this.GlobalSearch_ButtonClick);
+      this.UseTheScrollViewerScrolling((FrameworkElement) this.Obj_Root);
+      if (!(LanguageServices.Current.CurrentLanguageCode == "en"))
+        return;
+      this.ParameterRecovery_gNB.Visibility = Visibility.Collapsed;
+      this.PortTracking.Visibility = Visibility.Collapsed;
+      this.logSetting.Visibility = Visibility.Collapsed;
+    }
+
+    private void LanguageChange_Deal(SubscribeMsg msg) => System.Windows.Application.Current.Dispatcher?.Invoke((Action) (() => this.RefreshUiContent()));
+
+    private void RefreshUiContent()
+    {
+      if (this.tbMibVision.Text.Contains("MIB版本:"))
+      {
+        this.tbMibVision.Text = this.tbMibVision.Text.Replace("MIB版本:", LanguageServices.Current.GetTextValue("BaseInfo_MibVersion"));
+      }
+      else
+      {
+        if (!this.tbMibVision.Text.Contains("Mib Version:"))
+          return;
+        this.tbMibVision.Text = this.tbMibVision.Text.Replace("Mib Version:", LanguageServices.Current.GetTextValue("BaseInfo_MibVersion"));
+      }
+    }
+
+    public void StartAcceptTapMessage() => SubscribeHelper.AddSubscribe("SnmpMsgDispose_CfgChgTrap", new HandlerSubscribeMsg(this.CallOnTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 167, nameof (StartAcceptTapMessage));
+
+    public void EndAcceptTrapMessage() => SubscribeHelper.CancelSubscribe("SnmpMsgDispose_CfgChgTrap", new HandlerSubscribeMsg(this.CallOnTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 172, nameof (EndAcceptTrapMessage));
+
+    private void CallOnTrap(SubscribeMsg msg)
+    {
+      if (!this.IsOnLine)
+        return;
+      AlterationConfig ac = SerializeHelper.DeserializeWithBinary<AlterationConfig>(msg.Data);
+      if (ac == null)
+        return;
+      if (!IPAddress.Parse(ac.strGnbIp).ToString().Equals(IPAddress.Parse(this.IP).ToString(), StringComparison.OrdinalIgnoreCase))
+        return;
+      try
+      {
+        this.OnCfgChgTrap(ac);
+      }
+      catch
+      {
+      }
+    }
+
+    private int OnCfgChgTrap(AlterationConfig ac)
+    {
+      UICmdOperatorType operType = UICmdOperatorType.Modify;
+      switch (ac.alterationNotiType)
+      {
+        case 0:
+          operType = UICmdOperatorType.Add;
+          break;
+        case 1:
+          operType = UICmdOperatorType.Del;
+          break;
+      }
+      bool flag = operType == UICmdOperatorType.Add;
+      lock (NodeBControlPage.trapLock)
+      {
+        try
+        {
+          MibTableInfo currentTable = this.Main_Dynamic_DataGrid?.ColumnModel?.TableProperty as MibTableInfo;
+          if (currentTable == null)
+            return -1;
+          if (string.IsNullOrEmpty(ac.strTblName) || !ac.strTblName.Equals(currentTable.nameMib, StringComparison.OrdinalIgnoreCase))
+            return 0;
+          Dictionary<string, string> oidValue = ac.Oid2Value;
+          if (flag)
+          {
+            Dictionary<string, string> mapFullOid2Value;
+            CommLinkPath.QueryTableRecord(ac.strTblName, ac.strIndex, ac.strGnbIp, out mapFullOid2Value);
+            oidValue = mapFullOid2Value;
+            LogManager.Log.Debug(string.Format("查询表：{0}索引为：{1}实例返回节点数量：{2}，拼接如下：{3}", (object) ac.strTblName, (object) ac.strIndex, (object) oidValue.Count, (object) oidValue.Keys.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 236, nameof (OnCfgChgTrap));
+          }
+          System.Windows.Application.Current.Dispatcher?.BeginInvoke(DispatcherPriority.Normal, (Delegate) (() =>
+          {
+            this.Main_Dynamic_DataGrid?.initalCmdList();
+            this.Main_Dynamic_DataGrid?.RefreshDataGrid(oidValue, ac.strIndex, currentTable.indexNum, operType);
+          }));
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.Error("OnCfgChgTrap：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 248, nameof (OnCfgChgTrap));
+        }
+      }
+      return 1;
+    }
+
+    private void GlobalSearch_ButtonClick(object sender, EventArgs e) => this.GlobalSearch.Text = "";
+
+    private void InitView() => this.FileManagerTabItem.GotFocus += new RoutedEventHandler(this.FileManagerTabItem_GotFocus);
+
+    private void StartMustTools()
+    {
+      string strErrMsg;
+      if (!StartToolsHelper.StartFtpServer(out strErrMsg))
+        ShowLogHelper.Show(string.Format("{0} {1}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_3"), (object) LanguageServices.Current.GetTextValue(strErrMsg)), "SCMT");
+      if (StartToolsHelper.StartSftpgoServer(out strErrMsg))
+        return;
+      ShowLogHelper.Show(string.Format("{0} {1}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Sftp_Startfailed2"), (object) LanguageServices.Current.GetTextValue(strErrMsg)), "SCMT");
+    }
+
+    private void AddNodeBPageToWindow()
+    {
+    }
+
+    private async Task<bool> InitDataBase(string strIp, string strLmDtzFilePath)
+    {
+      NodeBControlPage nodeBcontrolPage = this;
+      if (string.IsNullOrEmpty(strIp))
+        throw new ArgumentNullException(nameof (strIp));
+      if (!(NodeBControl.GetInstance().GetNodeByIp(strIp) is SCMTOperationCore.Elements.NodeB))
+      {
+        LogManager.Log.Error(string.Format("根据ip地址：{0} 获取对应的基站信息失败", (object) strIp), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 316, nameof (InitDataBase));
+        return false;
+      }
+      CSEnbHelper.SetCurEnbAddr(strIp);
+      List<string> dbInitErr = new List<string>();
+      bool bInitDBResult = true;
+      try
+      {
+        bInitDBResult = await Database.GetInstance().initDatabaseLmDtz(strIp, strLmDtzFilePath, dbInitErr);
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 332, nameof (InitDataBase));
+        return false;
+      }
+      if (bInitDBResult)
+      {
+        if (nodeBcontrolPage.Dispatcher != null)
+        {
+          // ISSUE: reference to a compiler-generated method
+          nodeBcontrolPage.Dispatcher.Invoke(new Action(nodeBcontrolPage.\u003CInitDataBase\u003Eb__20_0));
+        }
+        return true;
+      }
+      string str = dbInitErr[0];
+      ShowLogHelper.Show(string.Format("{0}{1}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_5"), (object) str), strIp, InfoTypeEnum.ENB_OTHER_INFO_IMPORT);
+      return false;
+    }
+
+    private void RefreshObj(IList<ObjNodeModel> ItemsSource) => this.GlobalSearch.Target_element = (I_SCMT_BelongUserControl) this.ObjTreeViewVM;
+
+    private void AddToCollect_Click(object sender, RoutedEventArgs e) => this.ObjTreeViewVM.AddCollect();
+
+    public void RefreshCollectNodeShow()
+    {
+      this.CollectTreeViewVM.InitCollectData(this.IP, this);
+      this.Obj_Collect.DataContext = (object) this.CollectTreeViewVM;
+    }
+
+    private void Sub_PropertyChanged(object sender, PropertyChangedEventArgs e) => throw new NotImplementedException();
+
+    private void Show_Prb(object sender, EventArgs e)
+    {
+    }
+
+    private MetroContextMenu CreateNodebMenu() => new MetroContextMenu();
+
+    private void EnableMenu(System.Windows.Controls.ContextMenu menuRoot, string header, bool bEnable = true)
+    {
+      System.Windows.Controls.MenuItem menuItemByHeader = this.GetMenuItemByHeader(menuRoot, header);
+      if (menuItemByHeader == null)
+        return;
+      menuItemByHeader.IsEnabled = bEnable;
+    }
+
+    private System.Windows.Controls.MenuItem GetMenuItemByHeader(
+      System.Windows.Controls.ContextMenu menuRoot,
+      string header)
+    {
+      if (menuRoot == null || string.IsNullOrEmpty(header))
+        return (System.Windows.Controls.MenuItem) null;
+      foreach (object obj in (IEnumerable) menuRoot.Items)
+      {
+        if (obj is System.Windows.Controls.MenuItem menuItemByHeader && header.Equals(menuItemByHeader.Header))
+          return menuItemByHeader;
+      }
+      return (System.Windows.Controls.MenuItem) null;
+    }
+
+    private void Lost_Nodeb_Focus(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void Load_Nodeb(object sender, RoutedEventArgs e)
+    {
+    }
+
+    private void Get_Nodeb_Focus(object sender, RoutedEventArgs e)
+    {
+    }
+
+    public void UpdateAllMibDataGrid(
+      Dictionary<string, Dictionary<string, string>> ar,
+      Dictionary<string, string> oid_cn,
+      Dictionary<string, string> oid_en,
+      MibTableInfo mibTable)
+    {
+      Singleton<BidHelper>.GetInstance().MibColumnModify(oid_en, oid_cn, mibTable?.nameMib);
+      Singleton<BidHelper>.GetInstance().MibDataHandle(ref ar, oid_en, mibTable?.nameMib);
+      Action<Dictionary<string, Dictionary<string, string>>, Dictionary<string, string>, Dictionary<string, string>, MibTableInfo> method = new Action<Dictionary<string, Dictionary<string, string>>, Dictionary<string, string>, Dictionary<string, string>, MibTableInfo>(this.UpdateMibDataGridCallback);
+      if (this.Main_Dynamic_DataGrid.Dispatcher == null)
+        return;
+      this.Main_Dynamic_DataGrid.Dispatcher.Invoke((Delegate) method, (object) ar, (object) oid_cn, (object) oid_en, (object) mibTable);
+    }
+
+    private void UpdateMibDataGridCallback(
+      Dictionary<string, Dictionary<string, string>> ar,
+      Dictionary<string, string> oid_cn,
+      Dictionary<string, string> oid_en,
+      MibTableInfo mibTable)
+    {
+      this.Main_Dynamic_DataGrid.DynamicDataGrid.DataContext = (object) null;
+      this.Main_Dynamic_DataGrid.LineDataList.Clear();
+      if (ar == null || ar.Count == 0)
+      {
+        this.ShowProgressBar(0.0, Visibility.Collapsed);
+        if (mibTable == null)
+          return;
+        this.Main_Dynamic_DataGrid.InitMibShowName(this.NodeList, mibTable);
+        this.Main_Dynamic_DataGrid.SetDataGridInfo(oid_cn, oid_en, mibTable);
+        if (this.Main_Dynamic_DataGrid.IsUserOperMode)
+          this.Main_Dynamic_DataGrid.UserOperModeNullTableProcess();
+        else
+          this.Main_Dynamic_DataGrid.CompareModeNullTableProcess();
+      }
+      else
+      {
+        this.Main_Dynamic_DataGrid.LineDataList = ar;
+        if (this.Main_Dynamic_DataGrid.LineDataList.Count == 0)
+          return;
+        this.Main_Dynamic_DataGrid.SetDataGridInfo(oid_cn, oid_en, mibTable);
+        this.Main_Dynamic_DataGrid.RefreshDataGrid(1);
+        this.Main_Dynamic_DataGrid.InitMibShowName(this.NodeList, mibTable);
+        this.ShowProgressBar(0.0, Visibility.Collapsed);
+      }
+    }
+
+    private void FileManagerTabItem_GotFocus(object sender, RoutedEventArgs e) => this.MetroExpander_Click(sender, (EventArgs) e);
+
+    private void MetroExpander_Click(object sender, EventArgs e)
+    {
+      string ip = this.IP;
+      if (ip == null)
+      {
+        if (LanguageServices.Current.IsEnLanguage)
+        {
+          int num1 = (int) CustomMessageBox.Show("No equipment selected");
+        }
+        else
+        {
+          int num2 = (int) CustomMessageBox.Show("未选择基站，请单击需要显示的基站");
+        }
+      }
+      else
+      {
+        NodeBControl.GetInstance().GetFriendlyNameByIp(ip);
+        if (this.bInitFileManager)
+          return;
+        this.FileManagerTabItem.Content = (object) new TestTwoFileManager(ip);
+        this.bInitFileManager = true;
+      }
+    }
+
+    private void SubscribeMsgs()
+    {
+      if (this.IsOnLine)
+      {
+        SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "show_log"), new HandlerSubscribeMsg(this.OnShowLog), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 941, nameof (SubscribeMsgs));
+      }
+      else
+      {
+        SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.CfgFilePath, (object) "show_log"), new HandlerSubscribeMsg(this.OnShowLog), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 944, nameof (SubscribeMsgs));
+        SubscribeHelper.AddSubscribe("CfgPatchFileMode", new HandlerSubscribeMsg(this.OnCfgPatchFileMode), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 945, nameof (SubscribeMsgs));
+      }
+      SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "handle_enb_connected"), new HandlerSubscribeMsg(this.OnConnect), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 948, nameof (SubscribeMsgs));
+      SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "handle_enb_offline"), new HandlerSubscribeMsg(this.OnDisconnect), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 949, nameof (SubscribeMsgs));
+      SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "Load_Lmdtz_to_versiondb"), new HandlerSubscribeMsg(this.OnLoadLmdtzToVersionDb), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 950, nameof (SubscribeMsgs));
+      SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "handle_reconnect_gnb"), new HandlerSubscribeMsg(this.OnReconnGnb), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 951, nameof (SubscribeMsgs));
+      SubscribeHelper.AddSubscribe("BidFileChanged", new HandlerSubscribeMsg(this.OnUpdateUIByBidNotify), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 952, nameof (SubscribeMsgs));
+      SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "SnmpMsgDispose_OnResponse"), new HandlerSubscribeMsg(CDTSnmpMsgDispose.CallOnResponse), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 953, nameof (SubscribeMsgs));
+      SubscribeHelper.AddSubscribe("ManualLoadLmdtz", new HandlerSubscribeMsg(this.LoadLmdtzSucc), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 955, nameof (SubscribeMsgs));
+    }
+
+    private void OnCfgPatchFileMode(SubscribeMsg msg)
+    {
+      CfgOperMode tm = SerializeHelper.DeserializeWithBinary<CfgOperMode>(msg.Data);
+      if (tm.m_CfgOperMode == eCfgOperMode.PatchMode)
+      {
+        this.IsPatchFileMode = true;
+        if (this.Dispatcher != null)
+          this.Dispatcher.Invoke((Action) (() =>
+          {
+            if (tm.m_IsUpdate)
+              this.ObjTreeViewVM?.ChangeCfgPatchMode();
+            this.Main_Dynamic_DataGrid.BtnMakePatchFile.Visibility = Visibility.Visible;
+          }));
+      }
+      else
+      {
+        this.IsPatchFileMode = false;
+        if (this.Dispatcher != null)
+          this.Dispatcher.Invoke((Action) (() =>
+          {
+            if (tm.m_IsUpdate)
+              this.ObjTreeViewVM?.ChangeCfgPatchMode();
+            this.Main_Dynamic_DataGrid.BtnMakePatchFile.Visibility = Visibility.Collapsed;
+          }));
+      }
+      this.Main_Dynamic_DataGrid.IsPatchFileMode = this.IsPatchFileMode;
+    }
+
+    private void LoadLmdtzSucc(SubscribeMsg msg)
+    {
+      if (string.IsNullOrEmpty(this.IP) || this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Action) (() =>
+      {
+        ObjNodeControl objNodeControl = new ObjNodeControl(this.IP, this);
+        this.RefreshObj((IList<ObjNodeModel>) objNodeControl.m_RootNode);
+        this.ObjTreeViewVM.InitObjTreeData(objNodeControl.m_RootNode, objNodeControl.m_NodeList, this.IP, this);
+        this.Obj_Root.DataContext = (object) this.ObjTreeViewVM;
+        this.NodeList = objNodeControl.m_NodeList;
+        this.RefreshCollectNodeShow();
+        this.ObjTreeViewVM.InitSelectMibObjNode();
+      }));
+    }
+
+    private void OnShowLog(SubscribeMsg msg)
+    {
+      LogInfoStruct logInfo = ShowLogHelper.GetLogInfo(msg.Data);
+      if (logInfo == null)
+        return;
+      LogInfoTitle newLogInfo = new LogInfoTitle()
+      {
+        Type = logInfo.Type,
+        LogInfo = logInfo.Msg,
+        TargetIP = logInfo.TargetIp
+      };
+      if (InfoTypeEnum.NEED_MSG_BOX != logInfo.Type)
+      {
+        if (System.Windows.Application.Current.Dispatcher == null)
+          return;
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, (Delegate) (() => LMT.Component.Control.LogInfoShow.LogInfoShow.AddLogInfo(newLogInfo, this.MainLogInfoShow)));
+      }
+      else
+      {
+        int num;
+        System.Windows.Application.Current.Dispatcher?.BeginInvoke((Delegate) (() => num = (int) CustomMessageBox.Show(logInfo.Msg, messageBoxImage: CustomMessageBoxIcon.Error)));
+      }
+    }
+
+    private bool SetFtpServerInfoToGnb(string targetIp)
+    {
+      int num = FtpServerHelper.SetFtpServerInfo(targetIp) ? 1 : 0;
+      if (num != 0)
+      {
+        ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_6"), targetIp);
+        return num != 0;
+      }
+      ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_7"), targetIp);
+      return num != 0;
+    }
+
+    private async void OnConnect(SubscribeMsg msg)
+    {
+      NodeBControlPage nodeBcontrolPage = this;
+      NodeBControlPage mainPage = nodeBcontrolPage;
+      string ip = Encoding.UTF8.GetString(msg.Data);
+      if (string.IsNullOrEmpty(ip))
+        throw new ArgumentNullException("ip");
+      if (!IPAddress.Parse(nodeBcontrolPage.IP).ToString().Equals(IPAddress.Parse(ip).ToString(), StringComparison.OrdinalIgnoreCase))
+        return;
+      Singleton<DTLinkPathMgr>.GetInstance().CloseSnmpInstance(ip);
+      string fname = NodeBControl.GetInstance().GetFriendlyNameByIp(ip);
+      ShowLogHelper.Show(string.Format("{0} {1}-{2}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_8"), (object) fname, (object) ip), ip);
+      nodeBcontrolPage.MainTabVM.ChageTabIcon(ConnectStatus.Connected);
+      CSEnbHelper.AddEnbInfo(ip, true);
+      PublishHelper.PublishMsg("NodeBList_ConnectTrap", ip, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1096, nameof (OnConnect));
+      nodeBcontrolPage.SetFtpServerInfoToGnb(ip);
+      bool bRegTrapSucceed = Singleton<DTLinkPathMgr>.GetInstance().SendSnmpAgentRegMsg(ip);
+      if (!bRegTrapSucceed)
+        ShowLogHelper.Show(LanguageServices.Current.IsEnLanguage ? "Reg snmp msg to agent failed, please check and restart lmgagent" : "注册到agent失败，请检查后重启agent程序", ip);
+      bool bExistSameVersionMib = false;
+      string mibVer = CommLinkPath.QueryMibVersionNo(ip);
+      bool flag;
+      if (string.IsNullOrEmpty(mibVer))
+      {
+        ShowLogHelper.Show(string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_9"), (object) string.Format("{0}-{1}", (object) fname, (object) ip)), ip);
+        flag = await nodeBcontrolPage.InitDataBase(ip, (string) null);
+      }
+      else
+      {
+        ShowLogHelper.Show(string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_10"), (object) string.Format("{0}-{1}", (object) fname, (object) ip)), ip);
+        bExistSameVersionMib = Database.GetInstance().GetDataIsExistVersion(mibVer);
+        if (!bExistSameVersionMib)
+          bExistSameVersionMib = await Database.GetInstance().AutoLoadLmDtzByDBVersion(mibVer);
+        if (bExistSameVersionMib)
+        {
+          Database.GetInstance().SetIpMibVerMap(ip, mibVer, true);
+          CSEnbHelper.SetCurEnbAddr(ip);
+          NodeBControl.GetInstance().GetNodeByIp(ip);
+          if (nodeBcontrolPage.Dispatcher != null)
+            nodeBcontrolPage.Dispatcher.Invoke((Action) (() =>
+            {
+              mainPage.tbMibVision.Text = LanguageServices.Current.GetTextValue("BaseInfo_MibVersion") + mibVer;
+              ObjNodeControl objNodeControl = new ObjNodeControl(mainPage.IP, mainPage);
+              mainPage.RefreshObj((IList<ObjNodeModel>) objNodeControl.m_RootNode);
+              mainPage.ObjTreeViewVM.InitObjTreeData(objNodeControl.m_RootNode, objNodeControl.m_NodeList, mainPage.IP, mainPage);
+              mainPage.Obj_Root.DataContext = (object) mainPage.ObjTreeViewVM;
+              mainPage.NodeList = objNodeControl.m_NodeList;
+              mainPage.RefreshCollectNodeShow();
+              mainPage.TabControlEnable(true);
+              mainPage.ExpanderBaseInfo.IsEnabled = true;
+              mainPage.ExpanderBaseInfo.IsExpanded = false;
+            }));
+          flag = true;
+        }
+        else
+        {
+          ShowLogHelper.Show(string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_11"), (object) string.Format("{0}-{1}", (object) fname, (object) ip)), ip);
+          flag = await nodeBcontrolPage.InitDataBase(ip, (string) null);
+        }
+      }
+      if (!flag)
+      {
+        LogManager.Log.Error("数据库初始化失败，不再查询基站的设备信息", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1169, nameof (OnConnect));
+        ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_12"), ip);
+        if (nodeBcontrolPage.Dispatcher != null)
+        {
+          // ISSUE: reference to a compiler-generated method
+          nodeBcontrolPage.Dispatcher.Invoke(new Action(nodeBcontrolPage.\u003COnConnect\u003Eb__41_1));
+        }
+        NodeBControl.GetInstance().DisConnectNodeb(NodeBControl.GetInstance().GetFriendlyNameByIp(ip));
+      }
+      else
+      {
+        string strLocalMibVer;
+        Database.GetInstance().GetDataMibVersionByIp(ip, out strLocalMibVer);
+        string str1;
+        if (mibVer == null)
+        {
+          str1 = LanguageServices.Current.GetTextValue("BaseInfo_Log_16");
+        }
+        else
+        {
+          str1 = string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_17"), (object) mibVer);
+          if (mibVer.Equals(strLocalMibVer) && !string.IsNullOrEmpty(mibVer))
+          {
+            str1 = "与基站MIB版本一致";
+            bExistSameVersionMib = true;
+          }
+        }
+        if (nodeBcontrolPage.Dispatcher != null)
+          nodeBcontrolPage.Dispatcher.Invoke((Action) (() =>
+          {
+            mainPage.tbMibVision.Text = LanguageServices.Current.GetTextValue("BaseInfo_MibVersion") + strLocalMibVer;
+            if (bExistSameVersionMib)
+            {
+              mainPage.tbMibVision.Foreground = (Brush) new SolidColorBrush(Colors.Black);
+            }
+            else
+            {
+              mainPage.tbMibVision.Foreground = (Brush) new SolidColorBrush(Colors.Red);
+              if (mainPage.MainHorizenTab == null)
+                return;
+              foreach (object obj in (IEnumerable) mainPage.MainHorizenTab.Items)
+              {
+                if (obj.GetType() == typeof (TabItem) && obj is TabItem tabItem2 && tabItem2.Header.ToString().Equals(LanguageServices.Current.GetTextValue("NodeB_NetPlan")))
+                  tabItem2.IsEnabled = false;
+              }
+            }
+          }));
+        ShowLogHelper.Show(string.Format("{0} {1}-{2} ", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_13"), (object) fname, (object) ip), ip);
+        long taskId;
+        FileTransWorker.UploadActiveAlarmFile(ip, out taskId);
+        AlarmServiceProvider.UpdateMapIp2OnconnGetActAlarmInfo(ip, true, taskId);
+        CSEnbHelper.SetStationShelfType(ip, nodeBcontrolPage.GetEquipType(ip));
+        if (bExistSameVersionMib)
+        {
+          ShowLogHelper.Show(string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_14"), (object) mibVer), ip);
+          nodeBcontrolPage.Dispatcher?.Invoke(new Action(nodeBcontrolPage.ObjTreeViewVM.InitSelectMibObjNode));
+        }
+        else
+        {
+          string str2 = string.Format("{0}{1},{2}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_LocalVersion"), (object) strLocalMibVer, (object) str1);
+          ShowLogHelper.Show(string.Format("{0}{1}--{2}", (object) AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb"), (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_15"), (object) str2), ip, InfoTypeEnum.SI_ALARM_INFO);
+          if (!bRegTrapSucceed || mibVer == null || strLocalMibVer == null || !(mibVer != strLocalMibVer))
+            return;
+          ShowLogHelper.Show(string.Format("{0} {1}-{2}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_18"), (object) fname, (object) ip), ip);
+          if (!FileTransWorker.UploadMibFile(ip))
+            return;
+          nodeBcontrolPage.m_bDoMibSyncFlag = true;
+        }
+      }
+    }
+
+    private void OnDisconnect(SubscribeMsg msg)
+    {
+      string str = Encoding.UTF8.GetString(msg.Data);
+      if (string.IsNullOrEmpty(str))
+        throw new ArgumentNullException("ip");
+      if (str != this.IP)
+        return;
+      string friendlyNameByIp = NodeBControl.GetInstance().GetFriendlyNameByIp(str);
+      ShowLogHelper.Show(string.Format("{0}{1}-{2}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_19"), (object) friendlyNameByIp, (object) str), str);
+      this.MainTabVM.ChageTabIcon(ConnectStatus.Disconnect);
+      PublishHelper.PublishMsg("NodeBList_DisconnectTrap", str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1302, nameof (OnDisconnect));
+      this.NetPlanClose();
+      if (this.Dispatcher != null)
+        this.Dispatcher.Invoke((Action) (() =>
+        {
+          this.ExpanderBaseInfo.IsEnabled = false;
+          this.ExpanderBaseInfo.IsExpanded = false;
+          this.TabControlEnable(false);
+          this.FavLeaf_Lists.Children?.Clear();
+          this.MainHorizenTab.SelectedIndex = 0;
+          this.ShowProgressBar(0.0, Visibility.Collapsed);
+          this.Main_Dynamic_DataGrid.DynamicDataGrid.Columns.Clear();
+          this.Main_Dynamic_DataGrid.DynamicDataGrid.DataContext = (object) null;
+          this.Main_Dynamic_DataGrid.DataGridMibName.Text = "";
+          this.Main_Dynamic_DataGrid.DataGridMibEngName.Text = "";
+          this.Main_Dynamic_DataGrid.ContextMenu = (System.Windows.Controls.ContextMenu) null;
+          this.Main_Dynamic_DataGrid.LineDataList.Clear();
+          this.ObjTreeViewVM.ClearObjData();
+          this.Obj_Root.DataContext = (object) this.ObjTreeViewVM;
+          this.CollectTreeViewVM.ClearObjData();
+          this.Obj_Collect.DataContext = (object) this.CollectTreeViewVM;
+          this.m_bDoMibSyncFlag = false;
+        }));
+      Singleton<DTLinkPathMgr>.GetInstance().SendSnmpAgentDeRegMsg(str);
+      CSEnbHelper.CleanStationShelfType(str);
+      if (TimeHelper.Timer != null)
+      {
+        TimeHelper.Timer.Stop();
+        TimeHelper.Timer = (DispatcherTimer) null;
+      }
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Action) (() =>
+      {
+        if (GlobalData.strUeIpInfos.ContainsKey(this.IP))
+          GlobalData.strUeIpInfos[this.IP].Clear();
+        if (GlobalData.strUeIpCellInfos.ContainsKey(this.IP))
+          GlobalData.strUeIpCellInfos[this.IP].Clear();
+        if (GlobalData.strUeMeasInfos.ContainsKey(this.IP))
+          GlobalData.strUeMeasInfos[this.IP].Clear();
+        if (GlobalData.strUeMeasGapInfos.ContainsKey(this.IP))
+          GlobalData.strUeMeasGapInfos.Clear();
+        UEOperation.GetInstance(this.IP).Dispose();
+      }));
+    }
+
+    private EnbTypeEnum GetEquipType(string targetIp)
+    {
+      if (this.IsOnLine)
+      {
+        string strType;
+        if (CommLinkPath.GetGnbType(targetIp, out strType))
+          return (EnbTypeEnum) Convert.ToInt32(strType);
+      }
+      else
+      {
+        CfgUITableInfo tableInfo;
+        if (!new CfgFileOperation.UIShowManger.UICfgLogicMid.CfgAboutUIShow.CfgAboutUIShow().GetTableInsts(targetIp, "equipmentCommon", out tableInfo, out string _) || tableInfo == null)
+          return EnbTypeEnum.ENB_NULL;
+        foreach (CfgUIInstInfo cfgInst in tableInfo.m_cfgInsts)
+        {
+          if (cfgInst.m_bIsValid && cfgInst.m_instNodeInfo.ContainsKey("equipNEType"))
+            return (EnbTypeEnum) Convert.ToInt32(cfgInst.m_instNodeInfo["equipNEType"]);
+        }
+      }
+      return EnbTypeEnum.ENB_NULL;
+    }
+
+    private bool IsSameMibVersion(string strLocalMibVer, string strGnbIp)
+    {
+      string strVer;
+      return !string.IsNullOrEmpty(strLocalMibVer) && !string.IsNullOrEmpty(strGnbIp) && CommLinkPath.GetGnbMibVer(strGnbIp, out strVer) && strVer.Equals(strLocalMibVer, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private void OnReconnGnb(SubscribeMsg msg)
+    {
+      LogManager.Log.Info(string.Format("[CONNGNB] OnReconnGnb Current Thread ID : {0}", (object) Thread.CurrentThread.ManagedThreadId.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1430, nameof (OnReconnGnb));
+      string str = Encoding.UTF8.GetString(msg.Data);
+      if (string.IsNullOrEmpty(str))
+      {
+        LogManager.Log.Error("[CONNGNB] OnReconnGnb bug gnb IP is null or empty", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1435, nameof (OnReconnGnb));
+      }
+      else
+      {
+        string friendlyNameByIp = NodeBControl.GetInstance().GetFriendlyNameByIp(str);
+        LogManager.Log.Info(string.Format("[CONNGNB] OnReconnGnb 重连基站 {0}:{1}", (object) friendlyNameByIp, (object) str), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1440, nameof (OnReconnGnb));
+        if (!(NodeBControl.GetInstance().GetNodeByIp(str) is SCMTOperationCore.Elements.NodeB nodeByIp))
+        {
+          LogManager.Log.Error(string.Format("[CONNGNB] OnReconnGnb 根据IP地址 {0} 没有找到对应的gnb对象", (object) str), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1445, nameof (OnReconnGnb));
+        }
+        else
+        {
+          nodeByIp.ConnectAsync();
+          ShowLogHelper.Show(string.Format("{0} {1}-{2}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_20"), (object) friendlyNameByIp, (object) str), str);
+          this.MainTabVM.ChageTabIcon(ConnectStatus.Connecting);
+        }
+      }
+    }
+
+    private void OnUpdateUIByBidNotify(SubscribeMsg msg) => this.UpdateObjTree();
+
+    private async void OnLoadLmdtzToVersionDb(SubscribeMsg msg)
+    {
+      NodeBControlPage nodeBcontrolPage1 = this;
+      NodeBControlPage nodeBcontrolPage = nodeBcontrolPage1;
+      if (!nodeBcontrolPage1.m_bDoMibSyncFlag)
+        return;
+      nodeBcontrolPage1.m_bDoMibSyncFlag = false;
+      NodeBControlPage.LmDtzUploadNotifyMsgStruct uploadNotifyMsgStruct = JsonHelper.SerializeJsonToObject<NodeBControlPage.LmDtzUploadNotifyMsgStruct>(msg.Data, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 1522, nameof (OnLoadLmdtzToVersionDb));
+      string ip = uploadNotifyMsgStruct.TargetIp;
+      if (ip != nodeBcontrolPage1.IP)
+        return;
+      string friendlyNameByIp = NodeBControl.GetInstance().GetFriendlyNameByIp(ip);
+      ShowLogHelper.Show(string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_21"), (object) string.Format("{0}-{1}", (object) friendlyNameByIp, (object) ip)), ip);
+      int num = await nodeBcontrolPage1.InitDataBase(ip, uploadNotifyMsgStruct.UploadFilePath) ? 1 : 0;
+      string strMibVer;
+      Database.GetInstance().GetDataMibVersionByIp(ip, out strMibVer);
+      if (num != 0)
+      {
+        string str1 = CommLinkPath.QueryMibVersionNo(ip);
+        Color mibColor = Colors.Red;
+        if (!string.IsNullOrEmpty(str1) && str1.Equals(strMibVer))
+        {
+          ShowLogHelper.Show(string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_14"), (object) strMibVer), ip);
+          mibColor = Colors.Black;
+          if (nodeBcontrolPage1.Dispatcher != null)
+          {
+            // ISSUE: reference to a compiler-generated method
+            nodeBcontrolPage1.Dispatcher.Invoke(new Action(nodeBcontrolPage1.\u003COnLoadLmdtzToVersionDb\u003Eb__49_0));
+          }
+        }
+        else
+        {
+          string appSettingValue = AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb");
+          string str2 = string.Format(LanguageServices.Current.GetTextValue("BaseInfo_Log_23"), (object) strMibVer, (object) str1);
+          ShowLogHelper.Show(string.Format("{0} {1}{2}", (object) appSettingValue, (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_22"), (object) str2), ip, InfoTypeEnum.SI_ALARM_INFO);
+        }
+        if (nodeBcontrolPage1.Dispatcher == null)
+          return;
+        nodeBcontrolPage1.Dispatcher.Invoke((Action) (() =>
+        {
+          closure_2.tbMibVision.Text = LanguageServices.Current.GetTextValue("BaseInfo_MibVersion") + strMibVer;
+          closure_2.tbMibVision.Foreground = (Brush) new SolidColorBrush(mibColor);
+          NodeBControl.GetInstance().GetNodeByIp(ip);
+          ObjNodeControl objNodeControl = new ObjNodeControl(closure_2.IP, closure_2);
+          closure_2.RefreshObj((IList<ObjNodeModel>) objNodeControl.m_RootNode);
+          closure_2.ObjTreeViewVM.InitObjTreeData(objNodeControl.m_RootNode, objNodeControl.m_NodeList, closure_2.IP, closure_2);
+          closure_2.Obj_Root.DataContext = (object) closure_2.ObjTreeViewVM;
+          closure_2.NodeList = objNodeControl.m_NodeList;
+          if (closure_2.MainHorizenTab == null)
+            return;
+          foreach (object obj in (IEnumerable) closure_2.MainHorizenTab.Items)
+          {
+            if (obj.GetType() == typeof (TabItem) && obj is TabItem tabItem2 && tabItem2.Header.ToString().Equals(LanguageServices.Current.GetTextValue("NodeB_NetPlan")))
+              tabItem2.IsEnabled = true;
+          }
+        }));
+      }
+      else
+        ShowLogHelper.Show(string.Format("{0}：{1}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_24"), (object) strMibVer), ip);
+    }
+
+    private void TabControlEnable(bool isEnable)
+    {
+      this.ConnectedOrNot = isEnable;
+      foreach (UIElement uiElement in (IEnumerable) this.MainHorizenTab.Items)
+        uiElement.IsEnabled = isEnable;
+    }
+
+    private void MetroImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      if (this.fcv == null)
+      {
+        this.fcv = new FlowChartView(this.IP);
+        this.fcv.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        this.fcv.Owner = Window.GetWindow((DependencyObject) this);
+        this.fcv.Show();
+        this.fcv.Closed += new EventHandler(this.fcv_Closed);
+      }
+      else
+        this.fcv.Show();
+    }
+
+    private void fcv_Closed(object sender, EventArgs e) => this.fcv = (FlowChartView) null;
+
+    private void TabItem_GotFocus(object sender, RoutedEventArgs e)
+    {
+      if (this.bInitNetPlan)
+        return;
+      this.bInitNetPlan = true;
+      this.g_NetPlan = new NetPlanMainView(this.IP, this.IsOnLine, this.CfgFilePath);
+      this.netPlanScrollView.Content = (object) this.g_NetPlan;
+    }
+
+    private void NetPlanClose()
+    {
+      if (!this.bInitNetPlan)
+        return;
+      this.bInitNetPlan = false;
+      this.g_NetPlan?.NetPlanClean();
+      this.g_NetPlan = (NetPlanMainView) null;
+      GC.Collect();
+    }
+
+    public void ShowProgressBar(double value, Visibility showstatus)
+    {
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Action) (() =>
+      {
+        if (this.progressBar == null)
+          return;
+        this.progressBar.Value = value;
+        this.progressBar.Visibility = showstatus;
+        if (this.tbCancelQuery == null)
+          return;
+        this.tbCancelQuery.Visibility = showstatus;
+      }));
+    }
+
+    private void MetroMenuItem_Click(object sender, RoutedEventArgs e) => new ConfigFileOperate().ShowDialog();
+
+    private void btnInitConfigSet_Click(object sender, MouseButtonEventArgs e) => new InitConfigSetting(this.IP).ShowDialog();
+
+    public bool IsOnLine { get; set; }
+
+    public string CfgFilePath { get; set; }
+
+    public bool IsPatchFileMode { get; set; }
+
+    private async void CfgFileParesAndShow()
+    {
+      CfgLogicMid.GetInstance().DelDBCfgDb(this.CfgFilePath, out string _);
+      List<string> OutErrLog = new List<string>();
+      if (await CfgLogicMid.GetInstance().InitLoadCfgFile_Body(this.CfgFilePath, this.CfgFilePath, false, OutErrLog))
+      {
+        if (string.IsNullOrEmpty(OutErrLog[0]))
+        {
+          ShowLogHelper.Show(LanguageServices.Current.GetTextValue("CfgFile_Message_Vesion") + this.IP, this.CfgFilePath);
+          ShowLogHelper.Show(LanguageServices.Current.GetTextValue("CfgFile_Message_ParseSuc"), this.CfgFilePath);
+          this.InitCfgFileDataBase(this.IP, this.MainTabVM.TabName);
+        }
+        else
+          ShowLogHelper.Show(OutErrLog[0], this.CfgFilePath);
+        CSEnbHelper.SetStationShelfType(this.CfgFilePath, this.GetEquipType(this.CfgFilePath));
+      }
+      else if (!string.IsNullOrEmpty(OutErrLog[0]))
+        ShowLogHelper.Show(OutErrLog[0], this.CfgFilePath);
+      else
+        ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_27"), this.CfgFilePath);
+      this.tbMibVision.Text = LanguageServices.Current.GetTextValue("BaseInfo_MibVersion") + this.IP;
+      this.tbMibVision.Foreground = (Brush) new SolidColorBrush(Colors.Black);
+    }
+
+    private bool InitCfgFileDataBase(string strMibVer, string strUUID)
+    {
+      if (string.IsNullOrEmpty(strMibVer))
+        return false;
+      if (this.Dispatcher != null)
+        this.Dispatcher.Invoke((Action) (() =>
+        {
+          this.ExpanderBaseInfo.IsEnabled = false;
+          this.ExpanderBaseInfo.IsExpanded = false;
+          this.TabControlEnable(false);
+          this.Obj_Root.DataContext = (object) null;
+          this.MainHorizenTab.SelectedIndex = 0;
+          this.ShowProgressBar(0.0, Visibility.Collapsed);
+          this.FavLeaf_Lists.Children?.Clear();
+          this.Main_Dynamic_DataGrid.DynamicDataGrid.Columns.Clear();
+          this.Main_Dynamic_DataGrid.DynamicDataGrid.DataContext = (object) null;
+          this.Main_Dynamic_DataGrid.DataGridMibName.Text = "";
+          this.Main_Dynamic_DataGrid.DataGridMibEngName.Text = "";
+        }));
+      if (this.Dispatcher != null)
+        this.Dispatcher.Invoke((Action) (() =>
+        {
+          ObjNodeControl objNodeControl = new ObjNodeControl(strMibVer, this);
+          ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_28"), this.CfgFilePath);
+          this.RefreshObj((IList<ObjNodeModel>) objNodeControl.m_RootNode);
+          this.ObjTreeViewVM.InitObjTreeData(objNodeControl.m_RootNode, objNodeControl.m_NodeList, strMibVer, this);
+          this.Obj_Root.DataContext = (object) this.ObjTreeViewVM;
+          this.NodeList = objNodeControl.m_NodeList;
+          this.RefreshCollectNodeShow();
+          this.TabControlEnable(true);
+          this.SetMainChildTabPageShow(true);
+          this.ExpanderBaseInfo.IsEnabled = true;
+          this.ExpanderBaseInfo.IsExpanded = false;
+          ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_29"), this.CfgFilePath);
+        }));
+      return true;
+    }
+
+    private void SetMainChildTabPageShow(bool show)
+    {
+      foreach (TabItem tabItem in (IEnumerable) this.MainHorizenTab.Items)
+      {
+        if (this.MainTabVM.IsCfgFile)
+        {
+          if (((tabItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_BaseInfo")) || tabItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_NetPlan")) ? 0 : (!tabItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_CellPlan")) ? 1 : 0)) & (show ? 1 : 0)) != 0)
+            tabItem.Visibility = Visibility.Collapsed;
+          else
+            tabItem.Visibility = Visibility.Visible;
+        }
+        else if (!tabItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_BaseInfo")) & show)
+          tabItem.Visibility = Visibility.Collapsed;
+        else
+          tabItem.Visibility = Visibility.Visible;
+      }
+    }
+
+    private string IP { get; set; }
+
+    private SCMTOperationCore.Elements.NodeB Node { get; set; }
+
+    public NodeBMainTabVM MainTabVM { get; set; }
+
+    public bool IsSelected
+    {
+      get => this.isSelectd;
+      set
+      {
+        this.isSelectd = value;
+        this.OnIsSelectedChanged();
+      }
+    }
+
+    private void OnIsSelectedChanged()
+    {
+      int num = this.isSelectd ? 1 : 0;
+    }
+
+    private void UserControl_Loaded(object sender, RoutedEventArgs e)
+    {
+      this.MainTabVM = this.DataContext as NodeBMainTabVM;
+      if (this.MainTabVM == null)
+        return;
+      this.MainTabVM.Page = this;
+      if (this.MainTabVM.IsOnLine)
+        this.MainTabVM.ChageTabIcon(ConnectStatus.Connecting);
+      this.IP = this.MainTabVM.GnbIp;
+      this.IsOnLine = this.MainTabVM.IsOnLine;
+      this.CfgFilePath = this.MainTabVM.CfgFilePath;
+      this.ObjTreeViewVM = new ObjTreeVM(TreeShowType.ObjTree);
+      this.CollectTreeViewVM = new ObjTreeVM(TreeShowType.CollectTree);
+      this.CollectTreeViewVM.MainPage = this;
+      this.IsPatchFileMode = false;
+      try
+      {
+        this.tbMibVision.Visibility = AppConfigHelper.GetAppSettingValue<bool>(true, "ShowMibVerInMainWindow") ? Visibility.Visible : Visibility.Hidden;
+      }
+      catch (Exception ex)
+      {
+        this.tbMibVision.Visibility = Visibility.Visible;
+      }
+      this.SubscribeMsgs();
+      this.StartAcceptTapMessage();
+      this.Main_Dynamic_DataGrid.InitMainDataGridInfo(this);
+      this.Main_Dynamic_DataGrid.SetSaveAndSelVisible();
+      if (this.IsOnLine)
+      {
+        string name = this.MainTabVM.TabName;
+        if (name.Contains(":"))
+          name = name.Substring(name.IndexOf(":") + 1);
+        if (NodeBControl.GetInstance().GetNodeByFName(name) is SCMTOperationCore.Elements.NodeB nodeByFname)
+        {
+          this.Node = nodeByFname;
+          ShowLogHelper.Show(string.Format("{0} {1}-{2}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_30"), (object) nodeByFname.FriendlyName, (object) nodeByFname.NodeBIp), "SCMT");
+          nodeByFname.ConnectAsync();
+          this.SwitchShow();
+          this.ObjTreeViewVM.NodeBIP = this.IP;
+        }
+        if (AppConfigHelper.GetAppSettingValue<bool>(false, "ShowFakeMenu"))
+          this.FakeSwitchVisibility.Visibility = Visibility.Visible;
+      }
+      else if (this.MainTabVM.IsCfgFile)
+        this.CfgFileParesAndShow();
+      else
+        this.DataConsistencyFileParesAndShow();
+      this.MainHorizenTab.Focus();
+    }
+
+    private void SwitchShow()
+    {
+      if (!Singleton<BidHelper>.GetInstance().IsActiveBid())
+        return;
+      foreach (TabItem removeItem in (IEnumerable) this.MainHorizenTab.Items)
+      {
+        if (removeItem.Header.ToString() == LanguageServices.Current.GetTextValue("NodeB_NetPlan"))
+        {
+          this.MainHorizenTab.Items.Remove((object) removeItem);
+          this.netPlanTabItem = removeItem;
+          break;
+        }
+      }
+    }
+
+    public void SetObjNodeMainPage()
+    {
+      this.ObjTreeViewVM.MainPage = this;
+      this.ObjTreeViewVM.NodeBIP = this.IP;
+    }
+
+    public void DisConnect()
+    {
+      if (!this.IsOnLine)
+        return;
+      ShowLogHelper.Show(string.Format("{0}{1}", (object) LanguageServices.Current.GetTextValue("BaseInfo_Log_31"), (object) this.Node.FriendlyName), "SCMT");
+      this.MainTabVM.ChageTabIcon(ConnectStatus.Disconnect);
+      CSEnbHelper.ClearCurEnbAddr(this.IP);
+      CSEnbHelper.AddEnbInfo(this.IP, false);
+      NodeBControl.GetInstance().DisConnectNodeb(this.Node.FriendlyName);
+    }
+
+    private void UserControl_UnLoaded(object sender, RoutedEventArgs e)
+    {
+      if (this.IsOnLine)
+        SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "show_log"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2012, nameof (UserControl_UnLoaded));
+      else
+        SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.CfgFilePath, (object) "show_log"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2014, nameof (UserControl_UnLoaded));
+      SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "handle_enb_connected"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2016, nameof (UserControl_UnLoaded));
+      SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "handle_enb_offline"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2017, nameof (UserControl_UnLoaded));
+      SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "Load_Lmdtz_to_versiondb"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2018, nameof (UserControl_UnLoaded));
+      SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "handle_reconnect_gnb"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2019, nameof (UserControl_UnLoaded));
+      SubscribeHelper.CancelSubscribe(string.Format("/{0}/{1}", (object) this.IP, (object) "SnmpMsgDispose_OnResponse"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2020, nameof (UserControl_UnLoaded));
+      SubscribeHelper.CancelSubscribe("ManualLoadLmdtz", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2023, nameof (UserControl_UnLoaded));
+      if (System.Windows.Application.Current.Dispatcher == null)
+        return;
+      System.Windows.Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, (Delegate) (() => this.MainLogInfoShow.Clean()));
+    }
+
+    private void UpdateObjTree() => this.Dispatcher?.BeginInvoke((Delegate) (() =>
+    {
+      ObservableCollection<ObjNodeModel> itemsSourceData = this.Obj_Root.DataContext is ObjTreeVM dataContext2 ? dataContext2.ItemsSourceData : (ObservableCollection<ObjNodeModel>) null;
+      if (itemsSourceData == null || itemsSourceData.Count == 0 || itemsSourceData.Count <= 0)
+        return;
+      ObjNodeModel expander = itemsSourceData[0];
+      if (expander == null)
+        return;
+      List<NodeNameModify> allModifyNodes = Singleton<BidHelper>.GetInstance().GetAllModifyNodes();
+      if (allModifyNodes != null)
+      {
+        foreach (NodeNameModify nodeNameModify in allModifyNodes)
+        {
+          if (!string.IsNullOrEmpty(nodeNameModify.originNodeNameCh))
+            this.ReplaceObjTreeNodeNameCh(expander, nodeNameModify.originNodeNameCh, nodeNameModify.latestNodeNameCh);
+        }
+      }
+      if (expander.ObjSubList.Count <= 0)
+        return;
+      ObjNodeModel objSub = expander.ObjSubList[0];
+      List<NameAndMib> allHideNodes = Singleton<BidHelper>.GetInstance().GetAllHideNodes();
+      if (allHideNodes == null)
+        return;
+      foreach (NameAndMib nameAndMib in allHideNodes)
+      {
+        ObjNodeModel objNodeModel = this.DelObjTreeNodeByNameCh(objSub, objSub, nameAndMib.nameCh, nameAndMib.nameMib);
+        if (objNodeModel != null)
+          expander.Remove(objNodeModel);
+      }
+    }));
+
+    private ObjNodeModel DelObjTreeNodeByNameCh(
+      ObjNodeModel parentNode,
+      ObjNodeModel curNode,
+      string strNameCh,
+      string strMibName)
+    {
+      if (curNode == null)
+        return (ObjNodeModel) null;
+      if (curNode.ObjName.Equals(strNameCh))
+        return curNode;
+      ObservableCollection<ObjNodeModel> objSubList = curNode.ObjSubList;
+      if (objSubList == null)
+        return (ObjNodeModel) null;
+      for (int index = objSubList.Count - 1; index >= 0; --index)
+      {
+        ObjNodeModel curNode1 = objSubList[index];
+        if (curNode1 != null)
+        {
+          if (curNode1.ObjName.Equals(strNameCh))
+          {
+            curNode.Remove(curNode1);
+            return curNode1;
+          }
+          this.DelObjTreeNodeByNameCh(curNode, curNode1, strNameCh, strMibName);
+        }
+      }
+      return (ObjNodeModel) null;
+    }
+
+    private void ReplaceObjTreeNodeNameCh(
+      ObjNodeModel expander,
+      string strOldNameCh,
+      string strNewNameCh)
+    {
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.BeginInvoke((Delegate) (() =>
+      {
+        if (expander == null)
+          return;
+        if (expander.ObjName.Equals(strOldNameCh))
+        {
+          expander.ObjName = strNewNameCh;
+        }
+        else
+        {
+          ObservableCollection<ObjNodeModel> objSubList = expander.ObjSubList;
+          if (objSubList == null)
+            return;
+          for (int index = objSubList.Count - 1; index >= 0; --index)
+          {
+            ObjNodeModel expander1 = objSubList[index];
+            if (expander1 != null)
+            {
+              if (expander1.ObjName.Equals(strOldNameCh))
+              {
+                expander1.ObjName = strNewNameCh;
+                break;
+              }
+              this.ReplaceObjTreeNodeNameCh(expander1, strOldNameCh, strNewNameCh);
+            }
+          }
+        }
+      }));
+    }
+
+    private void btnDiagnosisTest_Click(object sender, MouseButtonEventArgs e)
+    {
+      if (this.flag != 0)
+        return;
+      this.dtw = new DiagnosisTestWindow(this.IP);
+      this.dtw.setFlag += new DiagnosisTestWindow.SetFlag(this.SetDiagnosisWindowStatus);
+      this.dtw.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      this.dtw.Owner = Window.GetWindow((DependencyObject) this);
+      this.dtw.Show();
+      this.flag = 1;
+    }
+
+    private void SetDiagnosisWindowStatus(int status) => this.flag = status;
+
+    private void btnTrapPortTrace_Click(object sender, MouseButtonEventArgs e)
+    {
+      Dictionary<int, string> processNameByPort = ProcessHelper.GetProcessNameByPort(162);
+      if (processNameByPort.Count == 0)
+      {
+        if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PortTracking_NoTrap"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question, LanguageServices.Current.GetTextValue("Toolbox_PortTracking_CheckResult")) == CustomMessageBoxResult.No)
+          return;
+        StartToolsHelper.StartAgent(out string _);
+      }
+      else
+      {
+        StringBuilder stringBuilder = new StringBuilder();
+        bool flag = false;
+        foreach (KeyValuePair<int, string> keyValuePair in processNameByPort)
+        {
+          stringBuilder.AppendFormat("Process Name{0}，Process ID：{1}\r\n", (object) keyValuePair.Value, (object) keyValuePair.Key);
+          flag = keyValuePair.Value.ToLower().Contains("lmtagent");
+        }
+        string str = string.Format("{0}\r\n", (object) LanguageServices.Current.GetTextValue("Toolbox_PortTracking_TrapUsed")) + (object) stringBuilder + "\r\n";
+        int num = (int) CustomMessageBox.Show(!flag ? str + LanguageServices.Current.GetTextValue("Toolbox_PortTracking_NoLmtAgent") : (processNameByPort.Count <= 1 ? str + LanguageServices.Current.GetTextValue("Toolbox_PortTracking_TipOnlyTrap") : str + string.Format("{0}", (object) LanguageServices.Current.GetTextValue("Toolbox_PortTracking_TipClose"))), CustomMessageBoxButton.OK, CustomMessageBoxIcon.Information, LanguageServices.Current.GetTextValue("Toolbox_PortTracking_CheckResult"));
+      }
+    }
+
+    private void MainHorizenTab_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+      TabItem selectedItem = (TabItem) this.MainHorizenTab.SelectedItem;
+      if (selectedItem == null)
+        return;
+      if (!selectedItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_BaseInfo")))
+        this.ExpanderBaseInfo.IsExpanded = false;
+      if (selectedItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_LogManage")))
+      {
+        object content = this.logUploadView.Content;
+      }
+      else if (selectedItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_UE")))
+      {
+        if (this.bUEPlan)
+          return;
+        if (!GlobalData.strUeMeasInfos.ContainsKey(this.IP))
+          GlobalData.strUeMeasInfos.Add(this.IP, new ObservableCollection<UeMeasCfInfo>());
+        if (!GlobalData.strUeMeasGapInfos.ContainsKey(this.IP))
+          GlobalData.strUeMeasGapInfos.Add(this.IP, new ObservableCollection<UeMeasGap>());
+        if (!GlobalData.strUeIpCellInfos.ContainsKey(this.IP))
+          GlobalData.strUeIpCellInfos.Add(this.IP, new ObservableCollection<UeipCellInfo>());
+        if (!GlobalData.strUeIpInfos.ContainsKey(this.IP))
+          GlobalData.strUeIpInfos.Add(this.IP, new ObservableCollection<UeipInfo>());
+        this.UEDataView.Content = (object) new UeInfoModel(this.IP);
+      }
+      else if (selectedItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_CellPlan")))
+      {
+        if (!(e.OriginalSource is System.Windows.Controls.TabControl))
+          return;
+        CellPlanView cellPlanView = new CellPlanView();
+        this.cellPlan.Content = (object) cellPlanView;
+        if (!(cellPlanView.DataContext is CellPlanVM dataContext))
+          return;
+        Dictionary<string, List<string>> CellTableInfo = new Dictionary<string, List<string>>();
+        DataGridUtils.GetNROrLTECellAllTableInfo(this.NodeList, ref CellTableInfo, this.IsOnLine, this.CfgFilePath);
+        dataContext.InitCellPlanShow(CellTableInfo, this.IP, this.CfgFilePath, this.IsOnLine);
+      }
+      else
+      {
+        if (!selectedItem.Header.Equals((object) LanguageServices.Current.GetTextValue("NodeB_ToolBox")))
+          return;
+        if (CSEnbHelper.GetStationFrameType(this.IP) == EnbTypeEnum.ENB_EMB6116)
+        {
+          this.stack_cellUliot.IsEnabled = true;
+          this.stack_Prb.IsEnabled = true;
+        }
+        else
+        {
+          this.stack_cellUliot.IsEnabled = false;
+          this.stack_Prb.IsEnabled = false;
+        }
+      }
+    }
+
+    private void CancelCollect(object sender, RoutedEventArgs e) => this.ObjTreeViewVM.CancelCollect();
+
+    private void MetroImage_MouseLeftButtonDown_1(object sender, MouseButtonEventArgs e)
+    {
+      long taskId = -1;
+      long requestId = 0;
+      if (CustomMessageBoxResult.Cancel == CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PR5G_Tip1"), CustomMessageBoxButton.OKCancel))
+        return;
+      if (CustomMessageBoxResult.Yes == CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PR5G_Tip2"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question))
+      {
+        FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+        folderBrowserDialog.Description = LanguageServices.Current.GetTextValue("Toolbox_PR5G_CfgPathDesc");
+        if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
+        {
+          string selectedPath = folderBrowserDialog.SelectedPath;
+          CDTCommonFileTrans cft = FileTransTaskMgr.FormatTransInfo(selectedPath, "", Transfiletype5216.TRANSFILE_curConfig, TRANSDIRECTION.TRANS_UPLOAD);
+          cft.IpAddr = this.IP;
+          if (FileTransTaskMgr.SendTransFileTask(this.IP, cft, ref taskId, ref requestId) != SENDFILETASKRES.TRANSFILE_TASK_SUCCEED)
+          {
+            ShowLogHelper.Show(string.Format("{0}", (object) LanguageServices.Current.GetTextValue("Toolbox_PR5G_SaveCfgErr")), this.IP);
+            LogManager.Log.Info(string.Format("{0},path:{1}", (object) LanguageServices.Current.GetTextValue("Toolbox_PR5G_SaveCfgErr"), (object) selectedPath), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2383, nameof (MetroImage_MouseLeftButtonDown_1));
+            return;
+          }
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PR5G_SaveCfgOK"));
+        }
+      }
+      ParaFileManager paraFileManager = new ParaFileManager();
+      paraFileManager.OpenDialog(this.m_filePatch);
+      if (!paraFileManager.OpenResult)
+        return;
+      this.m_filePatch = paraFileManager.FilePatch;
+      EnbTypeEnum stationFrameType = CSEnbHelper.GetStationFrameType(this.IP);
+      CfgExcelOp instance = CfgExcelOp.GetInstance();
+      if (instance.OpenExcel(this.m_filePatch, stationFrameType) == null)
+        return;
+      string fileName = Path.GetFileName(this.m_filePatch);
+      if (EnbTypeEnum.ENB_EMB6116 == stationFrameType)
+      {
+        if (!fileName.Contains(LanguageServices.Current.GetTextValue("Toolbox_PR5G_FileFlag")))
+        {
+          int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PR5G_Tip3"));
+        }
+        else
+        {
+          instance.GetExcelSheets(this.m_filePatch);
+          instance.GetExcelAllSheetWorkMode(this.m_filePatch);
+          new ParaRecover(this.IP, this.m_filePatch).ShowDialog();
+        }
+      }
+      else if (!fileName.Contains("RecList"))
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PR4G_Tip4"));
+      }
+      else
+      {
+        instance.EnbGetExcelSheets(this.m_filePatch);
+        instance.eNB_GetExcelAllSheetWorkMode(this.m_filePatch);
+        new EnbCellParaRecover(this.IP, this.m_filePatch).ShowDialog();
+      }
+    }
+
+    private void MetroImage_MouseLeftButtonDown_NonSceDistc(object sender, MouseButtonEventArgs e)
+    {
+      if (CustomMessageBoxResult.Cancel == CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_PR4G_Tip1"), CustomMessageBoxButton.OKCancel))
+        return;
+      ParaFileManager paraFileManager = new ParaFileManager();
+      paraFileManager.OpenDialog(this.m_filePatch);
+      if (!paraFileManager.OpenResult)
+        return;
+      this.m_filePatch = paraFileManager.FilePatch;
+      new ParaRecoverNonDistcForCell(this.IP, this.m_filePatch).ShowDialog();
+    }
+
+    private void MetroImage_MouseLeftButtonDown_gNB(object sender, MouseButtonEventArgs e)
+    {
+      long taskId = -1;
+      long requestId = 0;
+      if (CustomMessageBoxResult.Cancel == CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Recover_CellActiveCheck"), CustomMessageBoxButton.OKCancel))
+        return;
+      if (CustomMessageBoxResult.Yes == CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Recover_NeedSaveCfg"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question))
+      {
+        FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+        folderBrowserDialog.Description = "保存当前动态配置文件";
+        if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
+        {
+          string selectedPath = folderBrowserDialog.SelectedPath;
+          CDTCommonFileTrans cft = FileTransTaskMgr.FormatTransInfo(selectedPath, "", Transfiletype5216.TRANSFILE_curConfig, TRANSDIRECTION.TRANS_UPLOAD);
+          cft.IpAddr = this.IP;
+          if (FileTransTaskMgr.SendTransFileTask(this.IP, cft, ref taskId, ref requestId) != SENDFILETASKRES.TRANSFILE_TASK_SUCCEED)
+          {
+            ShowLogHelper.Show(string.Format("参数一键恢复：保存当前动态配置文件的命令下发失败, 目的路径:{0},请在“日志管理”中手动保存后再进行参数恢复", (object) selectedPath), this.IP);
+            return;
+          }
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Recover_SuccesSaveCfg"));
+        }
+      }
+      ParaFileManager paraFileManager = new ParaFileManager();
+      paraFileManager.OpenDialog(this.m_filePatch);
+      if (!paraFileManager.OpenResult)
+        return;
+      this.m_filePatch = paraFileManager.FilePatch;
+      EnbTypeEnum stationFrameType = CSEnbHelper.GetStationFrameType(this.IP);
+      CfgExcelOp instance = CfgExcelOp.GetInstance();
+      if (instance.OpenExcel(this.m_filePatch, stationFrameType) == null)
+        return;
+      if (EnbTypeEnum.ENB_EMB6116 == stationFrameType)
+      {
+        int workModeColCount = instance.GetCurWorkModeColCount(this.m_filePatch, "gNB参数表", "恢复默认配置");
+        LogManager.Log.Debug("步骤一： 开始解析参标文件数据，并且向基站下发数据（针对基站级参数恢复）", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2523, nameof (MetroImage_MouseLeftButtonDown_gNB));
+        SyncDataErrMsg errMsg = new SyncDataErrMsg();
+        errMsg.ErrMsg = "";
+        new ParaRecoverParseReclistExcel().SendCmdProcForGnb(this.IP, this.m_filePatch, workModeColCount, errMsg);
+        LogManager.Log.Debug("步骤二： 基站级参数恢复流程结束）", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2532, nameof (MetroImage_MouseLeftButtonDown_gNB));
+        instance.Dispose();
+        if (!errMsg.ErrMsg.Equals(""))
+        {
+          new EndParaRecoverWindow("1", errMsg, this.m_filePatch, "").ShowDialog();
+        }
+        else
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Recover_ParaRecoverSuccess"));
+        }
+      }
+      else
+      {
+        instance.EnbGetExcelSheets(this.m_filePatch);
+        instance.eNB_GetExcelAllSheetWorkMode(this.m_filePatch);
+        new EnbParaRecover(this.IP, this.m_filePatch).ShowDialog();
+      }
+    }
+
+    private void netPlanTab_LostFocus(object sender, RoutedEventArgs e)
+    {
+      Window window = Window.GetWindow((DependencyObject) this);
+      if (window == null)
+        return;
+      foreach (Window ownedWindow in window.OwnedWindows)
+      {
+        if (ownedWindow.Title == "网元定位")
+          ownedWindow.Close();
+      }
+    }
+
+    public void UseTheScrollViewerScrolling(FrameworkElement fElement) => fElement.PreviewMouseWheel += (MouseWheelEventHandler) ((sender, e) =>
+    {
+      fElement.RaiseEvent((RoutedEventArgs) new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+      {
+        RoutedEvent = UIElement.MouseWheelEvent,
+        Source = sender
+      });
+    });
+
+    private void SearchTextBox_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+      this.ExpanderBaseInfo.IsExpanded = true;
+      this.GlobalSearch?.Focus();
+    }
+
+    private void ButtonClick_MibSyn(object sender, RoutedEventArgs e) => this.StackPanel_MouseLeftButtonDown(sender, (MouseButtonEventArgs) e);
+
+    private void ButtonClick_CfgSave(object sender, RoutedEventArgs e) => this.StackPanel_MouseLeftButtonDown_1(sender, (MouseButtonEventArgs) e);
+
+    private void ButtonClick_InitParaConfig(object sender, RoutedEventArgs e)
+    {
+      if (!this.IsOnLine || !CSEnbHelper.GetAllEnbInfo()[this.IP])
+        return;
+      new InitConfigSetting(this.IP).ShowDialog();
+    }
+
+    private void DataConsistencyFileParesAndShow()
+    {
+      if (string.IsNullOrEmpty(Singleton<ParseDataConsistencyFile>.GetInstance().GetMibVersionByXML(this.CfgFilePath)))
+      {
+        ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_27"), this.CfgFilePath);
+      }
+      else
+      {
+        ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_25") + this.IP, this.CfgFilePath);
+        ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_26"), this.CfgFilePath);
+        this.InitCfgFileDataBase(this.IP, this.MainTabVM.TabName);
+      }
+    }
+
+    private void StackPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      if (!this.IsOnLine || !CSEnbHelper.GetAllEnbInfo()[this.IP])
+        return;
+      AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb");
+      if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_MibSync_Tip"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question) == CustomMessageBoxResult.No || !FileTransWorker.UploadMibFile(this.IP))
+        return;
+      this.m_bDoMibSyncFlag = true;
+    }
+
+    private void StackPanel_MouseLeftButtonDown_1(object sender, MouseButtonEventArgs e)
+    {
+      if (!this.IsOnLine || !CSEnbHelper.GetAllEnbInfo()[this.IP] || CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_GenerateDynamicConfigFile_Tip"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question) == CustomMessageBoxResult.No)
+        return;
+      if (CDTCmdExecuteMgr.CmdSetSync("SaveConfigFile", new Dictionary<string, string>()
+      {
+        {
+          "configFileSaveTrigger",
+          "1"
+        }
+      }, ".0", this.IP) == 0)
+        return;
+      LogManager.Log.Error(string.Format("下发命令生成动态配置文件到{0}失败", (object) this.IP), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBControlPage.xaml.cs", 2695, nameof (StackPanel_MouseLeftButtonDown_1));
+    }
+
+    private void Btn_CellUliot(object sender, MouseButtonEventArgs e)
+    {
+      if (this.dcell == null)
+        this.dcell = new DiagnosisCell(this.IP);
+      this.dcell.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      this.dcell.ShowDialog();
+    }
+
+    private void TextBlock_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      CancellationTokenSource cts = this.ObjTreeViewVM.GetCTS();
+      if (cts == null || cts.IsCancellationRequested)
+        return;
+      cts.Cancel();
+      this.ObjTreeViewVM.isGetParaTaskRunning = false;
+    }
+
+    private void tbCancelQuery_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => this.tbCancelQuery.Cursor = System.Windows.Input.Cursors.Hand;
+
+    private void FakeSwitch_Click(object sender, MouseButtonEventArgs e)
+    {
+      FakeSettingSwitch fakeSettingSwitch = new FakeSettingSwitch();
+      fakeSettingSwitch.Owner = Window.GetWindow((DependencyObject) this);
+      fakeSettingSwitch.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+      fakeSettingSwitch.ShowDialog();
+    }
+
+    public void Dispose() => (this.logUploadView.Content as LogUploadMgr).Dispose();
+
+    private void NetPlanHandler(object sender, ExecutedRoutedEventArgs e)
+    {
+      if (this.netPlanTab.Visibility == Visibility.Visible)
+      {
+        this.netPlanTab.Visibility = Visibility.Collapsed;
+        this.BaseInfo.IsSelected = true;
+      }
+      else
+        this.netPlanTab.Visibility = Visibility.Visible;
+    }
+
+    private void FileManagerHandler(object sender, ExecutedRoutedEventArgs e)
+    {
+      if (this.FileManagerTabItem.Visibility == Visibility.Visible)
+      {
+        this.FileManagerTabItem.Visibility = Visibility.Collapsed;
+        this.BaseInfo.IsSelected = true;
+      }
+      else
+        this.FileManagerTabItem.Visibility = Visibility.Visible;
+    }
+
+    private void SetBidActiveCommandHandler(object sender, ExecutedRoutedEventArgs e) => Singleton<BidHelper>.Instance.SetSwitchState(true);
+
+    private void SetBidDeActiveCommandHandler(object sender, ExecutedRoutedEventArgs e) => Singleton<BidHelper>.Instance.SetSwitchState(false);
+
+    private void LogSetting_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      LogSettingsView logSettingsView = new LogSettingsView(this.IP);
+      logSettingsView.Owner = Window.GetWindow((DependencyObject) this);
+      logSettingsView.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+      logSettingsView.ShowDialog();
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/pages/nodebcontrolpage.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    internal Delegate _CreateDelegate(System.Type delegateType, string handler) => Delegate.CreateDelegate(delegateType, (object) this, handler);
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.NodeBPage = (NodeBControlPage) target;
+          this.NodeBPage.Loaded += new RoutedEventHandler(this.UserControl_Loaded);
+          this.NodeBPage.Unloaded += new RoutedEventHandler(this.UserControl_UnLoaded);
+          break;
+        case 2:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.NetPlanHandler);
+          break;
+        case 3:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.FileManagerHandler);
+          break;
+        case 4:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.SearchTextBox_Executed);
+          break;
+        case 5:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.SetBidActiveCommandHandler);
+          break;
+        case 6:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.SetBidDeActiveCommandHandler);
+          break;
+        case 7:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.ButtonClick_MibSyn);
+          break;
+        case 8:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.ButtonClick_CfgSave);
+          break;
+        case 9:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.btnInitConfigSet_Click);
+          break;
+        case 10:
+          this.FakeSwitchVisibility = (Image) target;
+          this.FakeSwitchVisibility.MouseLeftButtonDown += new MouseButtonEventHandler(this.FakeSwitch_Click);
+          break;
+        case 11:
+          this.lists = (StackPanel) target;
+          break;
+        case 12:
+          this.Obj_Collect = (ObjTreeView) target;
+          break;
+        case 13:
+          this.Obj_Root = (ObjTreeView) target;
+          break;
+        case 14:
+          this.ExpanderBaseInfo = (Expander) target;
+          break;
+        case 15:
+          this.GlobalSearch = (GlobalSearchTextBox) target;
+          break;
+        case 16:
+          this.Fav = (ScrollViewer) target;
+          break;
+        case 17:
+          this.FavLeaf_Lists = (StackPanel) target;
+          break;
+        case 18:
+          this.menuAddCfgCell = (System.Windows.Controls.MenuItem) target;
+          this.menuAddCfgCell.Click += new RoutedEventHandler(this.AddToCollect_Click);
+          break;
+        case 19:
+          this.menuDeleteCfgCell = (System.Windows.Controls.MenuItem) target;
+          this.menuDeleteCfgCell.Click += new RoutedEventHandler(this.CancelCollect);
+          break;
+        case 20:
+          this.MainHorizenTab = (System.Windows.Controls.TabControl) target;
+          this.MainHorizenTab.SelectionChanged += new SelectionChangedEventHandler(this.MainHorizenTab_SelectionChanged);
+          break;
+        case 21:
+          this.BaseInfo = (TabItem) target;
+          this.BaseInfo.LostFocus += new RoutedEventHandler(this.Lost_Nodeb_Focus);
+          this.BaseInfo.Loaded += new RoutedEventHandler(this.Load_Nodeb);
+          this.BaseInfo.GotFocus += new RoutedEventHandler(this.Get_Nodeb_Focus);
+          break;
+        case 22:
+          this.AllContent = (Grid) target;
+          break;
+        case 23:
+          this.Main_Dynamic_DataGrid = (MainDataGrid) target;
+          break;
+        case 24:
+          this.cellPlan = (ScrollViewer) target;
+          break;
+        case 25:
+          this.FileManagerTabItem = (TabItem) target;
+          break;
+        case 26:
+          this.netPlanTab = (TabItem) target;
+          this.netPlanTab.LostFocus += new RoutedEventHandler(this.netPlanTab_LostFocus);
+          this.netPlanTab.GotFocus += new RoutedEventHandler(this.TabItem_GotFocus);
+          break;
+        case 27:
+          this.netPlanScrollView = (ScrollViewer) target;
+          break;
+        case 28:
+          this.logUploadView = (ScrollViewer) target;
+          break;
+        case 29:
+          this.UEDataView = (ScrollViewer) target;
+          break;
+        case 30:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.MetroImage_MouseLeftButtonDown);
+          break;
+        case 31:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.btnInitConfigSet_Click);
+          break;
+        case 32:
+          this.ParameterRecovery_gNB = (StackPanel) target;
+          this.ParameterRecovery_gNB.MouseLeftButtonDown += new MouseButtonEventHandler(this.MetroImage_MouseLeftButtonDown_1);
+          break;
+        case 33:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.StackPanel_MouseLeftButtonDown_1);
+          break;
+        case 34:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.StackPanel_MouseLeftButtonDown);
+          break;
+        case 35:
+          this.stack_Prb = (StackPanel) target;
+          this.stack_Prb.MouseLeftButtonDown += new MouseButtonEventHandler(this.PrbResourcesCfg_MouseLeftButtonDown);
+          break;
+        case 36:
+          this.logSetting = (StackPanel) target;
+          this.logSetting.MouseLeftButtonDown += new MouseButtonEventHandler(this.LogSetting_MouseLeftButtonDown);
+          break;
+        case 37:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.btnDiagnosisTest_Click);
+          break;
+        case 38:
+          this.PortTracking = (StackPanel) target;
+          this.PortTracking.MouseLeftButtonDown += new MouseButtonEventHandler(this.btnTrapPortTrace_Click);
+          break;
+        case 39:
+          this.stack_cellUliot = (StackPanel) target;
+          this.stack_cellUliot.MouseLeftButtonDown += new MouseButtonEventHandler(this.Btn_CellUliot);
+          break;
+        case 40:
+          this.MainLogInfoShow = (LMT.Component.Control.LogInfoShow.LogInfoShow) target;
+          break;
+        case 41:
+          this.StatusInfoShow = (Grid) target;
+          break;
+        case 42:
+          this.progressBar = (System.Windows.Controls.ProgressBar) target;
+          break;
+        case 43:
+          this.tbMibVision = (TextBlock) target;
+          break;
+        case 44:
+          this.tbCancelQuery = (TextBlock) target;
+          this.tbCancelQuery.MouseLeftButtonDown += new MouseButtonEventHandler(this.TextBlock_MouseLeftButtonDown);
+          this.tbCancelQuery.MouseEnter += new System.Windows.Input.MouseEventHandler(this.tbCancelQuery_MouseEnter);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    internal class LmDtzUploadNotifyMsgStruct
+    {
+      public string TargetIp;
+      public string UploadFilePath;
+    }
+  }
+}

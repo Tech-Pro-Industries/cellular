@@ -1,0 +1,134 @@
+using CommonUtility;
+using LMT.View;
+using LmtbSnmp;
+using MsgDispatcher;
+using MsgQueue;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Configuration;
+using System.Diagnostics;
+using System.Globalization;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
+using UILanguageHelper;
+
+namespace LMT
+{
+  public class App : Application
+  {
+    private bool _contentLoaded;
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+      string str = TimeHelper.DateTimeToString(DateTime.Now, "yyyyMMdd-HHmmss");
+      LogManager.Log.SetLogFileName(string.Format("LMT_log_{0}.log", (object) str));
+      LogManager.Log.SetInfoLogFileName(string.Format("LMT_infoLog_{0}.log", (object) str));
+      AppSettingsReader appSettingsReader = new AppSettingsReader();
+      LogManager.Log.Info(string.Format("LMT version : {0}, release time : {1}", (object) string.Format("{0}", appSettingsReader.GetValue("version", typeof (string))), (object) string.Format("{0}", appSettingsReader.GetValue("releasetime", typeof (string)))), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\App.xaml.cs", 39, nameof (OnStartup));
+      DebugParameterHelper.SetStartupParameter(e.Args);
+      MqInitial.Init();
+      Singleton<DoMsgDispatcher>.GetInstance();
+      Application.Current.DispatcherUnhandledException += new DispatcherUnhandledExceptionEventHandler(this.DispatcherOnUnhandledException);
+      AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(App.CurrentDomainOnUnhandledException);
+      TaskScheduler.UnobservedTaskException += new EventHandler<UnobservedTaskExceptionEventArgs>(this.TaskSchedulerOnUnobservedTaskException);
+      Thread.CurrentThread.CurrentUICulture = !LanguageServices.Current.IsEnLanguage ? new CultureInfo("zh-CN") : new CultureInfo("en-GB");
+      if (DebugParameterHelper.IsNoAuth())
+      {
+        LMT.MainWindow mainWindow = new LMT.MainWindow();
+        Application.Current.MainWindow = (Window) mainWindow;
+        mainWindow.ShowDialog();
+      }
+      else
+      {
+        Login login = new Login();
+        Application.Current.MainWindow = (Window) login;
+        login.ShowDialog();
+      }
+    }
+
+    private void TaskSchedulerOnUnobservedTaskException(
+      object sender,
+      UnobservedTaskExceptionEventArgs unobservedTaskExceptionEventArgs)
+    {
+      string msg = unobservedTaskExceptionEventArgs.Exception.ToString();
+      LogManager.Log.Error(msg, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\App.xaml.cs", 80, nameof (TaskSchedulerOnUnobservedTaskException));
+      if (LanguageServices.Current.IsEnLanguage)
+      {
+        int num1 = (int) MessageBox.Show("The program has an exception, please contact technical support!" + Environment.NewLine + msg);
+      }
+      else
+      {
+        int num2 = (int) MessageBox.Show("当前应用程序遇到一些问题,请提取相应日志文件联系研发！" + Environment.NewLine + msg);
+      }
+    }
+
+    private void DispatcherOnUnhandledException(
+      object sender,
+      DispatcherUnhandledExceptionEventArgs dispatcherUnhandledExceptionEventArgs)
+    {
+      LogManager.Log.Error(dispatcherUnhandledExceptionEventArgs.Exception.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\App.xaml.cs", 92, nameof (DispatcherOnUnhandledException));
+      ShowLogHelper.Show(dispatcherUnhandledExceptionEventArgs.Exception.Message, CSEnbHelper.GetCurEnbAddr());
+      dispatcherUnhandledExceptionEventArgs.Handled = true;
+    }
+
+    private static void CurrentDomainOnUnhandledException(
+      object sender,
+      UnhandledExceptionEventArgs unhandledExceptionEventArgs)
+    {
+      bool flag = false;
+      StringBuilder stringBuilder = new StringBuilder();
+      if (unhandledExceptionEventArgs.IsTerminating)
+      {
+        if (LanguageServices.Current.IsEnLanguage)
+          stringBuilder.Append("A problem caused the program to working correctly, please contact technical support!\n");
+        else
+          stringBuilder.Append("程序发生致命错误，将终止，请提取相应日志文件联系研发！\n");
+        flag = true;
+      }
+      if (LanguageServices.Current.IsEnLanguage)
+        stringBuilder.Append("Catching exception:");
+      else
+        stringBuilder.Append("捕获未处理异常：");
+      if (unhandledExceptionEventArgs.ExceptionObject is Exception)
+        stringBuilder.Append(((Exception) unhandledExceptionEventArgs.ExceptionObject).Message);
+      else
+        stringBuilder.Append(unhandledExceptionEventArgs.ExceptionObject);
+      int num = (int) CustomMessageBox.Show(stringBuilder.ToString());
+      LogManager.Log.Error(((Exception) unhandledExceptionEventArgs.ExceptionObject).ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\App.xaml.cs", (int) sbyte.MaxValue, nameof (CurrentDomainOnUnhandledException));
+      if (!flag)
+        return;
+      Environment.Exit(0);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+      MqInitial.Stop();
+      LmtTrapMgr.GetInstance().StopAndExit();
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      this.StartupUri = new Uri("View/Login.xaml", UriKind.Relative);
+      Application.LoadComponent((object) this, new Uri("/LMT;component/app.xaml", UriKind.Relative));
+    }
+
+    [STAThread]
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public static void Main()
+    {
+      App app = new App();
+      app.InitializeComponent();
+      app.Run();
+    }
+  }
+}
