@@ -1,0 +1,119 @@
+using LMT.View;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Pages
+{
+  public class AddUserToGroup : CustomWindow, IComponentConnector
+  {
+    private ObservableCollection<string> _UName = new ObservableCollection<string>();
+    private ObservableCollection<string> _UName_C = new ObservableCollection<string>();
+    private List<string> list = UserInformation.GetUserName();
+    private AddGroup AddGroup;
+    internal GroupBox groupBox;
+    internal ListBox lb_SelectedUser;
+    internal ListBox lb_AllUser;
+    internal Button Btn_Add;
+    internal Button Btn_Del;
+    internal Button Btn_Confirm;
+    internal Button Btn_Cancel;
+    private bool _contentLoaded;
+
+    public AddUserToGroup(AddGroup _AddG)
+    {
+      this.InitializeComponent();
+      this.AddGroup = _AddG;
+      foreach (string str in (Collection<string>) _AddG._Member)
+        this._UName.Add(str);
+      foreach (string str in (Collection<string>) _AddG._Member)
+        this.list.Remove(str);
+      this.lb_AllUser.ItemsSource = (IEnumerable) this.list;
+      this.lb_SelectedUser.ItemsSource = (IEnumerable) this._UName;
+    }
+
+    private void Btn_Cancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void Btn_Confirm_Click(object sender, RoutedEventArgs e)
+    {
+      this.AddGroup._Member = this._UName;
+      this.Close();
+    }
+
+    private void Btn_Add_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.lb_AllUser.SelectedItem == null)
+        return;
+      this._UName.Add(this.lb_AllUser.SelectedItem.ToString());
+      this.list.Remove(this.lb_AllUser.SelectedItem.ToString());
+      this.lb_AllUser.ItemsSource = (IEnumerable) null;
+      this.lb_AllUser.ItemsSource = (IEnumerable) this.list;
+    }
+
+    private void Btn_Del_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.lb_SelectedUser.SelectedItem == null)
+        return;
+      this.list.Add(this.lb_SelectedUser.SelectedItem.ToString());
+      this._UName.Remove(this.lb_SelectedUser.SelectedItem.ToString());
+      this.lb_AllUser.ItemsSource = (IEnumerable) null;
+      this.lb_AllUser.ItemsSource = (IEnumerable) this.list;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/addusertogroup.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.groupBox = (GroupBox) target;
+          break;
+        case 2:
+          this.lb_SelectedUser = (ListBox) target;
+          break;
+        case 3:
+          this.lb_AllUser = (ListBox) target;
+          break;
+        case 4:
+          this.Btn_Add = (Button) target;
+          this.Btn_Add.Click += new RoutedEventHandler(this.Btn_Add_Click);
+          break;
+        case 5:
+          this.Btn_Del = (Button) target;
+          this.Btn_Del.Click += new RoutedEventHandler(this.Btn_Del_Click);
+          break;
+        case 6:
+          this.Btn_Confirm = (Button) target;
+          this.Btn_Confirm.Click += new RoutedEventHandler(this.Btn_Confirm_Click);
+          break;
+        case 7:
+          this.Btn_Cancel = (Button) target;
+          this.Btn_Cancel.Click += new RoutedEventHandler(this.Btn_Cancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

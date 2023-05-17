@@ -1,0 +1,195 @@
+using CommonUtility;
+using LMT.View;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class AddRole : CustomWindow, IComponentConnector
+  {
+    private bool IsAdd;
+    private UserManager UM;
+    private RoleInfo _rInfo;
+    internal TabControl tabControl;
+    internal TextBox tb_Role;
+    internal Label label;
+    internal TextBox tb_Desc;
+    internal GroupBox groupBox;
+    internal Grid grid;
+    internal CheckBox ck_AllMoudle;
+    internal CheckBox ck_Netplan;
+    internal CheckBox ck_Filemanager;
+    internal CheckBox ck_Cell;
+    internal CheckBox ck_Log;
+    internal CheckBox ck_Ue;
+    internal CheckBox ck_Tools;
+    internal CheckBox ck_Alarm;
+    internal CheckBox ck_Config;
+    internal Button Btn_Confirm;
+    internal Button Btn_Cancel;
+    private bool _contentLoaded;
+
+    public AddRole(UserManager _UM)
+    {
+      this.UM = _UM;
+      this.IsAdd = _UM.IsAdd;
+      this.InitializeComponent();
+      if (this.IsAdd)
+        return;
+      if (Singleton<UserInfo>.GetInstance().User != "administrator")
+        this.Btn_Confirm.IsEnabled = false;
+      else
+        this.Btn_Confirm.IsEnabled = true;
+      this._rInfo = UserInformation.GetRole(_UM.RoleName);
+      this.tb_Role.Text = this._rInfo.Name;
+      this.tb_Desc.Text = this._rInfo.Desc;
+      if (this._rInfo.Module == null)
+        return;
+      string module = this._rInfo.Module;
+      char[] chArray = new char[1]{ '\\' };
+      foreach (string str in module.Split(chArray))
+      {
+        foreach (object child in this.grid.Children)
+        {
+          if (child is CheckBox && ((ContentControl) child).Content.ToString() == str)
+            ((ToggleButton) child).IsChecked = new bool?(true);
+        }
+      }
+    }
+
+    private void Btn_Confirm_Click(object sender, RoutedEventArgs e)
+    {
+      string str1 = "";
+      if (string.IsNullOrEmpty(this.tb_Role.Text.Trim()))
+      {
+        int num1 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm11"), LanguageServices.Current.GetTextValue("UM_roleInfor"), MessageBoxButton.OK);
+      }
+      else
+      {
+        string err;
+        if (this.IsAdd && !UserInformation.CheckRecord(string.Format("select count(*) from ROLE where ROLEName='{0}'", (object) this.tb_Role.Text.Trim()), out err))
+        {
+          int num2 = (int) MessageBox.Show(err, LanguageServices.Current.GetTextValue("UM_roleInfor"), MessageBoxButton.OK);
+        }
+        else
+        {
+          foreach (object child in this.grid.Children)
+          {
+            if (child is CheckBox)
+            {
+              bool? isChecked = ((ToggleButton) child).IsChecked;
+              bool flag = true;
+              if ((isChecked.GetValueOrDefault() == flag ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+                str1 = str1 + ((ContentControl) child).Content + "\\";
+            }
+          }
+          string str2 = str1.TrimEnd('\\');
+          string strSql;
+          if (this.IsAdd)
+            strSql = string.Format("insert into ROLE(ROLEName,ROLEModule,ROLEDesc) values('{0}','{1}','{2}')", (object) this.tb_Role.Text.Trim(), (object) str2, (object) this.tb_Desc.Text.Trim());
+          else
+            strSql = string.Format("update ROLE set ROLEName='{0}',ROLEModule='{1}',ROLEDesc='{2}' where ID='{3}'", (object) this.tb_Role.Text.Trim(), (object) str2, (object) this.tb_Desc.Text.Trim(), (object) this._rInfo.ID);
+          if (UserInformation.SaveData(strSql))
+          {
+            this.UM.RoleTree.Clear();
+            this.UM.InitRoleMenu();
+            if (!this.IsAdd)
+              this.UM.InitRoleDataGrid();
+            this.Close();
+          }
+          else
+          {
+            int num3 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm12"), LanguageServices.Current.GetTextValue("UM_roleInfor"), MessageBoxButton.OK);
+            this.Close();
+          }
+        }
+      }
+    }
+
+    private void Btn_Cancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/addrole.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.tabControl = (TabControl) target;
+          break;
+        case 2:
+          this.tb_Role = (TextBox) target;
+          break;
+        case 3:
+          this.label = (Label) target;
+          break;
+        case 4:
+          this.tb_Desc = (TextBox) target;
+          break;
+        case 5:
+          this.groupBox = (GroupBox) target;
+          break;
+        case 6:
+          this.grid = (Grid) target;
+          break;
+        case 7:
+          this.ck_AllMoudle = (CheckBox) target;
+          break;
+        case 8:
+          this.ck_Netplan = (CheckBox) target;
+          break;
+        case 9:
+          this.ck_Filemanager = (CheckBox) target;
+          break;
+        case 10:
+          this.ck_Cell = (CheckBox) target;
+          break;
+        case 11:
+          this.ck_Log = (CheckBox) target;
+          break;
+        case 12:
+          this.ck_Ue = (CheckBox) target;
+          break;
+        case 13:
+          this.ck_Tools = (CheckBox) target;
+          break;
+        case 14:
+          this.ck_Alarm = (CheckBox) target;
+          break;
+        case 15:
+          this.ck_Config = (CheckBox) target;
+          break;
+        case 16:
+          this.Btn_Confirm = (Button) target;
+          this.Btn_Confirm.Click += new RoutedEventHandler(this.Btn_Confirm_Click);
+          break;
+        case 17:
+          this.Btn_Cancel = (Button) target;
+          this.Btn_Cancel.Click += new RoutedEventHandler(this.Btn_Cancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

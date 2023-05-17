@@ -1,0 +1,11 @@
+using System.Collections.Generic;
+
+namespace LMT.Pages
+{
+  public class ConfigInfoList
+  {
+    public List<IndexPageConfigInfo> IndexPageConfigList;
+
+    public ConfigInfoList() => this.IndexPageConfigList = new List<IndexPageConfigInfo>();
+  }
+}

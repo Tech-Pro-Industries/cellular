@@ -1,0 +1,145 @@
+using CommonUtility;
+using LMT.View;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class UpdataPW : CustomWindow, IComponentConnector
+  {
+    private string UserName;
+    internal Label lb_opd;
+    internal PasswordBox tb_opd;
+    internal Label lb_npd;
+    internal PasswordBox tb_npd;
+    internal Label ld_pds;
+    internal PasswordBox tb_pds;
+    internal Button btn_Comfirm;
+    internal Button btn_Cencel;
+    private bool _contentLoaded;
+
+    public UpdataPW(string _Username)
+    {
+      this.InitializeComponent();
+      this.UserName = _Username;
+      if (Singleton<UserInfo>.GetInstance().User == "administrator")
+      {
+        if (this.UserName == Singleton<UserInfo>.GetInstance().User)
+          this.tb_opd.IsEnabled = true;
+        else
+          this.tb_opd.IsEnabled = false;
+      }
+      else
+        this.tb_opd.IsEnabled = true;
+    }
+
+    private void btn_Comfirm_Click(object sender, RoutedEventArgs e)
+    {
+      string err = "";
+      if (this.tb_opd.IsEnabled && string.IsNullOrEmpty(this.tb_opd.Password.Trim()))
+      {
+        int num1 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm1"), LanguageServices.Current.GetTextValue("UM_up"));
+      }
+      else if (string.IsNullOrEmpty(this.tb_npd.Password.Trim()))
+      {
+        int num2 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm2"), LanguageServices.Current.GetTextValue("UM_up"));
+      }
+      else if (this.tb_npd.Password.Length < 6)
+      {
+        int num3 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("Index_Register_PwdLength"), LanguageServices.Current.GetTextValue("UM_up"));
+      }
+      else if (((IEnumerable<char>) this.tb_npd.Password.Trim().ToCharArray()).Where<char>(new Func<char, bool>(this.CheckChar)).Count<char>() > 0)
+      {
+        int num4 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm7"), LanguageServices.Current.GetTextValue("Index_Login_Register"));
+      }
+      else if (!this.tb_npd.Password.Equals(this.tb_pds.Password))
+      {
+        int num5 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm3"), LanguageServices.Current.GetTextValue("UM_up"));
+      }
+      else if (this.tb_opd.IsEnabled && UserInformation.CheckRecord(string.Format("select count(*) from USERINFO where User='{0}' and Password='{1}'", (object) this.UserName, (object) this.tb_opd.Password.Trim()), out err))
+      {
+        int num6 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm4"), LanguageServices.Current.GetTextValue("UM_up"));
+      }
+      else if (!UserInformation.SaveData(string.Format("update USERINFO set Password='{0}',Isremeber='{1}' where User='{2}'", (object) this.tb_npd.Password.Trim(), (object) false, (object) this.UserName)))
+      {
+        int num7 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm5"), LanguageServices.Current.GetTextValue("UM_up"));
+      }
+      else
+      {
+        int num8 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm6"), LanguageServices.Current.GetTextValue("UM_up"));
+        this.Close();
+      }
+    }
+
+    private void btn_Cencel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private bool CheckChar(char c)
+    {
+      char[] chArray = new char[4]{ '|', '&', '=', ' ' };
+      foreach (char ch in chArray)
+      {
+        if ((int) c == (int) ch)
+          return true;
+      }
+      return false;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/updatapw.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.lb_opd = (Label) target;
+          break;
+        case 2:
+          this.tb_opd = (PasswordBox) target;
+          break;
+        case 3:
+          this.lb_npd = (Label) target;
+          break;
+        case 4:
+          this.tb_npd = (PasswordBox) target;
+          break;
+        case 5:
+          this.ld_pds = (Label) target;
+          break;
+        case 6:
+          this.tb_pds = (PasswordBox) target;
+          break;
+        case 7:
+          this.btn_Comfirm = (Button) target;
+          this.btn_Comfirm.Click += new RoutedEventHandler(this.btn_Comfirm_Click);
+          break;
+        case 8:
+          this.btn_Cencel = (Button) target;
+          this.btn_Cencel.Click += new RoutedEventHandler(this.btn_Cencel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

@@ -1,0 +1,1277 @@
+using ChromeTabs;
+using CommonUtility;
+using CommonUtility.model;
+using DataBaseUtil;
+using LMT.ViewModel;
+using MsgQueue;
+using SCMTOperationCore.Control;
+using SCMTOperationCore.Elements;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Forms;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Threading;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class NodeBList : System.Windows.Controls.UserControl, IComponentConnector, IStyleConnector
+  {
+    private Dictionary<string, string> _groupNameList = new Dictionary<string, string>();
+    private ObservableCollection<Group> _groupList = new ObservableCollection<Group>();
+    private Dictionary<string, Group> _groupDic = new Dictionary<string, Group>();
+    private string _filter = "";
+    private ObservableCollection<string> _filterList = new ObservableCollection<string>();
+    private string _importExcelPath;
+    private string _exportExcelPath;
+    private string _defaultGroupId = "1";
+    private string _defaultGroupName = "Ungrouped";
+    private System.Threading.Timer _timer;
+    private List<TreeViewItem> _searchItems = new List<TreeViewItem>();
+    private int _currentSearchIndex;
+    internal System.Windows.Controls.ComboBox searchFilter;
+    internal System.Windows.Controls.Button btSearch;
+    internal System.Windows.Controls.Button btPrevious;
+    internal System.Windows.Controls.Button btNext;
+    internal System.Windows.Controls.Label SearchResult;
+    internal System.Windows.Controls.Button btRefresh;
+    internal System.Windows.Controls.Button btAddGroup;
+    internal System.Windows.Controls.Button btAdd;
+    internal System.Windows.Controls.Button btImport;
+    internal System.Windows.Controls.Button btExport;
+    internal System.Windows.Controls.TreeView TvGroupList;
+    internal System.Windows.Controls.MenuItem updateIp;
+    internal System.Windows.Controls.MenuItem updateFName;
+    internal System.Windows.Controls.MenuItem updateType;
+    internal System.Windows.Controls.MenuItem moveGroup;
+    internal System.Windows.Controls.MenuItem delete;
+    internal System.Windows.Controls.MenuItem deleteGroupName;
+    private bool _contentLoaded;
+
+    public NodeBList()
+    {
+      this.InitializeComponent();
+      SubscribeHelper.AddSubscribe("NodeBList_ConnectTrap", new HandlerSubscribeMsg(this.ConnectTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 70, ".ctor");
+      SubscribeHelper.AddSubscribe("NodeBList_DisconnectTrap", new HandlerSubscribeMsg(this.DisconnectTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 71, ".ctor");
+      SubscribeHelper.AddSubscribe("NodeBList_ClosedTrap", new HandlerSubscribeMsg(this.ClosedTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 72, ".ctor");
+      this._filter = "";
+      this.GetList();
+      this.TvGroupList.ItemsSource = (IEnumerable) this._groupList;
+      this.moveGroup.ItemsSource = (IEnumerable) this._groupNameList;
+      this.searchFilter.ItemsSource = (IEnumerable) this._filterList;
+      this._timer = new System.Threading.Timer(new TimerCallback(this.timerCallback), (object) null, 5000, 5000);
+    }
+
+    ~NodeBList()
+    {
+      SubscribeHelper.CancelSubscribe("NodeBList_ConnectTrap", new HandlerSubscribeMsg(this.ConnectTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 89, nameof (Finalize));
+      SubscribeHelper.CancelSubscribe("NodeBList_DisconnectTrap", new HandlerSubscribeMsg(this.DisconnectTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 90, nameof (Finalize));
+      SubscribeHelper.CancelSubscribe("NodeBList_ClosedTrap", new HandlerSubscribeMsg(this.ClosedTrap), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 91, nameof (Finalize));
+      this._timer.Dispose();
+    }
+
+    private void btAdd_Click(object sender, RoutedEventArgs e)
+    {
+      AddNodeBNew addNodeBnew = AddNodeBNew.NewInstance();
+      addNodeBnew.Closed += new EventHandler(this.AddNB_Closed);
+      addNodeBnew.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      addNodeBnew.Owner = Window.GetWindow((DependencyObject) this);
+      addNodeBnew.Show();
+    }
+
+    private void con_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(((FrameworkElement) e.Source).DataContext is Node dataContext) || this.CreateTab(dataContext) != 2)
+        return;
+      this.TurnToTab(dataContext);
+    }
+
+    private void turnto_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(((FrameworkElement) e.Source).DataContext is Node dataContext))
+        return;
+      this.TurnToTab(dataContext);
+    }
+
+    private void discon_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(((FrameworkElement) e.Source).DataContext is Node dataContext1))
+        return;
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.ItemsHost == null || rootElement.ItemsHost.Children.Count <= 0 || !(this.GetRootElement<CustomWindow>((DependencyObject) this, "SCMTMainWindow").DataContext is LMT.ViewModel.MainWindowVM dataContext2))
+        return;
+      IEnumerator enumerator = rootElement.ItemsHost.Children.GetEnumerator();
+      try
+      {
+        while (enumerator.MoveNext() && (enumerator.Current is ChromeTabItem current ? current.DataContext : (object) null) is TabBase dataContext3)
+        {
+          if (dataContext3.TabName == dataContext1.BaseStationType + ":" + dataContext1.FriendlyName)
+          {
+            if (!(dataContext3 is NodeBMainTabVM nodeBmainTabVm))
+              break;
+            string gnbIp = nodeBmainTabVm?.GnbIp;
+            if (string.IsNullOrEmpty(gnbIp))
+            {
+              current.ParentTabControl.ReSelectItem((object) null);
+              dataContext2.ItemCollection.Remove((TabBase) nodeBmainTabVm);
+              nodeBmainTabVm.Page?.DisConnect();
+              nodeBmainTabVm.Page?.Dispose();
+              dataContext1.IsConnected = false;
+              dataContext1.IsOpen = false;
+              dataContext1.ActiveAlarmCount = 0;
+              this.UpdateCount(dataContext1.GroupId);
+              break;
+            }
+            if (!NodeBControl.GetInstance().NodeHasConnected(gnbIp))
+            {
+              current.ParentTabControl.ReSelectItem((object) null);
+              dataContext2.ItemCollection.Remove((TabBase) nodeBmainTabVm);
+              nodeBmainTabVm.Page?.DisConnect();
+              nodeBmainTabVm.Page?.Dispose();
+              dataContext1.IsConnected = false;
+              dataContext1.IsOpen = false;
+              dataContext1.ActiveAlarmCount = 0;
+              this.UpdateCount(dataContext1.GroupId);
+              break;
+            }
+            if (CustomMessageBoxResult.Yes != CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Others_CloseTabTip"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question))
+              break;
+            nodeBmainTabVm.Page?.DisConnect();
+            nodeBmainTabVm.Page?.Dispose();
+            PublishHelper.PublishMsg("AlarmActive_DisconnectTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 217, nameof (discon_Click));
+            PublishHelper.PublishMsg("Event_DisconnectTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 218, nameof (discon_Click));
+            dataContext1.IsConnected = false;
+            dataContext1.IsOpen = false;
+            dataContext1.ActiveAlarmCount = 0;
+            this.UpdateCount(dataContext1.GroupId);
+            current.ParentTabControl.ReSelectItem((object) null);
+            dataContext2.ItemCollection.Remove((TabBase) nodeBmainTabVm);
+            if (TimeHelper.Timer == null)
+              break;
+            TimeHelper.Timer.Stop();
+            TimeHelper.Timer = (DispatcherTimer) null;
+            break;
+          }
+        }
+      }
+      finally
+      {
+        if (enumerator is IDisposable disposable)
+          disposable.Dispose();
+      }
+    }
+
+    private void StackPanel_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+      if (e.ClickCount != 2 || !(((FrameworkElement) sender).DataContext is Node dataContext) || this.CreateTab(dataContext) != 2)
+        return;
+      this.TurnToTab(dataContext);
+    }
+
+    private void btImport_Click(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Multiselect = false;
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != DialogResult.OK)
+        return;
+      this._importExcelPath = openFileDialog.FileName;
+      if (!string.IsNullOrEmpty(this._filter))
+      {
+        this._filter = "";
+        this.SearchNodes();
+      }
+      Loading loading = new Loading();
+      loading.DoWork += new Loading.DoWorkHandler(this.ImportExcel);
+      loading.Start();
+    }
+
+    private void btExport_Click(object sender, RoutedEventArgs e)
+    {
+      SaveFileDialog saveFileDialog = new SaveFileDialog();
+      saveFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      saveFileDialog.AddExtension = true;
+      saveFileDialog.DefaultExt = "xls";
+      int num = (int) saveFileDialog.ShowDialog();
+      if (string.IsNullOrEmpty(saveFileDialog.FileName))
+        return;
+      this._exportExcelPath = saveFileDialog.FileName;
+      Loading loading = new Loading();
+      loading.DoWork += new Loading.DoWorkHandler(this.ExportExcel);
+      loading.Start();
+    }
+
+    private void updateIp_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(this.TvGroupList.SelectedItem is Node selectedItem))
+        return;
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null)
+      {
+        foreach (object obj in (IEnumerable) rootElement.Items)
+        {
+          if (Regex.IsMatch(obj is TabBase tabBase ? tabBase.TabName : (string) null, "\\b[(4|5)G:]\\S*") && tabBase.TabName.Substring(tabBase.TabName.IndexOf(':') + 1) == selectedItem.FriendlyName)
+          {
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_CloseTabNotice"));
+            return;
+          }
+        }
+      }
+      UpdateNodeBNew updateNodeBnew = new UpdateNodeBNew(NodeBUpdateType.Ip, new ConnectNodeBPara()
+      {
+        FriendlyName = selectedItem.FriendlyName,
+        IpAddress = selectedItem.Ip,
+        BaseStationType = selectedItem.BaseStationType,
+        BSGroupName = selectedItem.GroupId
+      });
+      updateNodeBnew.getUpdate = new UpdateNodeBNew.GetUpdate(this.GetUpdateInfo);
+      updateNodeBnew.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      updateNodeBnew.ShowDialog();
+    }
+
+    private void updateFName_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(this.TvGroupList.SelectedItem is Node selectedItem))
+        return;
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null)
+      {
+        foreach (object obj in (IEnumerable) rootElement.Items)
+        {
+          if (Regex.IsMatch(obj is TabBase tabBase ? tabBase.TabName : (string) null, "\\b[(4|5)G:]\\S*") && tabBase.TabName.Substring(tabBase.TabName.IndexOf(':') + 1) == selectedItem.FriendlyName)
+          {
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_CloseTabNotice"));
+            return;
+          }
+        }
+      }
+      UpdateNodeBNew updateNodeBnew = new UpdateNodeBNew(NodeBUpdateType.FName, new ConnectNodeBPara()
+      {
+        FriendlyName = selectedItem.FriendlyName,
+        IpAddress = selectedItem.Ip,
+        BaseStationType = selectedItem.BaseStationType,
+        BSGroupName = selectedItem.GroupId
+      });
+      updateNodeBnew.getUpdate = new UpdateNodeBNew.GetUpdate(this.GetUpdateInfo);
+      updateNodeBnew.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      updateNodeBnew.ShowDialog();
+    }
+
+    private void updateType_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(this.TvGroupList.SelectedItem is Node selectedItem))
+        return;
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null)
+      {
+        foreach (object obj in (IEnumerable) rootElement.Items)
+        {
+          if (Regex.IsMatch(obj is TabBase tabBase ? tabBase.TabName : (string) null, "\\b[(4|5)G:]\\S*") && tabBase.TabName.Substring(tabBase.TabName.IndexOf(':') + 1) == selectedItem.FriendlyName)
+          {
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_CloseTabNotice"));
+            return;
+          }
+        }
+      }
+      UpdateNodeBNew updateNodeBnew = new UpdateNodeBNew(NodeBUpdateType.BsType, new ConnectNodeBPara()
+      {
+        FriendlyName = selectedItem.FriendlyName,
+        IpAddress = selectedItem.Ip,
+        BaseStationType = selectedItem.BaseStationType,
+        BSGroupName = selectedItem.GroupId
+      });
+      updateNodeBnew.getUpdate = new UpdateNodeBNew.GetUpdate(this.GetUpdateInfo);
+      updateNodeBnew.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      updateNodeBnew.ShowDialog();
+    }
+
+    private void delete_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(this.TvGroupList.SelectedItem is Node selectedItem))
+        return;
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null)
+      {
+        foreach (object obj in (IEnumerable) rootElement.Items)
+        {
+          if (Regex.IsMatch(obj is TabBase tabBase ? tabBase.TabName : (string) null, "\\b[(4|5)G:]\\S*") && tabBase.TabName.Substring(tabBase.TabName.IndexOf(':') + 1) == selectedItem.FriendlyName)
+          {
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_CloseTabNotice"));
+            return;
+          }
+        }
+      }
+      string errInfo;
+      if (!this.DeleteElement(selectedItem, out errInfo))
+      {
+        int num1 = (int) CustomMessageBox.Show(errInfo, messageBoxImage: CustomMessageBoxIcon.Error);
+      }
+      else
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_DeleteSuccess"));
+      }
+    }
+
+    private void BtRefresh_OnClick(object sender, RoutedEventArgs e)
+    {
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null && rootElement != null && rootElement.Items.Count > 1)
+      {
+        foreach (object obj in (IEnumerable) rootElement?.Items)
+        {
+          if (obj is NodeBMainTabVM)
+          {
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_CloseAllTabNotice"));
+            return;
+          }
+        }
+      }
+      this._filter = "";
+      this.GetList();
+    }
+
+    private void btSearch_Click(object sender, RoutedEventArgs e)
+    {
+      this._filter = this.searchFilter.Text.Trim();
+      this.SearchNodes();
+    }
+
+    private void searchFilter_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+      if (e.Key != Key.Return)
+        return;
+      this._filter = this.searchFilter.Text.Trim();
+      this.SearchNodes();
+    }
+
+    private void TreeViewItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      if (!(NodeBList.VisualUpwardSearch<TreeViewItem>(!(e.OriginalSource.GetType() == typeof (Run)) ? e.OriginalSource as DependencyObject : ((e.OriginalSource as Run).Parent as Span).Parent) is TreeViewItem treeViewItem))
+        return;
+      treeViewItem.Focus();
+      e.Handled = true;
+      if (treeViewItem.DataContext is Node)
+        this.ChangeContextMenu(true);
+      else
+        this.ChangeContextMenu(false);
+    }
+
+    private void moveGroup_Click(object sender, RoutedEventArgs e)
+    {
+      if (!(e.OriginalSource is System.Windows.Controls.MenuItem originalSource) || originalSource.Header == null)
+        return;
+      string key = ((KeyValuePair<string, string>) originalSource.Header).Key;
+      string errInfo;
+      if (!(this.TvGroupList.SelectedItem is Node selectedItem) || this.UpdateGroupName(selectedItem, key, out errInfo))
+        return;
+      int num = (int) CustomMessageBox.Show(errInfo, messageBoxImage: CustomMessageBoxIcon.Error);
+    }
+
+    private void btAddGroup_Click(object sender, RoutedEventArgs e)
+    {
+      AddNodeBGroup addNodeBgroup = new AddNodeBGroup();
+      addNodeBgroup.getAddGroupName = new AddNodeBGroup.GetAddGroupName(this.GetAddGroupName);
+      addNodeBgroup.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      addNodeBgroup.ShowDialog();
+    }
+
+    private void deleteGroupName_Click(object sender, RoutedEventArgs e)
+    {
+      if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_SureDeleteGroup"), CustomMessageBoxButton.OKCancel, CustomMessageBoxIcon.Question) != CustomMessageBoxResult.OK)
+        return;
+      if (this.TvGroupList.SelectedItem is Group)
+      {
+        if (!(this.TvGroupList.SelectedItem is Group selectedItem))
+          return;
+        ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+        foreach (Node node in (Collection<Node>) selectedItem.Nodes)
+        {
+          if (rootElement?.Items != null)
+          {
+            foreach (object obj in (IEnumerable) rootElement.Items)
+            {
+              if (Regex.IsMatch(obj is TabBase tabBase ? tabBase.TabName : (string) null, "\\b[(4|5)G:]\\S*") && tabBase.TabName.Substring(tabBase.TabName.IndexOf(':') + 1) == node.FriendlyName)
+              {
+                int num = (int) CustomMessageBox.Show(string.Format(LanguageServices.Current.GetTextValue("Index_NodeBList_CloseTabNotice2"), (object) node.FriendlyName));
+                return;
+              }
+            }
+          }
+        }
+        foreach (Node node in (Collection<Node>) selectedItem.Nodes)
+        {
+          if (!NodeBControl.GetInstance().DelElementByFriendlyName(node.FriendlyName, false))
+            LogManager.Log.Error(string.Format("清除组{0}中基站{1}的数据失败", (object) selectedItem.GroupName, (object) node.FriendlyName), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 719, nameof (deleteGroupName_Click));
+          if (node.IsFnFound || node.IsIpFound)
+            this.DeleteSearchResult(node);
+        }
+        this.UpdateSearchResult();
+        if (BSConInfo.GetInstance().DeleteGroup(selectedItem.GroupId))
+        {
+          this._groupNameList.Remove(selectedItem.GroupId);
+          this._groupList.Remove(selectedItem);
+          this._groupDic.Remove(selectedItem.GroupId);
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_DeleteSuccess"));
+        }
+        else
+        {
+          LogManager.Log.Error("基站列表：删除组返回失败", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 742, nameof (deleteGroupName_Click));
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_DeleteGroupFailed"), messageBoxImage: CustomMessageBoxIcon.Error);
+        }
+      }
+      else
+        LogManager.Log.Debug("基站列表：选中的不是根节点，无法进行删除组操作", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 679, nameof (deleteGroupName_Click));
+    }
+
+    private void btPrevious_Click(object sender, RoutedEventArgs e)
+    {
+      if (this._currentSearchIndex == 0)
+        this._currentSearchIndex = this._searchItems.Count - 1;
+      else
+        --this._currentSearchIndex;
+      this._searchItems[this._currentSearchIndex].BringIntoView();
+      this._searchItems[this._currentSearchIndex].IsSelected = true;
+    }
+
+    private void btNext_Click(object sender, RoutedEventArgs e)
+    {
+      this._currentSearchIndex = (this._currentSearchIndex + 1) % this._searchItems.Count;
+      this._searchItems[this._currentSearchIndex].BringIntoView();
+      this._searchItems[this._currentSearchIndex].IsSelected = true;
+    }
+
+    private void GetList()
+    {
+      Console.WriteLine("start:" + DateTime.Now.ToString());
+      this._groupList.Clear();
+      this._groupDic.Clear();
+      this._groupNameList.Clear();
+      this.RefreshMoveGroupItems();
+      foreach (KeyValuePair<string, string> groupName in this._groupNameList)
+      {
+        Group group = new Group()
+        {
+          GroupId = groupName.Key,
+          GroupName = groupName.Value,
+          Nodes = new ObservableCollection<Node>(),
+          NodesCount = 0,
+          ConCount = 0
+        };
+        this._groupList.Add(group);
+        this._groupDic.Add(groupName.Key, group);
+      }
+      Dictionary<string, NodeBInfo> dictionary = new Dictionary<string, NodeBInfo>((IDictionary<string, NodeBInfo>) NodeBControl.GetInstance().GetNodebInfo());
+      List<string> ipList = new List<string>();
+      foreach (KeyValuePair<string, NodeBInfo> keyValuePair in dictionary)
+      {
+        if (!string.IsNullOrEmpty(keyValuePair.Value.BSGroupName) && !this._groupNameList.ContainsKey(keyValuePair.Value.BSGroupName))
+        {
+          if (!NodeBControl.GetInstance().DelElementByFriendlyName(keyValuePair.Value.FriendlyName))
+            LogManager.Log.Error("基站列表加载数据：删除不存在分组的脏数据" + keyValuePair.Value.NodeBIp + "失败", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 825, nameof (GetList));
+          LogManager.Log.Error("基站列表加载数据：删除不存在分组的脏数据" + keyValuePair.Value.NodeBIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 827, nameof (GetList));
+        }
+        else
+        {
+          this._groupDic[keyValuePair.Value.BSGroupName].Nodes.Add(new Node()
+          {
+            IsConnected = false,
+            IsOpen = false,
+            FriendlyName = keyValuePair.Value.FriendlyName,
+            Ip = keyValuePair.Value.NodeBIp,
+            BaseStationType = keyValuePair.Value.BaseStationType,
+            ActiveAlarmCount = 0,
+            GroupId = keyValuePair.Value.BSGroupName,
+            IsFnFound = false,
+            IsIpFound = false
+          });
+          CSEnbHelper.SetStationFrameType(keyValuePair.Value.NodeBIp, keyValuePair.Value.BaseStationType);
+          ipList.Add(keyValuePair.Value.NodeBIp);
+        }
+      }
+      if (!Singleton<DatabaseMgr>.GetInstance().Initialize(ipList))
+        LogManager.Log.Error("创建告警、事件数据库表失败！", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 853, nameof (GetList));
+      this.UpdateCount();
+      this.UpdateSearchResult();
+    }
+
+    private void AddNB_Closed(object sender, EventArgs e)
+    {
+      if (!(e is NodeBArgs))
+        return;
+      NodeB mNodeB = ((NodeBArgs) e).m_NodeB;
+      this.AddNodeIntoList(mNodeB.FriendlyName, mNodeB.NodeBIp, mNodeB.BaseStationType, mNodeB.BSGroupName);
+      this.UpdateSearchResult();
+    }
+
+    private void AddNodeIntoList(
+      string friendlyName,
+      string ip,
+      string strFrameType,
+      string groupId)
+    {
+      if (string.IsNullOrEmpty(groupId))
+        groupId = this._defaultGroupId;
+      if (!this._groupDic.ContainsKey(groupId))
+      {
+        LogManager.Log.Error(string.Format("基站列表：没有{0}组。", (object) groupId), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 903, nameof (AddNodeIntoList));
+      }
+      else
+      {
+        bool flag1 = false;
+        bool flag2 = false;
+        if (!string.IsNullOrEmpty(this._filter))
+        {
+          if (friendlyName.Contains(this._filter))
+            flag1 = true;
+          if (ip.Contains(this._filter))
+            flag2 = true;
+        }
+        this._groupDic[groupId].Nodes.Add(new Node()
+        {
+          IsConnected = false,
+          IsOpen = false,
+          FriendlyName = friendlyName,
+          Ip = ip,
+          BaseStationType = strFrameType,
+          ActiveAlarmCount = 0,
+          GroupId = groupId,
+          IsFnFound = flag1,
+          IsIpFound = flag2
+        });
+        this.UpdateCount(groupId);
+      }
+    }
+
+    public T GetRootElement<T>(DependencyObject item, string strName) where T : FrameworkElement
+    {
+      for (DependencyObject parent = VisualTreeHelper.GetParent(item); parent != null; parent = VisualTreeHelper.GetParent(parent))
+      {
+        if (parent is T obj && obj.Name == strName)
+          return (T) parent;
+      }
+      return default (T);
+    }
+
+    private int CreateTab(Node node)
+    {
+      if (node == null)
+        return 0;
+      ConnectNodeBPara parameter = new ConnectNodeBPara()
+      {
+        FriendlyName = node.FriendlyName,
+        IpAddress = node.Ip,
+        BaseStationType = node.BaseStationType,
+        BSGroupName = node.GroupId
+      };
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null)
+      {
+        foreach (object obj in (IEnumerable) rootElement.Items)
+        {
+          if ((obj is TabBase tabBase ? tabBase.TabName : (string) null) == node.BaseStationType + ":" + node.FriendlyName)
+          {
+            rootElement.SelectedItem = obj;
+            return 1;
+          }
+        }
+      }
+      ((NodeBListManagerTabVM) this.DataContext).ConnectNodeBCommand.Execute((object) parameter);
+      node.IsOpen = true;
+      this.UpdateCount(node.GroupId);
+      return 2;
+    }
+
+    private void TurnToTab(Node node)
+    {
+      if (node == null)
+        return;
+      ChromeTabControl rootElement = this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl");
+      if (rootElement?.Items != null)
+      {
+        foreach (object obj in (IEnumerable) rootElement.Items)
+        {
+          if ((obj is TabBase tabBase ? tabBase.TabName : (string) null) == node.BaseStationType + ":" + node.FriendlyName)
+          {
+            rootElement.SelectedItem = obj;
+            return;
+          }
+        }
+      }
+      ((NodeBListManagerTabVM) this.DataContext).ConnectNodeBCommand.Execute((object) new ConnectNodeBPara()
+      {
+        FriendlyName = node.FriendlyName,
+        IpAddress = node.Ip,
+        BaseStationType = node.BaseStationType,
+        BSGroupName = node.GroupId
+      });
+      node.IsOpen = true;
+      this.UpdateCount(node.GroupId);
+    }
+
+    private void ConnectTrap(SubscribeMsg msg)
+    {
+      string strIp = Encoding.UTF8.GetString(msg.Data);
+      Node node = (Node) null;
+      foreach (Group group in (Collection<Group>) this._groupList)
+      {
+        node = group.Nodes.FirstOrDefault<Node>((System.Func<Node, bool>) (x => x.Ip == strIp));
+        if (node != null)
+          break;
+      }
+      if (node == null)
+        return;
+      node.IsConnected = true;
+      this.UpdateCount(node.GroupId);
+    }
+
+    private void DisconnectTrap(SubscribeMsg msg)
+    {
+      string strIp = Encoding.UTF8.GetString(msg.Data);
+      Node node = (Node) null;
+      foreach (Group group in (Collection<Group>) this._groupList)
+      {
+        node = group.Nodes.FirstOrDefault<Node>((System.Func<Node, bool>) (x => x.Ip == strIp));
+        if (node != null)
+          break;
+      }
+      if (node == null)
+        return;
+      node.IsConnected = false;
+      node.ActiveAlarmCount = 0;
+      this.UpdateCount(node.GroupId);
+    }
+
+    private void ClosedTrap(SubscribeMsg msg)
+    {
+      string strIp = Encoding.UTF8.GetString(msg.Data);
+      Node node = (Node) null;
+      foreach (Group group in (Collection<Group>) this._groupList)
+      {
+        node = group.Nodes.FirstOrDefault<Node>((System.Func<Node, bool>) (x => x.Ip == strIp));
+        if (node != null)
+          break;
+      }
+      if (node == null)
+        return;
+      node.IsConnected = false;
+      node.IsOpen = false;
+      node.ActiveAlarmCount = 0;
+      this.UpdateCount(node.GroupId);
+    }
+
+    private bool GetUpdateInfo(NodeBUpdateType type, ConnectNodeBPara para)
+    {
+      if (!(this.TvGroupList.SelectedItem is Node selectedItem))
+        return false;
+      switch (type)
+      {
+        case NodeBUpdateType.Ip:
+          string errorInfo1 = "";
+          IPAddress address;
+          if (!IPAddress.TryParse(para.IpAddress, out address))
+          {
+            LogManager.Log.Error("修改基站IP地址失败，IP地址非法", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1134, nameof (GetUpdateInfo));
+            return false;
+          }
+          if (NodeBControl.GetInstance().ModifyElementIPAddr(address.ToString(), para.FriendlyName, para.BSGroupName, ref errorInfo1))
+          {
+            selectedItem.Ip = address.ToString();
+            CSEnbHelper.SetStationFrameType(address.ToString(), para.BaseStationType);
+            selectedItem.IsIpFound = !string.IsNullOrEmpty(this._filter) && selectedItem.Ip.Contains(this._filter);
+            return true;
+          }
+          LogManager.Log.Error("基站列表修改IP地址错误：" + errorInfo1, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1150, nameof (GetUpdateInfo));
+          int num1 = (int) CustomMessageBox.Show(errorInfo1, LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyIP"), messageBoxImage: CustomMessageBoxIcon.Error);
+          return false;
+        case NodeBUpdateType.FName:
+          string errorInfo2 = "";
+          if (NodeBControl.GetInstance().ModifyElementFriendlyName(para.IpAddress, para.FriendlyName, ref errorInfo2))
+          {
+            selectedItem.FriendlyName = para.FriendlyName;
+            selectedItem.IsFnFound = !string.IsNullOrEmpty(this._filter) && selectedItem.FriendlyName.Contains(this._filter);
+            return true;
+          }
+          LogManager.Log.Error("基站列表修改友好名错误：" + errorInfo2, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1168, nameof (GetUpdateInfo));
+          int num2 = (int) CustomMessageBox.Show(errorInfo2, LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyFriendlyName"), messageBoxImage: CustomMessageBoxIcon.Error);
+          return false;
+        case NodeBUpdateType.BsType:
+          string errorInfo3 = "";
+          if (NodeBControl.GetInstance().ModifyElementBaseStationType(para.IpAddress, para.FriendlyName, para.BaseStationType, ref errorInfo3))
+          {
+            selectedItem.BaseStationType = para.BaseStationType;
+            CSEnbHelper.SetStationFrameType(para.IpAddress, para.BaseStationType);
+            return true;
+          }
+          LogManager.Log.Error("基站列表修改基站制式错误：" + errorInfo3, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1182, nameof (GetUpdateInfo));
+          int num3 = (int) CustomMessageBox.Show(errorInfo3, LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyBsType"), messageBoxImage: CustomMessageBoxIcon.Error);
+          return false;
+        default:
+          string errInfo = "";
+          if (this.UpdateGroupName(selectedItem, para.BSGroupName, out errInfo))
+            return true;
+          LogManager.Log.Error("基站列表修改分组错误：" + errInfo, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1194, nameof (GetUpdateInfo));
+          int num4 = (int) CustomMessageBox.Show(errInfo, "修改所属分组", messageBoxImage: CustomMessageBoxIcon.Error);
+          return false;
+      }
+    }
+
+    private bool DeleteElement(Node node, out string errInfo)
+    {
+      errInfo = "";
+      if (NodeBControl.GetInstance().DelElementByFriendlyName(node.FriendlyName))
+      {
+        string key = string.IsNullOrEmpty(node.GroupId) ? this._defaultGroupId : node.GroupId;
+        Node node1 = this._groupDic[key].Nodes.FirstOrDefault<Node>((System.Func<Node, bool>) (x => x.FriendlyName == node.FriendlyName));
+        if (node1 != null)
+        {
+          if (node.IsFnFound || node.IsIpFound)
+          {
+            this.DeleteSearchResult(node);
+            this.UpdateSearchResult();
+          }
+          this._groupDic[key].Nodes.Remove(node1);
+          this.UpdateCount(node.GroupId);
+        }
+        else
+        {
+          LogManager.Log.Error("基站列表删除基站：在分组" + key + "中未包含" + node.Ip, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1227, nameof (DeleteElement));
+          errInfo += LanguageServices.Current.GetTextValue("Index_NodeBList_DeleteStationFailed");
+          return false;
+        }
+      }
+      return true;
+    }
+
+    private bool UpdateGroupName(Node node, string newGroupId, out string errInfo)
+    {
+      errInfo = "";
+      if (newGroupId == null || !this._groupDic.ContainsKey(newGroupId))
+      {
+        LogManager.Log.Error(string.Format("分组列表中不包含Id为{0}的组", (object) newGroupId), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1248, nameof (UpdateGroupName));
+        errInfo = LanguageServices.Current.GetTextValue("Index_NodeBList_MoveGroupFailed");
+        return false;
+      }
+      if (node.GroupId == newGroupId)
+        return true;
+      if (NodeBControl.GetInstance().ModifyElementGroupName(node.Ip, node.FriendlyName, newGroupId, ref errInfo))
+      {
+        string str = string.IsNullOrEmpty(node.GroupId) ? this._defaultGroupId : node.GroupId;
+        Node node1 = this._groupDic[str].Nodes.FirstOrDefault<Node>((System.Func<Node, bool>) (x => x.FriendlyName == node.FriendlyName));
+        if (node1 != null)
+        {
+          this._groupDic[str].Nodes.Remove(node1);
+          this.UpdateCount(str);
+          node1.GroupId = newGroupId;
+          this._groupDic[newGroupId].Nodes.Add(node1);
+          this.UpdateCount(newGroupId);
+          return true;
+        }
+        LogManager.Log.Error("基站列表移动分组：在分组" + str + "中未包含" + node.Ip, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1271, nameof (UpdateGroupName));
+        errInfo = LanguageServices.Current.GetTextValue("Index_NodeBList_MoveGroupFailed");
+        return false;
+      }
+      LogManager.Log.Error("基站列表移动分组：返回失败", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1278, nameof (UpdateGroupName));
+      errInfo = LanguageServices.Current.GetTextValue("Index_NodeBList_MoveGroupFailed");
+      return false;
+    }
+
+    private string ImportExcel()
+    {
+      string strErrMsg1 = (string) null;
+      DataTable dataTable = CommExcelHelper.ExcelToDataTable(this._importExcelPath, nameof (NodeBList), out strErrMsg1);
+      if (dataTable == null)
+        return strErrMsg1;
+      if (!dataTable.Columns.Contains("FriendlyName"))
+        return LanguageServices.Current.GetTextValue("Index_AddNodeB_ImportLoseFn");
+      if (!dataTable.Columns.Contains("Ip"))
+        return LanguageServices.Current.GetTextValue("Index_AddNodeB_ImportLoseIP");
+      if (!dataTable.Columns.Contains("BaseStationType"))
+        return LanguageServices.Current.GetTextValue("Index_AddNodeB_ImportLoseType");
+      if (!dataTable.Columns.Contains("GroupName"))
+        return LanguageServices.Current.GetTextValue("Index_AddNodeB_ImportLoseGroup");
+      int num = 0;
+      foreach (DataRow row in (InternalDataCollectionBase) dataTable.Rows)
+      {
+        string friendText = row["FriendlyName"].ToString();
+        string ipString = row["Ip"].ToString();
+        string baseStationType = row["BaseStationType"].ToString();
+        string groupId = "";
+        string groupName = row["GroupName"].ToString();
+        if (string.IsNullOrEmpty(ipString) || string.IsNullOrWhiteSpace(ipString))
+        {
+          ++num;
+        }
+        else
+        {
+          IPAddress addr;
+          if (!IPAddress.TryParse(ipString, out addr))
+            ++num;
+          else if (string.IsNullOrEmpty(friendText) || string.IsNullOrWhiteSpace(friendText))
+            ++num;
+          else if (!baseStationType.Equals("4G") && !baseStationType.Equals("5G"))
+          {
+            ++num;
+          }
+          else
+          {
+            groupName = string.IsNullOrEmpty(groupName) ? this._defaultGroupName : groupName;
+            try
+            {
+              KeyValuePair<string, string> keyValuePair;
+              if (!this._groupNameList.ContainsValue(groupName))
+              {
+                if (!BSConInfo.GetInstance().AddBsGroup(groupName))
+                {
+                  LogManager.Log.Error("基站列表导入：增加新分组" + groupName + "失败", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1370, nameof (ImportExcel));
+                  ++num;
+                  continue;
+                }
+                System.Windows.Application.Current.Dispatcher.Invoke((Action) (() => this.RefreshMoveGroupItems()));
+                keyValuePair = this._groupNameList.FirstOrDefault<KeyValuePair<string, string>>((System.Func<KeyValuePair<string, string>, bool>) (x => x.Value == groupName));
+                groupId = keyValuePair.Key;
+                if (string.IsNullOrEmpty(groupId))
+                {
+                  LogManager.Log.Error(string.Format("基站列表导入：获取新增分组{0}的id失败", (object) groupName), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1383, nameof (ImportExcel));
+                  ++num;
+                  continue;
+                }
+                Group newGroup = new Group()
+                {
+                  GroupId = groupId,
+                  GroupName = groupName,
+                  Nodes = new ObservableCollection<Node>(),
+                  NodesCount = 0,
+                  ConCount = 0
+                };
+                System.Windows.Application.Current.Dispatcher.Invoke((Action) (() => this._groupList.Add(newGroup)));
+                this._groupDic.Add(groupId, newGroup);
+              }
+              keyValuePair = this._groupNameList.FirstOrDefault<KeyValuePair<string, string>>((System.Func<KeyValuePair<string, string>, bool>) (x => x.Value == groupName));
+              groupId = keyValuePair.Key;
+              string strErrMsg2;
+              if ((NodeB) NodeBControl.GetInstance().AddElement(addr.ToString(), friendText, baseStationType, groupId, out strErrMsg2, (ushort) 5000, true) == null)
+              {
+                LogManager.Log.Error("基站列表导入：新增数据失败，" + strErrMsg2, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1410, nameof (ImportExcel));
+                ++num;
+              }
+              else
+              {
+                CSEnbHelper.SetStationFrameType(addr.ToString(), baseStationType);
+                System.Windows.Application.Current.Dispatcher.Invoke((Action) (() => this._groupDic[groupId].Nodes.Add(new Node()
+                {
+                  IsConnected = false,
+                  IsOpen = false,
+                  FriendlyName = friendText,
+                  Ip = addr.ToString(),
+                  BaseStationType = baseStationType,
+                  ActiveAlarmCount = 0,
+                  GroupId = groupId,
+                  IsFnFound = false,
+                  IsIpFound = false
+                })));
+                if (!Singleton<DatabaseMgr>.GetInstance().Initialize(addr.ToString()))
+                  LogManager.Log.Error(string.Format("{0}{1}", (object) LanguageServices.Current.GetTextValue("Index_NodeBList_InitConfigFailed"), (object) addr.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1438, nameof (ImportExcel));
+                this.UpdateCount(groupId);
+              }
+            }
+            catch (Exception ex)
+            {
+              string message = ex.Message;
+              LogManager.Log.Error("基站列表导入" + message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1447, nameof (ImportExcel));
+              return message;
+            }
+          }
+        }
+      }
+      System.Windows.Application.Current.Dispatcher.Invoke((Action) (() => this.UpdateSearchResult()));
+      return num < 0 ? LanguageServices.Current.GetTextValue("BaseInfo_Log_119") : LanguageServices.Current.GetTextValue("BaseInfo_Log_119") + string.Format(LanguageServices.Current.GetTextValue("Index_NodeBList_ImportErrorCount"), (object) num);
+    }
+
+    private string ExportExcel()
+    {
+      DataTable data = new DataTable();
+      data.TableName = nameof (NodeBList);
+      data.Columns.Add(new DataColumn("FriendlyName", System.Type.GetType("System.String")));
+      data.Columns.Add(new DataColumn("Ip", System.Type.GetType("System.String")));
+      data.Columns.Add(new DataColumn("BaseStationType", System.Type.GetType("System.String")));
+      data.Columns.Add(new DataColumn("GroupName", System.Type.GetType("System.String")));
+      foreach (Group group in (Collection<Group>) this._groupList)
+      {
+        foreach (Node node in (Collection<Node>) group.Nodes)
+        {
+          DataRow row = data.NewRow();
+          row["FriendlyName"] = (object) node.FriendlyName;
+          row["Ip"] = (object) node.Ip;
+          row["BaseStationType"] = (object) node.BaseStationType;
+          row["GroupName"] = (object) this._groupNameList[node.GroupId];
+          data.Rows.Add(row);
+        }
+      }
+      return CommExcelHelper.DataTableToExcel(this._exportExcelPath, data, data.TableName) < 0 ? "导出失败！" : LanguageServices.Current.GetTextValue("BaseInfo_Log_118_2");
+    }
+
+    private void SearchNodes()
+    {
+      int num1 = 0;
+      foreach (Group group in (Collection<Group>) this._groupList)
+      {
+        foreach (Node node in (Collection<Node>) group.Nodes)
+        {
+          node.IsFnFound = false;
+          node.IsIpFound = false;
+          ++num1;
+        }
+      }
+      this._searchItems.Clear();
+      this._currentSearchIndex = 0;
+      this.btPrevious.IsEnabled = false;
+      this.btNext.IsEnabled = false;
+      this.UpdateSearchResult();
+      if (string.IsNullOrEmpty(this._filter))
+        return;
+      int num2 = 0;
+      foreach (Group group in (Collection<Group>) this._groupList)
+      {
+        foreach (Node node in (Collection<Node>) group.Nodes)
+        {
+          if (node.FriendlyName.Contains(this._filter))
+            node.IsFnFound = true;
+          if (node.Ip.Contains(this._filter))
+            node.IsIpFound = true;
+          if (node.IsFnFound || node.IsIpFound)
+            ++num2;
+        }
+      }
+      if (this.searchFilter.SelectedItem != null)
+      {
+        this._filterList.RemoveAt(this.searchFilter.SelectedIndex);
+      }
+      else
+      {
+        bool flag = false;
+        for (int index = 0; index < this._filterList.Count; ++index)
+        {
+          if (this._filterList[index] == this._filter)
+          {
+            flag = true;
+            this._filterList.RemoveAt(index);
+            break;
+          }
+        }
+        if (!flag && this._filterList.Count >= 20)
+          this._filterList.RemoveAt(this._filterList.Count - 1);
+      }
+      this._filterList.Insert(0, this._filter);
+      this.searchFilter.Text = this._filter;
+      if (num2 <= 0)
+        return;
+      this.TreeViewScrollIntoView();
+    }
+
+    private void UpdateCount(string groupId = null)
+    {
+      if (string.IsNullOrEmpty(groupId))
+      {
+        foreach (Group group in (Collection<Group>) this._groupList)
+        {
+          group.NodesCount = group.Nodes.Count;
+          group.ConCount = group.Nodes.Count<Node>((System.Func<Node, bool>) (x => x.IsConnected));
+        }
+      }
+      else if (!this._groupDic.ContainsKey(groupId))
+      {
+        LogManager.Log.Error(string.Format("更新基站分组计数：不存在ID为{0}的组", (object) groupId), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1602, nameof (UpdateCount));
+      }
+      else
+      {
+        this._groupDic[groupId].NodesCount = this._groupDic[groupId].Nodes.Count;
+        this._groupDic[groupId].ConCount = this._groupDic[groupId].Nodes.Count<Node>((System.Func<Node, bool>) (x => x.IsConnected));
+      }
+    }
+
+    private static DependencyObject VisualUpwardSearch<T>(DependencyObject source)
+    {
+      while (source != null && source.GetType() != typeof (T))
+        source = VisualTreeHelper.GetParent(source);
+      return source;
+    }
+
+    private void ChangeContextMenu(bool isNode)
+    {
+      if (isNode)
+      {
+        this.updateIp.Visibility = Visibility.Visible;
+        this.updateFName.Visibility = Visibility.Visible;
+        this.updateType.Visibility = Visibility.Visible;
+        this.delete.Visibility = Visibility.Visible;
+        this.moveGroup.Visibility = Visibility.Visible;
+        this.deleteGroupName.Visibility = Visibility.Collapsed;
+      }
+      else
+      {
+        this.updateIp.Visibility = Visibility.Collapsed;
+        this.updateFName.Visibility = Visibility.Collapsed;
+        this.updateType.Visibility = Visibility.Collapsed;
+        this.delete.Visibility = Visibility.Collapsed;
+        this.moveGroup.Visibility = Visibility.Collapsed;
+        this.deleteGroupName.Visibility = Visibility.Visible;
+      }
+    }
+
+    private bool GetAddGroupName(string groupName)
+    {
+      if (!BSConInfo.GetInstance().AddBsGroup(groupName))
+        return false;
+      this.RefreshMoveGroupItems();
+      string key = this._groupNameList.FirstOrDefault<KeyValuePair<string, string>>((System.Func<KeyValuePair<string, string>, bool>) (x => x.Value == groupName)).Key;
+      if (string.IsNullOrEmpty(key))
+      {
+        LogManager.Log.Error(string.Format("基站列表添加新分组：获取新分组{0}的Id失败", (object) groupName), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1665, nameof (GetAddGroupName));
+        return false;
+      }
+      Group group = new Group()
+      {
+        GroupId = key,
+        GroupName = groupName,
+        Nodes = new ObservableCollection<Node>(),
+        NodesCount = 0,
+        ConCount = 0
+      };
+      this._groupList.Add(group);
+      this._groupDic.Add(key, group);
+      return true;
+    }
+
+    private void timerCallback(object state)
+    {
+      try
+      {
+        List<Node> source = new List<Node>();
+        foreach (Group group in (Collection<Group>) this._groupList)
+        {
+          foreach (Node node in (Collection<Node>) group.Nodes)
+          {
+            if (node.IsConnected)
+              source.Add(node);
+          }
+        }
+        List<string> ipList = new List<string>();
+        foreach (Node node in source)
+          ipList.Add(node.Ip);
+        foreach (KeyValuePair<string, int> keyValuePair in SQLiteHelper.GetActiveAlarmCount(ipList))
+        {
+          KeyValuePair<string, int> pair = keyValuePair;
+          Node node = source.FirstOrDefault<Node>((System.Func<Node, bool>) (x => x.Ip == pair.Key));
+          if (node == null)
+            LogManager.Log.Error("基站列表刷新活跃告警条数：已连接基站列表中无记录(IP地址：" + pair.Key.ToString() + ")", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1711, nameof (timerCallback));
+          else
+            node.ActiveAlarmCount = pair.Value;
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error("基站列表刷新活跃告警条数：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeBList.xaml.cs", 1719, nameof (timerCallback));
+      }
+    }
+
+    private void RefreshMoveGroupItems()
+    {
+      this._groupNameList = BSConInfo.GetInstance().GetGroupID();
+      this.moveGroup.ItemsSource = (IEnumerable) this._groupNameList;
+    }
+
+    private void TreeViewScrollIntoView()
+    {
+      int count1 = this.TvGroupList.Items.Count;
+      if (count1 <= 0)
+        return;
+      for (int index1 = 0; index1 < count1; ++index1)
+      {
+        TreeViewItem treeViewItem1 = this.TvGroupList.ItemContainerGenerator.ContainerFromIndex(index1) as TreeViewItem;
+        int count2 = treeViewItem1.Items.Count;
+        if (count2 > 0)
+        {
+          for (int index2 = 0; index2 < count2; ++index2)
+          {
+            if ((treeViewItem1.ItemContainerGenerator.ContainerFromIndex(index2) is TreeViewItem treeViewItem2 ? treeViewItem2.DataContext : (object) null) is Node dataContext && (dataContext.IsIpFound || dataContext.IsFnFound))
+              this._searchItems.Add(treeViewItem2);
+          }
+        }
+      }
+      if (this._searchItems == null || this._searchItems.Count <= 0)
+        return;
+      this.btPrevious.IsEnabled = true;
+      this.btNext.IsEnabled = true;
+      this._searchItems[0].BringIntoView();
+      this._searchItems[0].IsSelected = true;
+      this._currentSearchIndex = 0;
+      this.UpdateSearchResult();
+    }
+
+    private void UpdateSearchResult()
+    {
+      int num = 0;
+      if (string.IsNullOrEmpty(this._filter))
+      {
+        if (this._groupList != null)
+        {
+          foreach (Group group in (Collection<Group>) this._groupList)
+            num += group.NodesCount;
+        }
+      }
+      else
+        num = this._searchItems.Count;
+      this.SearchResult.Content = (object) string.Format(LanguageServices.Current.GetTextValue("Index_NodeBList_SearchResult"), (object) num);
+    }
+
+    private void DeleteSearchResult(Node node)
+    {
+      if (this._searchItems.Count <= 0)
+        return;
+      foreach (TreeViewItem searchItem in this._searchItems)
+      {
+        Node dataContext = searchItem.DataContext as Node;
+        if (searchItem != null && dataContext == node)
+        {
+          this._searchItems.Remove(searchItem);
+          break;
+        }
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/pages/nodeblist.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.searchFilter = (System.Windows.Controls.ComboBox) target;
+          this.searchFilter.KeyDown += new System.Windows.Input.KeyEventHandler(this.searchFilter_KeyDown);
+          break;
+        case 2:
+          this.btSearch = (System.Windows.Controls.Button) target;
+          this.btSearch.Click += new RoutedEventHandler(this.btSearch_Click);
+          break;
+        case 3:
+          this.btPrevious = (System.Windows.Controls.Button) target;
+          this.btPrevious.Click += new RoutedEventHandler(this.btPrevious_Click);
+          break;
+        case 4:
+          this.btNext = (System.Windows.Controls.Button) target;
+          this.btNext.Click += new RoutedEventHandler(this.btNext_Click);
+          break;
+        case 5:
+          this.SearchResult = (System.Windows.Controls.Label) target;
+          break;
+        case 6:
+          this.btRefresh = (System.Windows.Controls.Button) target;
+          this.btRefresh.Click += new RoutedEventHandler(this.BtRefresh_OnClick);
+          break;
+        case 7:
+          this.btAddGroup = (System.Windows.Controls.Button) target;
+          this.btAddGroup.Click += new RoutedEventHandler(this.btAddGroup_Click);
+          break;
+        case 8:
+          this.btAdd = (System.Windows.Controls.Button) target;
+          this.btAdd.Click += new RoutedEventHandler(this.btAdd_Click);
+          break;
+        case 9:
+          this.btImport = (System.Windows.Controls.Button) target;
+          this.btImport.Click += new RoutedEventHandler(this.btImport_Click);
+          break;
+        case 10:
+          this.btExport = (System.Windows.Controls.Button) target;
+          this.btExport.Click += new RoutedEventHandler(this.btExport_Click);
+          break;
+        case 11:
+          this.TvGroupList = (System.Windows.Controls.TreeView) target;
+          break;
+        case 17:
+          this.updateIp = (System.Windows.Controls.MenuItem) target;
+          this.updateIp.Click += new RoutedEventHandler(this.updateIp_Click);
+          break;
+        case 18:
+          this.updateFName = (System.Windows.Controls.MenuItem) target;
+          this.updateFName.Click += new RoutedEventHandler(this.updateFName_Click);
+          break;
+        case 19:
+          this.updateType = (System.Windows.Controls.MenuItem) target;
+          this.updateType.Click += new RoutedEventHandler(this.updateType_Click);
+          break;
+        case 20:
+          this.moveGroup = (System.Windows.Controls.MenuItem) target;
+          this.moveGroup.Click += new RoutedEventHandler(this.moveGroup_Click);
+          break;
+        case 21:
+          this.delete = (System.Windows.Controls.MenuItem) target;
+          this.delete.Click += new RoutedEventHandler(this.delete_Click);
+          break;
+        case 22:
+          this.deleteGroupName = (System.Windows.Controls.MenuItem) target;
+          this.deleteGroupName.Click += new RoutedEventHandler(this.deleteGroupName_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IStyleConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 12:
+          ((Style) target).Setters.Add((SetterBase) new EventSetter()
+          {
+            Event = UIElement.PreviewMouseRightButtonDownEvent,
+            Handler = (Delegate) new MouseButtonEventHandler(this.TreeViewItem_PreviewMouseRightButtonDown)
+          });
+          break;
+        case 13:
+          ((UIElement) target).MouseDown += new MouseButtonEventHandler(this.StackPanel_MouseDown);
+          break;
+        case 14:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.con_Click);
+          break;
+        case 15:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.turnto_Click);
+          break;
+        case 16:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.discon_Click);
+          break;
+      }
+    }
+  }
+}

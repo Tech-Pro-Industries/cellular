@@ -1,0 +1,47 @@
+using LMT.ViewModel;
+using MsgQueue;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Pages
+{
+  public class CfgCompareMangerPage : UserControl, IComponentConnector
+  {
+    private bool _contentLoaded;
+
+    public CfgCompareMangerPage() => this.InitializeComponent();
+
+    private void UserControl_Loaded(object sender, RoutedEventArgs e)
+    {
+      if (!(this.DataContext is CfgCompareManagerVM dataContext) || dataContext.msgData == null)
+        return;
+      PublishHelper.PublishMsg("OfflineParamRecover_CfgComppareTrap", dataContext.msgData, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\CfgCompareMangerPage.xaml.cs", 21, nameof (UserControl_Loaded));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/cfgcomparemangerpage.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId == 1)
+        ((FrameworkElement) target).Loaded += new RoutedEventHandler(this.UserControl_Loaded);
+      else
+        this._contentLoaded = true;
+    }
+  }
+}

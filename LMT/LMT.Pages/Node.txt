@@ -1,0 +1,109 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Linq.Expressions;
+
+namespace LMT.Pages
+{
+  public class Node : ViewModelBase
+  {
+    private bool _isConnected;
+    private bool _isOpen;
+    private string _friendlyName;
+    private string _ip;
+    private string _baseStationType;
+    private int _activeAlarmCount;
+    private string _groupId;
+    private bool _isFnFound;
+    private bool _isIpFound;
+
+    public bool IsConnected
+    {
+      get => this._isConnected;
+      set
+      {
+        this._isConnected = value;
+        this.RaisePropertyChanged<bool>((Expression<Func<bool>>) (() => this.IsConnected));
+      }
+    }
+
+    public bool IsOpen
+    {
+      get => this._isOpen;
+      set
+      {
+        this._isOpen = value;
+        this.RaisePropertyChanged<bool>((Expression<Func<bool>>) (() => this.IsOpen));
+      }
+    }
+
+    public string FriendlyName
+    {
+      get => this._friendlyName;
+      set
+      {
+        this._friendlyName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.FriendlyName));
+      }
+    }
+
+    public string Ip
+    {
+      get => this._ip;
+      set
+      {
+        this._ip = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.Ip));
+      }
+    }
+
+    public string BaseStationType
+    {
+      get => this._baseStationType;
+      set
+      {
+        this._baseStationType = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.BaseStationType));
+      }
+    }
+
+    public int ActiveAlarmCount
+    {
+      get => this._activeAlarmCount;
+      set
+      {
+        this._activeAlarmCount = value;
+        this.RaisePropertyChanged<int>((Expression<Func<int>>) (() => this.ActiveAlarmCount));
+      }
+    }
+
+    public string GroupId
+    {
+      get => this._groupId;
+      set
+      {
+        this._groupId = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.GroupId));
+      }
+    }
+
+    public bool IsFnFound
+    {
+      get => this._isFnFound;
+      set
+      {
+        this._isFnFound = value;
+        this.RaisePropertyChanged<bool>((Expression<Func<bool>>) (() => this.IsFnFound));
+      }
+    }
+
+    public bool IsIpFound
+    {
+      get => this._isIpFound;
+      set
+      {
+        this._isIpFound = value;
+        this.RaisePropertyChanged<bool>((Expression<Func<bool>>) (() => this.IsIpFound));
+      }
+    }
+  }
+}

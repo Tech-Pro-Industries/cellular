@@ -1,0 +1,41 @@
+using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+
+namespace LMT.Pages
+{
+  internal class ConnectStateConverter : IValueConverter
+  {
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+      if (value == null)
+        return (object) null;
+      if (!(value is bool flag))
+        return value;
+      if (flag)
+      {
+        Image target = new Image();
+        target.Source = (ImageSource) new BitmapImage(new Uri("/LMT;component/Resources/connection.png", UriKind.RelativeOrAbsolute));
+        RenderOptions.SetBitmapScalingMode((DependencyObject) target, BitmapScalingMode.HighQuality);
+        return (object) target;
+      }
+      Image target1 = new Image();
+      target1.Source = (ImageSource) new BitmapImage(new Uri("/LMT;component/Resources/disconnect_new2.png", UriKind.RelativeOrAbsolute));
+      RenderOptions.SetBitmapScalingMode((DependencyObject) target1, BitmapScalingMode.HighQuality);
+      return (object) target1;
+    }
+
+    public object ConvertBack(
+      object value,
+      Type targetType,
+      object parameter,
+      CultureInfo culture)
+    {
+      return DependencyProperty.UnsetValue;
+    }
+  }
+}

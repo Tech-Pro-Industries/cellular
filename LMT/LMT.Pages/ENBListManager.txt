@@ -1,0 +1,304 @@
+using CfgCompareManager.View;
+using ChromeTabs;
+using CommonUtility;
+using JxnLogUpload.View;
+using LMT.View;
+using LMT.ViewModel;
+using MsgQueue;
+using SCMTResources.CustomControls;
+using SCMTResources.Helpers;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class ENBListManager : UserControl, IComponentConnector
+  {
+    public static NodeBListManagerTabVM selfCheckingTool;
+    internal Border BdrTop;
+    internal TreeView LeftMenu;
+    internal TreeViewItem User;
+    internal TreeViewItem TviLogout;
+    internal TreeViewItem TviLock;
+    internal TreeViewItem TviLockSetting;
+    internal TreeViewItem TviUserManage;
+    internal TreeViewItem CfgFileOpen;
+    internal TreeViewItem CfgFileCompare;
+    internal TreeViewItem DataConsistencyParse;
+    internal TreeViewItem AlarmManage;
+    internal TreeViewItem MoreFunction;
+    private bool _contentLoaded;
+
+    public ENBListManager() => this.InitializeComponent();
+
+    private void UserControl_Loaded(object sender, RoutedEventArgs e)
+    {
+      this.InitMoreFunction();
+      SubscribeHelper.AddSubscribe("Index_Logout", new HandlerSubscribeMsg(this.UpdateUsername), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\ENBListManager.xaml.cs", 51, nameof (UserControl_Loaded));
+    }
+
+    private void CloseAllEnbTab() => this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl").RemoveAllTabs(this.DataContext);
+
+    public T GetRootElement<T>(DependencyObject item, string strName) where T : FrameworkElement
+    {
+      for (DependencyObject parent = VisualTreeHelper.GetParent(item); parent != null; parent = VisualTreeHelper.GetParent(parent))
+      {
+        if (parent is T obj && obj.Name == strName)
+          return (T) parent;
+      }
+      return default (T);
+    }
+
+    private void UserManager_Click(object sender, MouseButtonEventArgs e)
+    {
+      UserManager userManager = new UserManager();
+      userManager.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      userManager.ShowDialog();
+    }
+
+    private void LogOut(object sender, MouseButtonEventArgs e)
+    {
+      this.CloseAllEnbTab();
+      if (this.GetRootElement<ChromeTabControl>((DependencyObject) this, "MyChromeTabControl").Items.Count > 1)
+      {
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Lock_Tip"));
+      }
+      else
+      {
+        Singleton<UserInfo>.GetInstance().ClearInfo();
+        Login login = new Login(true);
+        login.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        login.ShowDialog();
+      }
+    }
+
+    private void Lock(object sender, MouseButtonEventArgs e)
+    {
+      Singleton<LockTimer>.GetInstance().TimerStop();
+      Relogin relogin = new Relogin();
+      relogin.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      relogin.ShowDialog();
+    }
+
+    private void LockSetting(object sender, MouseButtonEventArgs e)
+    {
+      LMT.View.LockSetting lockSetting = new LMT.View.LockSetting();
+      lockSetting.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      lockSetting.ShowDialog();
+    }
+
+    private void InitMoreFunction()
+    {
+      try
+      {
+        foreach (IndexPageConfigInfo indexPageConfig in JsonHelper.SerializeJsonToObject<ConfigInfoList>(FileRdWrHelper.GetFileContent(FilePathHelper.GetAppPath() + ConfigFileHelper.IndexPageConfig), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\ENBListManager.xaml.cs", 137, nameof (InitMoreFunction)).IndexPageConfigList)
+        {
+          TreeViewItem newItem = new TreeViewItem();
+          TextBlock textBlock1 = new TextBlock();
+          textBlock1.Style = (Style) this.FindResource((object) "ItemTbStyle");
+          textBlock1.Text = indexPageConfig.Name;
+          TextBlock textBlock2 = textBlock1;
+          textBlock2.MouseLeftButtonDown += new MouseButtonEventHandler(this.Newbtn_Click);
+          newItem.Header = (object) textBlock2;
+          this.MoreFunction.Items.Add((object) newItem);
+        }
+        if (!LanguageServices.Current.IsEnLanguage)
+        {
+          TreeViewItem newItem = new TreeViewItem();
+          TextBlock textBlock3 = new TextBlock();
+          textBlock3.Style = (Style) this.FindResource((object) "ItemTbStyle");
+          textBlock3.Text = "生成Init/Patch";
+          TextBlock textBlock4 = textBlock3;
+          textBlock4.MouseLeftButtonDown += new MouseButtonEventHandler(this.ConfigFileOperate_Click);
+          newItem.Header = (object) textBlock4;
+          this.MoreFunction.Items.Add((object) newItem);
+        }
+        TreeViewItem newItem1 = new TreeViewItem();
+        TextBlock textBlock5 = new TextBlock();
+        textBlock5.Style = (Style) this.FindResource((object) "ItemTbStyle");
+        TextBlock target1 = textBlock5;
+        BindingOperations.SetBinding((DependencyObject) target1, TextBlock.TextProperty, (BindingBase) new LocalisedTextExtension()
+        {
+          Key = "SC_SelfCheckingTool"
+        }.LookupBinding);
+        target1.MouseLeftButtonDown += new MouseButtonEventHandler(this.SelfCheckingToolFile_Click);
+        newItem1.Header = (object) target1;
+        this.MoreFunction.Items.Add((object) newItem1);
+        TreeViewItem newItem2 = new TreeViewItem();
+        TextBlock textBlock6 = new TextBlock();
+        textBlock6.Style = (Style) this.FindResource((object) "ItemTbStyle");
+        TextBlock target2 = textBlock6;
+        BindingOperations.SetBinding((DependencyObject) target2, TextBlock.TextProperty, (BindingBase) new LocalisedTextExtension()
+        {
+          Key = "Index_LeftMenu_OfflineParaRecovery"
+        }.LookupBinding);
+        target2.MouseLeftButtonDown += new MouseButtonEventHandler(this.MadeCfgFile_Click);
+        newItem2.Header = (object) target2;
+        this.MoreFunction.Items.Add((object) newItem2);
+        if (!LanguageServices.Current.IsEnLanguage)
+          return;
+        TreeViewItem newItem3 = new TreeViewItem();
+        TextBlock textBlock7 = new TextBlock();
+        textBlock7.Style = (Style) this.FindResource((object) "ItemTbStyle");
+        TextBlock target3 = textBlock7;
+        BindingOperations.SetBinding((DependencyObject) target3, TextBlock.TextProperty, (BindingBase) new LocalisedTextExtension()
+        {
+          Key = "Index_LeftMenu_LogUploadTool"
+        }.LookupBinding);
+        target3.MouseLeftButtonDown += new MouseButtonEventHandler(this.JxnLogUpload_Click);
+        newItem3.Header = (object) target3;
+        this.MoreFunction.Items.Add((object) newItem3);
+      }
+      catch (Exception ex)
+      {
+        int num = (int) CustomMessageBox.Show("IndexPageConfig.json parse failed" + ex.ToString());
+      }
+    }
+
+    private void MadeCfgFile_Click(object sender, MouseButtonEventArgs e) => new CfgMultiModifyWin().ShowDialog();
+
+    private void Newbtn_Click(object sender, MouseButtonEventArgs e)
+    {
+      TextBlock textBlock = sender as TextBlock;
+      try
+      {
+        ConfigInfoList configInfoList = JsonHelper.SerializeJsonToObject<ConfigInfoList>(FileRdWrHelper.GetFileContent(FilePathHelper.GetAppPath() + ConfigFileHelper.IndexPageConfig), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\ENBListManager.xaml.cs", 226, nameof (Newbtn_Click));
+        string lower = FilePathHelper.GetAppPath().ToLower();
+        if (string.IsNullOrEmpty(lower))
+        {
+          LogManager.Log.Error("获取当前程序执行路径失败", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\ENBListManager.xaml.cs", 230, nameof (Newbtn_Click));
+        }
+        else
+        {
+          foreach (IndexPageConfigInfo indexPageConfig in configInfoList.IndexPageConfigList)
+          {
+            if (textBlock != null && indexPageConfig.Name == textBlock.Text.ToString())
+            {
+              Process process = new Process();
+              if (!File.Exists(indexPageConfig.Path))
+              {
+                int num = (int) CustomMessageBox.Show(string.Format("文件:{0}不存在，无法{1}！", (object) indexPageConfig.Path, (object) indexPageConfig.Name));
+                break;
+              }
+              process.StartInfo.FileName = lower + indexPageConfig.Path;
+              process.Start();
+            }
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        int num = (int) CustomMessageBox.Show("IndexPageConfig.json parse failed" + ex.ToString());
+      }
+    }
+
+    private void ConfigFileOperate_Click(object sender, MouseButtonEventArgs e) => new ConfigFileOperate().ShowDialog();
+
+    private void JxnLogUpload_Click(object sender, MouseButtonEventArgs e)
+    {
+      LogUploadView logUploadView = new LogUploadView();
+      logUploadView.Owner = Application.Current.MainWindow;
+      logUploadView.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+      logUploadView.Show();
+    }
+
+    public static void getMainVM(NodeBListManagerTabVM objectVM) => ENBListManager.selfCheckingTool = objectVM;
+
+    private void SelfCheckingToolFile_Click(object sender, MouseButtonEventArgs e) => ENBListManager.selfCheckingTool.SelfCheckingToolExc();
+
+    private void UpdateUsername(SubscribeMsg msg)
+    {
+      string userName = Encoding.UTF8.GetString(msg.Data);
+      this.Dispatcher.Invoke((Action) (() => this.LeftMenu.SetValue(TreeViewHelper.UserNameProperty, (object) userName)));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/enblistmanager.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    internal Delegate _CreateDelegate(Type delegateType, string handler) => Delegate.CreateDelegate(delegateType, (object) this, handler);
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((FrameworkElement) target).Loaded += new RoutedEventHandler(this.UserControl_Loaded);
+          break;
+        case 2:
+          this.BdrTop = (Border) target;
+          break;
+        case 3:
+          this.LeftMenu = (TreeView) target;
+          break;
+        case 4:
+          this.User = (TreeViewItem) target;
+          break;
+        case 5:
+          this.TviLogout = (TreeViewItem) target;
+          break;
+        case 6:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.LogOut);
+          break;
+        case 7:
+          this.TviLock = (TreeViewItem) target;
+          break;
+        case 8:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.Lock);
+          break;
+        case 9:
+          this.TviLockSetting = (TreeViewItem) target;
+          break;
+        case 10:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.LockSetting);
+          break;
+        case 11:
+          this.TviUserManage = (TreeViewItem) target;
+          break;
+        case 12:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.UserManager_Click);
+          break;
+        case 13:
+          this.CfgFileOpen = (TreeViewItem) target;
+          break;
+        case 14:
+          this.CfgFileCompare = (TreeViewItem) target;
+          break;
+        case 15:
+          this.DataConsistencyParse = (TreeViewItem) target;
+          break;
+        case 16:
+          this.AlarmManage = (TreeViewItem) target;
+          break;
+        case 17:
+          this.MoreFunction = (TreeViewItem) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

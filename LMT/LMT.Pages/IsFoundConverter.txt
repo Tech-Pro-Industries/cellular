@@ -1,0 +1,26 @@
+using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Data;
+
+namespace LMT.Pages
+{
+  internal class IsFoundConverter : IValueConverter
+  {
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+      if (value == null || !(value is bool flag))
+        return (object) "#00000000";
+      return flag ? (object) "#FFFFFF00" : (object) "#00000000";
+    }
+
+    public object ConvertBack(
+      object value,
+      Type targetType,
+      object parameter,
+      CultureInfo culture)
+    {
+      return DependencyProperty.UnsetValue;
+    }
+  }
+}

@@ -1,0 +1,629 @@
+using CommonUtility;
+using LMT.View;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class UserManager : CustomWindow, IComponentConnector
+  {
+    private bool isManager;
+    public bool IsAdd = true;
+    public string UserName = "";
+    public string GroupName = "";
+    public string RoleName = "";
+    public ObservableCollection<TreeViewItem> UserTree = new ObservableCollection<TreeViewItem>();
+    public ObservableCollection<TreeViewItem> GroupTree = new ObservableCollection<TreeViewItem>();
+    public ObservableCollection<TreeViewItem> RoleTree = new ObservableCollection<TreeViewItem>();
+    internal TreeView treeView;
+    internal TreeViewItem userManager;
+    internal TreeViewItem User;
+    internal TreeViewItem UserGroup;
+    internal TreeViewItem Roletree;
+    internal GroupBox groupBox;
+    internal DataGrid dataGrid;
+    private bool _contentLoaded;
+
+    public UserManager()
+    {
+      this.InitializeComponent();
+      this.User.ItemsSource = (IEnumerable) this.UserTree;
+      this.UserGroup.ItemsSource = (IEnumerable) this.GroupTree;
+      this.Roletree.ItemsSource = (IEnumerable) this.RoleTree;
+      this.InitMenu();
+      this.InitUserMenu();
+      this.InitGroupMenu();
+      this.InitRoleMenu();
+    }
+
+    private void Item1_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      this.groupBox.Header = ((HeaderedItemsControl) sender).Header;
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_Uname");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("User");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_Status");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Lockstatus");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      ObservableCollection<DataGridColumn> columns3 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn3 = new DataGridTextColumn();
+      dataGridTextColumn3.Header = (object) LanguageServices.Current.GetTextValue("UM_discribe");
+      dataGridTextColumn3.Binding = (BindingBase) new Binding("UserDesc");
+      columns3.Add((DataGridColumn) dataGridTextColumn3);
+      this.dataGrid.ItemsSource = (IEnumerable) UserInformation.GetUser();
+    }
+
+    private void Item2_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      this.groupBox.Header = ((HeaderedItemsControl) sender).Header;
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_Gname");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("Name");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_Status");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Status");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      ObservableCollection<DataGridColumn> columns3 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn3 = new DataGridTextColumn();
+      dataGridTextColumn3.Header = (object) LanguageServices.Current.GetTextValue("UM_discribe");
+      dataGridTextColumn3.Binding = (BindingBase) new Binding("Desc");
+      columns3.Add((DataGridColumn) dataGridTextColumn3);
+      this.dataGrid.ItemsSource = (IEnumerable) UserInformation.GetGroup();
+    }
+
+    private void Item3_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      this.groupBox.Header = ((HeaderedItemsControl) sender).Header;
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_rolename");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("Name");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_roledsrc");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Desc");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      this.dataGrid.ItemsSource = (IEnumerable) UserInformation.GetRole();
+    }
+
+    private void ContextMenu_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+    }
+
+    private void InitMenu()
+    {
+      this.UserTree.Clear();
+      this.GroupTree.Clear();
+      this.RoleTree.Clear();
+      this.isManager = Singleton<UserInfo>.GetInstance().User == "administrator";
+      this.User.ContextMenu = new ContextMenu();
+      this.User.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("UM_AddU"), this.isManager));
+      this.UserGroup.ContextMenu = new ContextMenu();
+      this.UserGroup.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("UM_addgroup"), this.isManager));
+      this.Roletree.ContextMenu = new ContextMenu();
+      this.Roletree.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("UM_AddRole"), this.isManager));
+    }
+
+    public void InitUserMenu()
+    {
+      foreach (string name in UserInformation.GetUserName())
+      {
+        TreeViewItem treeViewItem = new TreeViewItem();
+        if (name == Singleton<UserInfo>.GetInstance().User)
+          treeViewItem.Foreground = (Brush) Brushes.Green;
+        else if (UserInformation.GetUser(name).Lockstatus == LanguageServices.Current.GetTextValue("Index_Lock_Lock"))
+          treeViewItem.Foreground = (Brush) Brushes.Red;
+        treeViewItem.Header = (object) name;
+        treeViewItem.Margin = new Thickness() { Top = 5.0 };
+        bool _IsManager = !(name != "administrator");
+        treeViewItem.ContextMenu = new ContextMenu();
+        treeViewItem.PreviewMouseLeftButtonUp += new MouseButtonEventHandler(this.User_PreviewMouseLeftButtonUp);
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Netplan_Index_Property"), this.User, _IsManager));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Index_Lock_Lock"), this.User, _IsManager));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnLock"), this.User, _IsManager));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Alarm_Filter_Del"), this.User, _IsManager));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("UM_up"), this.User, _IsManager));
+        this.UserTree.Add(treeViewItem);
+      }
+    }
+
+    public void InitGroupMenu()
+    {
+      foreach (GroupInfo groupInfo in (Collection<GroupInfo>) UserInformation.GetGroup())
+      {
+        TreeViewItem treeViewItem = new TreeViewItem();
+        treeViewItem.Header = (object) groupInfo.Name;
+        treeViewItem.Margin = new Thickness() { Top = 5.0 };
+        treeViewItem.PreviewMouseLeftButtonUp += new MouseButtonEventHandler(this.Group_PreviewMouseLeftButtonUp);
+        treeViewItem.ContextMenu = new ContextMenu();
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Netplan_Index_Property"), this.UserGroup, true));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Index_Lock_Lock"), this.UserGroup, true));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnLock"), this.UserGroup, true));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Alarm_Filter_Del"), this.UserGroup, true));
+        this.GroupTree.Add(treeViewItem);
+      }
+    }
+
+    public void InitRoleMenu()
+    {
+      foreach (RoleInfo roleInfo in UserInformation.GetRole())
+      {
+        bool _IsManager = roleInfo.Name == LanguageServices.Current.GetTextValue("UM_admin");
+        TreeViewItem treeViewItem = new TreeViewItem();
+        treeViewItem.Header = (object) roleInfo.Name;
+        treeViewItem.Margin = new Thickness() { Top = 5.0 };
+        treeViewItem.PreviewMouseLeftButtonUp += new MouseButtonEventHandler(this.Role_PreviewMouseLeftButtonUp);
+        treeViewItem.ContextMenu = new ContextMenu();
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Netplan_Index_Property"), this.Roletree, _IsManager));
+        treeViewItem.ContextMenu.Items.Add((object) this.GetMenuItem(LanguageServices.Current.GetTextValue("Alarm_Filter_Del"), this.Roletree, _IsManager));
+        this.RoleTree.Add(treeViewItem);
+      }
+    }
+
+    public void InitUserDataGrid()
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_Uname");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("User");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_Status");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Lockstatus");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      ObservableCollection<DataGridColumn> columns3 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn3 = new DataGridTextColumn();
+      dataGridTextColumn3.Header = (object) LanguageServices.Current.GetTextValue("UM_discribe");
+      dataGridTextColumn3.Binding = (BindingBase) new Binding("UserDesc");
+      columns3.Add((DataGridColumn) dataGridTextColumn3);
+      this.dataGrid.ItemsSource = (IEnumerable) UserInformation.GetUser();
+    }
+
+    public void InitGroupDataGrid()
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_Gname");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("Name");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_Status");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Status");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      ObservableCollection<DataGridColumn> columns3 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn3 = new DataGridTextColumn();
+      dataGridTextColumn3.Header = (object) LanguageServices.Current.GetTextValue("UM_discribe");
+      dataGridTextColumn3.Binding = (BindingBase) new Binding("Desc");
+      columns3.Add((DataGridColumn) dataGridTextColumn3);
+      this.dataGrid.ItemsSource = (IEnumerable) UserInformation.GetGroup();
+    }
+
+    public void InitRoleDataGrid()
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_rolename");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("Name");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_roledsrc");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Desc");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      this.dataGrid.ItemsSource = (IEnumerable) UserInformation.GetRole();
+    }
+
+    private void Group_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      TreeViewItem tV = (TreeViewItem) sender;
+      IEnumerable<USERInfo> userInfos = UserInformation.GetUser().Where<USERInfo>((Func<USERInfo, bool>) (x =>
+      {
+        if (!x.Groups.Contains(tV.Header.ToString()))
+          return false;
+        x.Groups = tV.Header.ToString();
+        return true;
+      }));
+      ObservableCollection<DataGridColumn> columns1 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn1 = new DataGridTextColumn();
+      dataGridTextColumn1.Header = (object) LanguageServices.Current.GetTextValue("UM_Uname");
+      dataGridTextColumn1.Binding = (BindingBase) new Binding("User");
+      columns1.Add((DataGridColumn) dataGridTextColumn1);
+      ObservableCollection<DataGridColumn> columns2 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn2 = new DataGridTextColumn();
+      dataGridTextColumn2.Header = (object) LanguageServices.Current.GetTextValue("UM_Status");
+      dataGridTextColumn2.Binding = (BindingBase) new Binding("Lockstatus");
+      columns2.Add((DataGridColumn) dataGridTextColumn2);
+      ObservableCollection<DataGridColumn> columns3 = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn3 = new DataGridTextColumn();
+      dataGridTextColumn3.Header = (object) LanguageServices.Current.GetTextValue("UM_discribe");
+      dataGridTextColumn3.Binding = (BindingBase) new Binding("UserDesc");
+      columns3.Add((DataGridColumn) dataGridTextColumn3);
+      this.dataGrid.ItemsSource = (IEnumerable) userInfos;
+    }
+
+    private void User_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+    }
+
+    private void Role_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+      this.dataGrid.ItemsSource = (IEnumerable) null;
+      this.dataGrid.Columns.Clear();
+      TreeViewItem treeViewItem = (TreeViewItem) sender;
+      List<MODULE> moduleList = new List<MODULE>();
+      string module = UserInformation.GetRole(treeViewItem.Header.ToString()).Module;
+      char[] chArray = new char[1]{ '\\' };
+      foreach (string str in module.Split(chArray))
+        moduleList.Add(new MODULE() { name = str });
+      ObservableCollection<DataGridColumn> columns = this.dataGrid.Columns;
+      DataGridTextColumn dataGridTextColumn = new DataGridTextColumn();
+      dataGridTextColumn.Header = (object) LanguageServices.Current.GetTextValue("UM_mp");
+      dataGridTextColumn.Binding = (BindingBase) new Binding("name");
+      columns.Add((DataGridColumn) dataGridTextColumn);
+      this.dataGrid.ItemsSource = (IEnumerable) moduleList;
+    }
+
+    private void M_Click(object sender, RoutedEventArgs e)
+    {
+      this.IsAdd = true;
+      MenuItem menuItem = (MenuItem) sender;
+      if (menuItem.Header.ToString() == LanguageServices.Current.GetTextValue("UM_AddU"))
+      {
+        AddUser addUser = new AddUser(this);
+        addUser.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        addUser.ShowDialog();
+      }
+      if (menuItem.Header.ToString() == LanguageServices.Current.GetTextValue("UM_addgroup"))
+      {
+        AddGroup addGroup = new AddGroup(this);
+        addGroup.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        addGroup.ShowDialog();
+      }
+      if (!(menuItem.Header.ToString() == LanguageServices.Current.GetTextValue("UM_AddRole")))
+        return;
+      AddRole addRole = new AddRole(this);
+      addRole.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      addRole.ShowDialog();
+    }
+
+    private MenuItem GetMenuItem(string header, bool IsManager)
+    {
+      MenuItem menuItem = new MenuItem();
+      menuItem.Header = (object) header;
+      if (IsManager)
+        menuItem.IsEnabled = true;
+      else
+        menuItem.IsEnabled = false;
+      menuItem.Click += new RoutedEventHandler(this.M_Click);
+      return menuItem;
+    }
+
+    private MenuItem GetMenuItem(string header, TreeViewItem ParentNode, bool _IsManager)
+    {
+      MenuItem menuItem = new MenuItem();
+      menuItem.Header = (object) header;
+      if (ParentNode.Header.ToString() == LanguageServices.Current.GetTextValue("UM_user"))
+      {
+        menuItem.Click += new RoutedEventHandler(this.User_Click);
+        if (this.isManager)
+        {
+          if (_IsManager)
+          {
+            if (header == LanguageServices.Current.GetTextValue("Netplan_Index_Property") || header == LanguageServices.Current.GetTextValue("UM_up"))
+              menuItem.IsEnabled = true;
+            else
+              menuItem.IsEnabled = false;
+          }
+        }
+        else if (_IsManager)
+        {
+          if (header == LanguageServices.Current.GetTextValue("Netplan_Index_Property"))
+            menuItem.IsEnabled = true;
+          else
+            menuItem.IsEnabled = false;
+        }
+        else if (header == LanguageServices.Current.GetTextValue("Netplan_Index_Property") || header == LanguageServices.Current.GetTextValue("UM_up"))
+          menuItem.IsEnabled = true;
+        else
+          menuItem.IsEnabled = false;
+      }
+      else if (ParentNode.Header.ToString() == LanguageServices.Current.GetTextValue("UM_ug"))
+      {
+        menuItem.Click += new RoutedEventHandler(this.Group_Click);
+        if (!this.isManager && header != LanguageServices.Current.GetTextValue("Netplan_Index_Property"))
+          menuItem.IsEnabled = false;
+      }
+      else
+      {
+        menuItem.Click += new RoutedEventHandler(this.Role_Click);
+        if (this.isManager)
+        {
+          if (_IsManager && header == LanguageServices.Current.GetTextValue("Alarm_Filter_Del"))
+            menuItem.IsEnabled = false;
+        }
+        else if (header == LanguageServices.Current.GetTextValue("Alarm_Filter_Del"))
+          menuItem.IsEnabled = false;
+      }
+      return menuItem;
+    }
+
+    private TreeViewItem GetCurrentTreeNode(MenuItem m, TreeViewItem ParentNode)
+    {
+      ContextMenu parent = (ContextMenu) m.Parent;
+      TreeViewItem currentTreeNode = (TreeViewItem) null;
+      foreach (object obj in ParentNode.ItemsSource)
+      {
+        if (((FrameworkElement) obj).ContextMenu == parent)
+        {
+          currentTreeNode = (TreeViewItem) obj;
+          break;
+        }
+      }
+      return currentTreeNode;
+    }
+
+    private void Role_Click(object sender, RoutedEventArgs e)
+    {
+      MenuItem m = sender as MenuItem;
+      TreeViewItem currentTreeNode = this.GetCurrentTreeNode(m, this.Roletree);
+      if (currentTreeNode == null)
+      {
+        int num1 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm8"));
+      }
+      else
+      {
+        this.RoleName = currentTreeNode.Header.ToString();
+        if (m == null)
+          return;
+        if (m.Header.ToString() == LanguageServices.Current.GetTextValue("Netplan_Index_Property"))
+        {
+          this.IsAdd = false;
+          AddRole addRole = new AddRole(this);
+          addRole.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+          addRole.ShowDialog();
+        }
+        else
+        {
+          if (!(m.Header.ToString() == LanguageServices.Current.GetTextValue("Alarm_Filter_Del")) || MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm10"), LanguageServices.Current.GetTextValue("UM_delope"), MessageBoxButton.OKCancel) == MessageBoxResult.Cancel)
+            return;
+          if (!UserInformation.SaveData(string.Format("delete from ROLE where  ROLEName='{0}'", (object) this.RoleName)))
+          {
+            int num2 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm9"), LanguageServices.Current.GetTextValue("UM_ug"));
+          }
+          else
+          {
+            this.RoleTree.Clear();
+            this.InitRoleMenu();
+            this.InitRoleDataGrid();
+          }
+        }
+      }
+    }
+
+    private void Group_Click(object sender, RoutedEventArgs e)
+    {
+      MenuItem m = sender as MenuItem;
+      TreeViewItem currentTreeNode = this.GetCurrentTreeNode(m, this.UserGroup);
+      if (currentTreeNode == null)
+      {
+        int num1 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm8"));
+      }
+      else
+      {
+        string str = "";
+        this.GroupName = currentTreeNode.Header.ToString();
+        if (m == null)
+          return;
+        if (m.Header.ToString() == LanguageServices.Current.GetTextValue("Netplan_Index_Property"))
+        {
+          this.IsAdd = false;
+          AddGroup addGroup = new AddGroup(this);
+          addGroup.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+          addGroup.ShowDialog();
+        }
+        else if (m.Header.ToString() == LanguageServices.Current.GetTextValue("Index_Lock_Lock"))
+        {
+          foreach (USERInfo userInfo in (Collection<USERInfo>) UserInformation.GetUser())
+          {
+            if (userInfo.User != "administrator" && userInfo.Groups.Contains(this.GroupName) && userInfo.Lockstatus == LanguageServices.Current.GetTextValue("SC_Normal"))
+              str += string.Format("update USERINFO set Userstatus='{0}' where User='{1}';", (object) LanguageServices.Current.GetTextValue("Index_Lock_Lock"), (object) userInfo.User);
+          }
+          if (!UserInformation.SaveData(str + string.Format("update USERGROUP set GStatus='{0}' where GName='{1}';", (object) LanguageServices.Current.GetTextValue("Index_Lock_Lock"), (object) this.GroupName)))
+          {
+            int num2 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_lockf"), LanguageServices.Current.GetTextValue("UM_ug"));
+          }
+          else
+            this.InitGroupDataGrid();
+        }
+        else if (m.Header.ToString() == LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnLock"))
+        {
+          foreach (USERInfo userInfo in (Collection<USERInfo>) UserInformation.GetUser())
+          {
+            if (userInfo.Groups.Contains(this.GroupName) && userInfo.Lockstatus == LanguageServices.Current.GetTextValue("Index_Lock_Lock"))
+              str += string.Format("update USERINFO set Userstatus='{0}' where User='{1}';", (object) LanguageServices.Current.GetTextValue("SC_Normal"), (object) userInfo.User);
+          }
+          if (!UserInformation.SaveData(str + string.Format("update USERGROUP set GStatus='{0}' where GName='{1}';", (object) LanguageServices.Current.GetTextValue("SC_Normal"), (object) this.GroupName)))
+          {
+            int num3 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_unlockf"), LanguageServices.Current.GetTextValue("UM_ug"));
+          }
+          else
+            this.InitGroupDataGrid();
+        }
+        else
+        {
+          if (MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm10"), LanguageServices.Current.GetTextValue("UM_delope"), MessageBoxButton.OKCancel) == MessageBoxResult.Cancel)
+            return;
+          if (!UserInformation.SaveData(string.Format("delete from USERGROUP where  GName='{0}'", (object) this.GroupName)))
+          {
+            int num4 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm9"), LanguageServices.Current.GetTextValue("UM_ug"));
+          }
+          else
+          {
+            this.GroupTree.Clear();
+            this.InitGroupMenu();
+            this.InitGroupDataGrid();
+          }
+        }
+      }
+    }
+
+    private void User_Click(object sender, RoutedEventArgs e)
+    {
+      MenuItem m = sender as MenuItem;
+      TreeViewItem currentTreeNode = this.GetCurrentTreeNode(m, this.User);
+      if (currentTreeNode == null)
+      {
+        int num1 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm8"));
+      }
+      else
+      {
+        this.UserName = currentTreeNode.Header.ToString();
+        if (m == null)
+          return;
+        if (m.Header.ToString() == LanguageServices.Current.GetTextValue("Netplan_Index_Property"))
+        {
+          this.IsAdd = false;
+          AddUser addUser = new AddUser(this);
+          addUser.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+          addUser.ShowDialog();
+        }
+        else if (m.Header.ToString() == LanguageServices.Current.GetTextValue("Index_Lock_Lock"))
+        {
+          if (!UserInformation.SaveData(string.Format("update USERINFO set Userstatus='{0}' where User='{1}'", (object) LanguageServices.Current.GetTextValue("Index_Lock_Lock"), (object) this.UserName)))
+          {
+            int num2 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_lockf"));
+          }
+          else
+          {
+            this.UserTree.Clear();
+            this.InitUserMenu();
+          }
+        }
+        else if (m.Header.ToString() == LanguageServices.Current.GetTextValue("BaseInfo_LogManager_UnLock"))
+        {
+          if (!UserInformation.SaveData(string.Format("update USERINFO set Userstatus='{0}' where User='{1}'", (object) LanguageServices.Current.GetTextValue("SC_Normal"), (object) this.UserName)))
+          {
+            int num3 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_unlockf"));
+          }
+          else
+          {
+            this.UserTree.Clear();
+            this.InitUserMenu();
+          }
+        }
+        else if (m.Header.ToString() == LanguageServices.Current.GetTextValue("Alarm_Filter_Del"))
+        {
+          if (!UserInformation.SaveData(string.Format("delete from USERINFO where User='{0}'", (object) this.UserName)))
+          {
+            int num4 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm9"));
+          }
+          else
+            this.UserTree.Remove(currentTreeNode);
+        }
+        else
+        {
+          if (!(m.Header.ToString() == LanguageServices.Current.GetTextValue("UM_up")))
+            return;
+          new UpdataPW(this.UserName).ShowDialog();
+        }
+      }
+    }
+
+    private TreeViewItem GetItem(string header)
+    {
+      TreeViewItem treeViewItem = new TreeViewItem();
+      treeViewItem.Header = (object) header;
+      treeViewItem.ContextMenu = new ContextMenu();
+      return treeViewItem;
+    }
+
+    private void mRole_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/usermanager.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.treeView = (TreeView) target;
+          break;
+        case 2:
+          this.userManager = (TreeViewItem) target;
+          break;
+        case 3:
+          this.User = (TreeViewItem) target;
+          this.User.PreviewMouseLeftButtonUp += new MouseButtonEventHandler(this.Item1_PreviewMouseLeftButtonUp);
+          break;
+        case 4:
+          this.UserGroup = (TreeViewItem) target;
+          this.UserGroup.PreviewMouseLeftButtonUp += new MouseButtonEventHandler(this.Item2_PreviewMouseLeftButtonUp);
+          break;
+        case 5:
+          this.Roletree = (TreeViewItem) target;
+          this.Roletree.PreviewMouseLeftButtonUp += new MouseButtonEventHandler(this.Item3_PreviewMouseLeftButtonUp);
+          break;
+        case 6:
+          this.groupBox = (GroupBox) target;
+          break;
+        case 7:
+          this.dataGrid = (DataGrid) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

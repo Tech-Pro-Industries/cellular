@@ -1,0 +1,170 @@
+using SCMTResources.CustomControls;
+using System;
+using System.Net;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class UpdateNodeBNew : NodeLoginInfo
+  {
+    private NodeBUpdateType updateType;
+    private ConnectNodeBPara nodeBPara;
+    public UpdateNodeBNew.GetUpdate getUpdate;
+
+    public UpdateNodeBNew(NodeBUpdateType type, ConnectNodeBPara para)
+    {
+      this.InitializeComponent();
+      this.CheckConfirmEvent += new EventHandler(this.Click_Con);
+      this.CheckCancelEvent += new EventHandler(this.Click_Can);
+      this.updateType = type;
+      this.nodeBPara = para;
+      if (this.updateType == NodeBUpdateType.Ip)
+      {
+        this.Title = LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyIP");
+        this.IpAddress.IsEnabled = true;
+        this.FriendName.IsEnabled = false;
+        this.BaseStationType.IsEnabled = false;
+        this.GroupName.IsEnabled = false;
+      }
+      else if (this.updateType == NodeBUpdateType.FName)
+      {
+        this.Title = LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyFriendlyName");
+        this.IpAddress.IsEnabled = false;
+        this.FriendName.IsEnabled = true;
+        this.BaseStationType.IsEnabled = false;
+        this.GroupName.IsEnabled = false;
+      }
+      else if (this.updateType == NodeBUpdateType.BsType)
+      {
+        this.Title = LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyBsType");
+        this.IpAddress.IsEnabled = false;
+        this.FriendName.IsEnabled = false;
+        this.BaseStationType.IsEnabled = true;
+        this.GroupName.IsEnabled = false;
+      }
+      else
+      {
+        this.Title = LanguageServices.Current.GetTextValue("Index_NodeBList_ModifyGroup");
+        this.IpAddress.IsEnabled = false;
+        this.FriendName.IsEnabled = false;
+        this.BaseStationType.IsEnabled = false;
+        this.GroupName.IsEnabled = true;
+      }
+      this.IpAddress.Text = this.nodeBPara.IpAddress;
+      this.FriendName.Text = this.nodeBPara.FriendlyName;
+      this.BaseStationType.Text = this.nodeBPara.BaseStationType;
+      this.GroupName.SelectedValue = (object) this.nodeBPara.BSGroupName;
+    }
+
+    private void Click_Can(object sender, EventArgs e)
+    {
+      UpdateNodeBNew.ClickDelegate method = new UpdateNodeBNew.ClickDelegate(this.Click_Cancel);
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Delegate) method, sender, (object) e);
+    }
+
+    private void Click_Con(object sender, EventArgs e)
+    {
+      UpdateNodeBNew.ClickDelegate method = new UpdateNodeBNew.ClickDelegate(this.Click_Confirm);
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Delegate) method, sender, (object) e);
+    }
+
+    private void Click_Confirm(object sender, EventArgs e)
+    {
+      if (this.updateType == NodeBUpdateType.Ip)
+      {
+        string ipString = this.IpAddress.Text.ToString().Trim();
+        if (string.IsNullOrEmpty(ipString) || string.IsNullOrWhiteSpace(ipString))
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyIP"), this.Title, messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (!IPAddress.TryParse(ipString, out IPAddress _))
+        {
+          int num = (int) CustomMessageBox.Show(string.Format(LanguageServices.Current.GetTextValue("Index_NodeBList_IpIllegal"), (object) ipString), this.Title, messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (this.nodeBPara.IpAddress.Equals(ipString))
+        {
+          this.Close();
+        }
+        else
+        {
+          this.nodeBPara.IpAddress = ipString;
+          if (!this.getUpdate(this.updateType, this.nodeBPara))
+            return;
+          this.Close();
+        }
+      }
+      else if (this.updateType == NodeBUpdateType.FName)
+      {
+        string str = this.FriendName.Text.ToString().Trim();
+        if (string.IsNullOrEmpty(str) || string.IsNullOrWhiteSpace(str))
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyFN"), this.Title, messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (this.nodeBPara.FriendlyName.Equals(str))
+        {
+          this.Close();
+        }
+        else
+        {
+          this.nodeBPara.FriendlyName = str;
+          if (!this.getUpdate(this.updateType, this.nodeBPara))
+            return;
+          this.Close();
+        }
+      }
+      else if (this.updateType == NodeBUpdateType.BsType)
+      {
+        string str = this.BaseStationType.Text.ToString();
+        if ("请选择".Equals(str))
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyType"), this.Title, messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (this.nodeBPara.BaseStationType.Equals(str))
+        {
+          this.Close();
+        }
+        else
+        {
+          this.nodeBPara.BaseStationType = str;
+          if (!this.getUpdate(this.updateType, this.nodeBPara))
+            return;
+          this.Close();
+        }
+      }
+      else
+      {
+        string str = this.GroupName.SelectedValue.ToString();
+        if ("请选择".Equals(str))
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyGroup"), this.Title, messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (this.nodeBPara.BSGroupName.Equals(str))
+        {
+          this.Close();
+        }
+        else
+        {
+          this.nodeBPara.BSGroupName = str;
+          if (!this.getUpdate(this.updateType, this.nodeBPara))
+            return;
+          this.Close();
+        }
+      }
+    }
+
+    private void Click_Cancel(object sender, EventArgs e) => this.Close();
+
+    private delegate void ClickDelegate(object sender, EventArgs e);
+
+    public delegate bool GetUpdate(NodeBUpdateType type, ConnectNodeBPara para);
+  }
+}

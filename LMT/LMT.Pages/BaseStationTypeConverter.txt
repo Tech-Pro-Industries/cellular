@@ -1,0 +1,45 @@
+using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+
+namespace LMT.Pages
+{
+  internal class BaseStationTypeConverter : IValueConverter
+  {
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+      if (value == null)
+        return (object) null;
+      if (!(value is string))
+        return value;
+      switch ((string) value)
+      {
+        case "4G":
+          Image target1 = new Image();
+          target1.Source = (ImageSource) new BitmapImage(new Uri("/LMT;component/Resources/4G_orange.png", UriKind.RelativeOrAbsolute));
+          RenderOptions.SetBitmapScalingMode((DependencyObject) target1, BitmapScalingMode.HighQuality);
+          return (object) target1;
+        case "5G":
+          Image target2 = new Image();
+          target2.Source = (ImageSource) new BitmapImage(new Uri("/LMT;component/Resources/5G_green.png", UriKind.RelativeOrAbsolute));
+          RenderOptions.SetBitmapScalingMode((DependencyObject) target2, BitmapScalingMode.HighQuality);
+          return (object) target2;
+        default:
+          return value;
+      }
+    }
+
+    public object ConvertBack(
+      object value,
+      Type targetType,
+      object parameter,
+      CultureInfo culture)
+    {
+      return DependencyProperty.UnsetValue;
+    }
+  }
+}

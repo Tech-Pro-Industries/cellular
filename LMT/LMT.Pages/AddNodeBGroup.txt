@@ -1,0 +1,86 @@
+using SCMTOperationCore.Control;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class AddNodeBGroup : CustomWindow, IComponentConnector
+  {
+    public AddNodeBGroup.GetAddGroupName getAddGroupName;
+    private ObservableCollection<string> _groupNameList = new ObservableCollection<string>();
+    internal TextBox tbGroupName;
+    internal Button ok;
+    internal Button cancel;
+    private bool _contentLoaded;
+
+    public AddNodeBGroup()
+    {
+      this.InitializeComponent();
+      this._groupNameList = BSConInfo.GetInstance().GetBSGroupName();
+    }
+
+    private void cancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void ok_Click(object sender, RoutedEventArgs e)
+    {
+      string groupName = this.tbGroupName.Text.ToString().Trim();
+      if (string.IsNullOrEmpty(groupName))
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_GroupNameEmpty"));
+      }
+      else if (this._groupNameList.Contains(groupName))
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_GroupNameExist"));
+      }
+      else
+      {
+        int num3 = this.getAddGroupName(groupName) ? 1 : 0;
+        this.Close();
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/addnodebgroup.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.tbGroupName = (TextBox) target;
+          break;
+        case 2:
+          this.ok = (Button) target;
+          this.ok.Click += new RoutedEventHandler(this.ok_Click);
+          break;
+        case 3:
+          this.cancel = (Button) target;
+          this.cancel.Click += new RoutedEventHandler(this.cancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    public delegate bool GetAddGroupName(string groupName);
+  }
+}

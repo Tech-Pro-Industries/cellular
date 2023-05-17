@@ -1,0 +1,88 @@
+using SCMTOperationCore.Control;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
+
+namespace LMT.Pages
+{
+  public class NodeLoginInfo : CustomWindow, IComponentConnector
+  {
+    internal TextBox IpAddress;
+    internal TextBox FriendName;
+    internal ComboBox BaseStationType;
+    internal ComboBox GroupName;
+    private bool _contentLoaded;
+
+    public event EventHandler CheckConfirmEvent;
+
+    public event EventHandler CheckCancelEvent;
+
+    public NodeLoginInfo()
+    {
+      this.InitializeComponent();
+      this.GroupName.ItemsSource = (IEnumerable) BSConInfo.GetInstance().GetGroupID();
+    }
+
+    private void Click_Confirm(object sender, RoutedEventArgs e)
+    {
+      if (this.CheckConfirmEvent == null)
+        return;
+      this.CheckConfirmEvent(sender, (EventArgs) e);
+    }
+
+    private void Click_Cancel(object sender, RoutedEventArgs e)
+    {
+      if (this.CheckCancelEvent == null)
+        return;
+      this.CheckCancelEvent(sender, (EventArgs) e);
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/nodelogininfo.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.IpAddress = (TextBox) target;
+          break;
+        case 2:
+          this.FriendName = (TextBox) target;
+          break;
+        case 3:
+          this.BaseStationType = (ComboBox) target;
+          break;
+        case 4:
+          this.GroupName = (ComboBox) target;
+          break;
+        case 5:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.Click_Confirm);
+          break;
+        case 6:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.Click_Cancel);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

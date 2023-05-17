@@ -1,0 +1,10 @@
+namespace LMT.Pages
+{
+  public enum NodeBUpdateType
+  {
+    Ip,
+    FName,
+    BsType,
+    BsGroupName,
+  }
+}

@@ -1,0 +1,88 @@
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
+using UICore.Controls.Metro;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class ModifyFriendlyName : MetroWindow, IComponentConnector
+  {
+    public string strNewFriendlyName = string.Empty;
+    public bool bOK;
+    internal TextBox CurFName;
+    internal TextBox NewFName;
+    private bool _contentLoaded;
+
+    public ModifyFriendlyName(string strFriendlyName)
+    {
+      this.InitializeComponent();
+      this.CurFName.Text = strFriendlyName;
+    }
+
+    private void CancelModify_OnClick(object sender, RoutedEventArgs e)
+    {
+      this.bOK = false;
+      this.Close();
+    }
+
+    private void ConfirmModify_OnClick(object sender, RoutedEventArgs e)
+    {
+      if (this.NewFName.Text != null && this.NewFName.Text != "")
+      {
+        this.strNewFriendlyName = this.NewFName.Text;
+        this.bOK = true;
+        this.Close();
+      }
+      else if (LanguageServices.Current.IsEnLanguage)
+      {
+        int num1 = (int) CustomMessageBox.Show("Please input new friendly name");
+      }
+      else
+      {
+        int num2 = (int) CustomMessageBox.Show("请输入新的友好名");
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/modifyfriendlyname.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.CurFName = (TextBox) target;
+          break;
+        case 2:
+          this.NewFName = (TextBox) target;
+          break;
+        case 3:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.CancelModify_OnClick);
+          break;
+        case 4:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.ConfirmModify_OnClick);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

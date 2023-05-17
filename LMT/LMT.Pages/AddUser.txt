@@ -1,0 +1,381 @@
+using CommonUtility;
+using LMT.View;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class AddUser : CustomWindow, IComponentConnector, IStyleConnector
+  {
+    private bool IsAdd;
+    private UserManager UM;
+    private ObservableCollection<GroupInfo> GroupSource = new ObservableCollection<GroupInfo>();
+    private List<RoleInfo> _Roles = UserInformation.GetRole();
+    private ObservableCollection<GroupInfo> _Groups = UserInformation.GetGroup();
+    private USERInfo _USERInfo;
+    internal TabControl tabControl;
+    internal Grid grid_Add;
+    internal Label l_user;
+    internal TextBox tb_user;
+    internal Label l_dscr;
+    internal TextBox tb_dscr;
+    internal Label l_Password;
+    internal PasswordBox tb_Password;
+    internal Label l_Dup;
+    internal PasswordBox tb_Dup;
+    internal Grid grid_Updata;
+    internal Label l_user_u;
+    internal TextBox tb_user_u;
+    internal Label l_dscr_u;
+    internal TextBox tb_dscr_u;
+    internal Label l_Password_u;
+    internal PasswordBox tb_Password_u;
+    internal Label l_Dup_u;
+    internal PasswordBox tb_Dup_u;
+    internal GroupBox groupBox;
+    internal DataGrid dataGrid;
+    internal DataGrid dataGrid1;
+    internal Button Btn_Del;
+    internal Button Btn_Add;
+    internal GroupBox groupBox1;
+    internal DataGrid dataGrid2;
+    internal Button button;
+    internal Button Cancel;
+    private bool _contentLoaded;
+
+    public AddUser(UserManager _UM)
+    {
+      this.InitializeComponent();
+      this.UM = _UM;
+      this.IsAdd = _UM.IsAdd;
+      this._USERInfo = UserInformation.GetUser(this.UM.UserName);
+      this.dataGrid2.ItemsSource = (IEnumerable) this._Roles;
+      this.dataGrid.ItemsSource = (IEnumerable) this._Groups;
+      this.dataGrid1.ItemsSource = (IEnumerable) this.GroupSource;
+      if (!this.IsAdd)
+      {
+        if (Singleton<UserInfo>.GetInstance().User != "administrator")
+        {
+          this.button.IsEnabled = false;
+          this.tb_user.IsEnabled = true;
+        }
+        else
+        {
+          if (this.UM.UserName == Singleton<UserInfo>.GetInstance().User)
+            this.tb_user.IsEnabled = false;
+          else
+            this.tb_user.IsEnabled = true;
+          this.button.IsEnabled = true;
+        }
+        this.tb_Password.IsEnabled = false;
+        this.tb_Dup.IsEnabled = false;
+        this.l_Password.IsEnabled = false;
+        this.l_Dup.IsEnabled = false;
+        this.tb_user.Text = this.UM.UserName;
+        this.tb_dscr.Text = this._USERInfo.UserDesc;
+        if (this._USERInfo.Groups != null && this._USERInfo.Roles != null)
+        {
+          string[] strArray1 = this._USERInfo.Groups.Split('\\');
+          string[] strArray2 = this._USERInfo.Roles.Split('\\');
+          foreach (string str in strArray1)
+          {
+            foreach (GroupInfo group in (Collection<GroupInfo>) this._Groups)
+            {
+              if (group.Name == str)
+              {
+                this.GroupSource.Add(group);
+                break;
+              }
+            }
+          }
+          foreach (string str in strArray2)
+          {
+            foreach (RoleInfo role in this._Roles)
+            {
+              if (role.Name == str)
+                role.cB = true;
+            }
+          }
+        }
+        this.dataGrid2.ItemsSource = (IEnumerable) this._Roles;
+      }
+      else
+      {
+        this.tb_Password.IsEnabled = true;
+        this.tb_Dup.IsEnabled = true;
+        this.l_Password.IsEnabled = true;
+        this.l_Dup.IsEnabled = true;
+      }
+    }
+
+    private void Affirm_Click(object sender, RoutedEventArgs e)
+    {
+      string err = "";
+      string str1 = "";
+      string str2 = "";
+      if (string.IsNullOrEmpty(this.tb_user.Text))
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_InputName"));
+      }
+      else if (((IEnumerable<char>) this.tb_user.Text.Trim().ToCharArray()).Where<char>(new Func<char, bool>(this.CheckChar)).Count<char>() > 0)
+      {
+        int num2 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("Index_Register_CheckName") + " & | =", LanguageServices.Current.GetTextValue("Index_Login_Register"));
+      }
+      else if (this.tb_user.Text.Trim().Length < 2)
+      {
+        int num3 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("Index_Register_NameLength"), LanguageServices.Current.GetTextValue("Index_Login_Register"));
+      }
+      else
+      {
+        if (this.IsAdd)
+        {
+          if (string.IsNullOrEmpty(this.tb_Password.Password))
+          {
+            int num4 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_InputPassword"), LanguageServices.Current.GetTextValue("Index_Login_Register"));
+            return;
+          }
+          if (this.tb_Password.Password.Length < 6)
+          {
+            int num5 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("Index_Register_PwdLength"), LanguageServices.Current.GetTextValue("Index_Login_Register"));
+            return;
+          }
+          if (((IEnumerable<char>) this.tb_Password.Password.Trim().ToCharArray()).Where<char>(new Func<char, bool>(this.CheckChar)).Count<char>() > 0)
+          {
+            int num6 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm7"), LanguageServices.Current.GetTextValue("Index_Login_Register"));
+            return;
+          }
+          if (!this.tb_Password.Password.Trim().Equals(this.tb_Dup.Password.Trim()))
+          {
+            int num7 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("Index_Register_PwdInconsistent"), LanguageServices.Current.GetTextValue("UM_AddU"), MessageBoxButton.OK);
+            return;
+          }
+        }
+        if (this.dataGrid1.Items.Count != 0)
+        {
+          foreach (object obj in this.dataGrid1.ItemsSource)
+            str1 = str1 + ((GroupInfo) obj).Name + "\\";
+        }
+        foreach (object obj in this.dataGrid2.ItemsSource)
+        {
+          if (((RoleInfo) obj).cB)
+            str2 = str2 + ((RoleInfo) obj).Name + "\\";
+        }
+        string str3 = str1.TrimEnd('\\');
+        string str4 = str2.TrimEnd('\\');
+        if (this.IsAdd)
+        {
+          if (!UserInformation.CheckRecord(string.Format("select count(*) from USERINFO where User='{0}'", (object) this.tb_user.Text.Trim()), out err))
+          {
+            int num8 = (int) MessageBox.Show(err, LanguageServices.Current.GetTextValue("UM_AddU"), MessageBoxButton.OK);
+          }
+          else if (UserInformation.SaveData(string.Format("insert into USERINFO(User,Password,Describe,LockTime,Status,Isremeber,LoadTime,Groups,Roles,Userstatus) values('{0}','{1}','{2}','0','False','False','{3}','{4}','{5}','正常')", (object) this.tb_user.Text.Trim(), (object) this.tb_Password.Password.Trim(), (object) this.tb_dscr.Text.Trim(), (object) DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), (object) str3, (object) str4)))
+          {
+            this.UM.UserTree.Clear();
+            this.UM.InitUserMenu();
+            this.Close();
+          }
+          else
+          {
+            int num9 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm13"), LanguageServices.Current.GetTextValue("UM_AddU"), MessageBoxButton.OK);
+          }
+        }
+        else if (UserInformation.SaveData(string.Format("update USERINFO set User='{0}',Describe='{1}',Groups='{2}',Roles='{3}' where ID='{4}'", (object) this.tb_user.Text.Trim(), (object) this.tb_dscr.Text.Trim(), (object) str3, (object) str4, (object) this._USERInfo.ID)))
+        {
+          this.UM.UserTree.Clear();
+          this.UM.InitUserMenu();
+          this.UM.InitUserDataGrid();
+          this.Close();
+        }
+        else
+        {
+          int num10 = (int) MessageBox.Show(LanguageServices.Current.GetTextValue("UM_palarm13"), LanguageServices.Current.GetTextValue("UM_AddU"), MessageBoxButton.OK);
+        }
+      }
+    }
+
+    private bool CheckChar(char c)
+    {
+      char[] chArray = new char[4]{ '|', '&', '=', ' ' };
+      foreach (char ch in chArray)
+      {
+        if ((int) c == (int) ch)
+          return true;
+      }
+      return false;
+    }
+
+    private void Cancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void Btn_Add_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.dataGrid.SelectedItem == null)
+        return;
+      GroupInfo g = (GroupInfo) this.dataGrid.SelectedItem;
+      if (this.GroupSource.Where<GroupInfo>((Func<GroupInfo, bool>) (x => x.Name == g.Name)).Count<GroupInfo>() != 0)
+        return;
+      this.GroupSource.Add(g);
+    }
+
+    private void Btn_Del_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.dataGrid1.SelectedItem == null)
+        return;
+      GroupInfo g = (GroupInfo) this.dataGrid1.SelectedItem;
+      if (this.GroupSource.Where<GroupInfo>((Func<GroupInfo, bool>) (x => x.Name == g.Name)).Count<GroupInfo>() == 0)
+        return;
+      this.GroupSource.Remove(g);
+    }
+
+    private void CheckBox_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.dataGrid2.SelectedItem is RoleInfo selectedItem && sender is CheckBox)
+      {
+        bool? isChecked = (sender as CheckBox).IsChecked;
+        bool flag = true;
+        if ((isChecked.GetValueOrDefault() == flag ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+        {
+          foreach (RoleInfo roleInfo in this.dataGrid2.ItemsSource)
+            roleInfo.cB = false;
+          selectedItem.cB = true;
+        }
+        else
+          selectedItem.cB = false;
+      }
+      this.dataGrid2.ItemsSource = (IEnumerable) null;
+      this.dataGrid2.ItemsSource = (IEnumerable) this._Roles;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/pages/adduser.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.tabControl = (TabControl) target;
+          break;
+        case 2:
+          this.grid_Add = (Grid) target;
+          break;
+        case 3:
+          this.l_user = (Label) target;
+          break;
+        case 4:
+          this.tb_user = (TextBox) target;
+          break;
+        case 5:
+          this.l_dscr = (Label) target;
+          break;
+        case 6:
+          this.tb_dscr = (TextBox) target;
+          break;
+        case 7:
+          this.l_Password = (Label) target;
+          break;
+        case 8:
+          this.tb_Password = (PasswordBox) target;
+          break;
+        case 9:
+          this.l_Dup = (Label) target;
+          break;
+        case 10:
+          this.tb_Dup = (PasswordBox) target;
+          break;
+        case 11:
+          this.grid_Updata = (Grid) target;
+          break;
+        case 12:
+          this.l_user_u = (Label) target;
+          break;
+        case 13:
+          this.tb_user_u = (TextBox) target;
+          break;
+        case 14:
+          this.l_dscr_u = (Label) target;
+          break;
+        case 15:
+          this.tb_dscr_u = (TextBox) target;
+          break;
+        case 16:
+          this.l_Password_u = (Label) target;
+          break;
+        case 17:
+          this.tb_Password_u = (PasswordBox) target;
+          break;
+        case 18:
+          this.l_Dup_u = (Label) target;
+          break;
+        case 19:
+          this.tb_Dup_u = (PasswordBox) target;
+          break;
+        case 20:
+          this.groupBox = (GroupBox) target;
+          break;
+        case 21:
+          this.dataGrid = (DataGrid) target;
+          break;
+        case 22:
+          this.dataGrid1 = (DataGrid) target;
+          break;
+        case 23:
+          this.Btn_Del = (Button) target;
+          this.Btn_Del.Click += new RoutedEventHandler(this.Btn_Del_Click);
+          break;
+        case 24:
+          this.Btn_Add = (Button) target;
+          this.Btn_Add.Click += new RoutedEventHandler(this.Btn_Add_Click);
+          break;
+        case 25:
+          this.groupBox1 = (GroupBox) target;
+          break;
+        case 26:
+          this.dataGrid2 = (DataGrid) target;
+          break;
+        case 28:
+          this.button = (Button) target;
+          this.button.Click += new RoutedEventHandler(this.Affirm_Click);
+          break;
+        case 29:
+          this.Cancel = (Button) target;
+          this.Cancel.Click += new RoutedEventHandler(this.Cancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IStyleConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId != 27)
+        return;
+      ((ButtonBase) target).Click += new RoutedEventHandler(this.CheckBox_Click);
+    }
+  }
+}

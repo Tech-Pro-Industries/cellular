@@ -1,0 +1,119 @@
+using CommonUtility;
+using DataBaseUtil;
+using LogManager;
+using SCMTOperationCore.Control;
+using SCMTOperationCore.Elements;
+using SCMTResources.CustomControls;
+using System;
+using System.Net;
+using UILanguageHelper;
+
+namespace LMT.Pages
+{
+  public class AddNodeBNew : NodeLoginInfo
+  {
+    private static AddNodeBNew m_AddNB;
+
+    private AddNodeBNew()
+    {
+      this.InitializeComponent();
+      this.CheckConfirmEvent += new EventHandler(this.Click_Con);
+      this.CheckCancelEvent += new EventHandler(this.Click_Can);
+      this.Title = LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB");
+    }
+
+    public static AddNodeBNew NewInstance()
+    {
+      if (AddNodeBNew.m_AddNB == null)
+      {
+        AddNodeBNew.m_AddNB = new AddNodeBNew();
+        AddNodeBNew.m_AddNB.Closed += new EventHandler(AddNodeBNew.M_AddNB_Closed);
+        AddNodeBNew.m_AddNB.ShowInTaskbar = false;
+      }
+      return AddNodeBNew.m_AddNB;
+    }
+
+    private static void M_AddNB_Closed(object sender, EventArgs e) => AddNodeBNew.m_AddNB = (AddNodeBNew) null;
+
+    private void Click_Can(object sender, EventArgs e)
+    {
+      AddNodeBNew.ClickDelegate method = new AddNodeBNew.ClickDelegate(this.Click_Cancel);
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Delegate) method, sender, (object) e);
+    }
+
+    private void Click_Cancel(object sender, EventArgs e) => this.Close();
+
+    private void Click_Con(object sender, EventArgs e)
+    {
+      AddNodeBNew.ClickDelegate method = new AddNodeBNew.ClickDelegate(this.Click_Confirm);
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Delegate) method, sender, (object) e);
+    }
+
+    private void Click_Confirm(object sender, EventArgs e)
+    {
+      string text1 = this.IpAddress.Text;
+      string text2 = this.FriendName.Text;
+      string text3 = this.BaseStationType.Text;
+      if (string.IsNullOrEmpty(text1) || string.IsNullOrWhiteSpace(text1))
+      {
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyIP"), LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+        this.Show();
+      }
+      else
+      {
+        IPAddress address;
+        if (!IPAddress.TryParse(text1, out address))
+        {
+          int num = (int) CustomMessageBox.Show(string.Format(LanguageServices.Current.GetTextValue("Index_NodeBList_IpIllegal"), (object) text1), LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (string.IsNullOrEmpty(text2) || string.IsNullOrWhiteSpace(text2))
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyFN"), LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if ("请选择".Equals(text3))
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyType"), LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else if (this.GroupName.SelectedItem == null)
+        {
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_NodeBList_EmptyGroup"), LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+          this.Show();
+        }
+        else
+        {
+          string groupName = this.GroupName.SelectedValue.ToString();
+          try
+          {
+            string strErrMsg;
+            NodeB nb = (NodeB) NodeBControl.GetInstance().AddElement(address.ToString(), this.FriendName.Text, this.BaseStationType.Text, groupName, out strErrMsg, (ushort) 5000, true);
+            if (nb == null)
+            {
+              int num = (int) CustomMessageBox.Show(strErrMsg, LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+            }
+            else
+            {
+              CSEnbHelper.SetStationFrameType(address.ToString(), text3);
+              if (!Singleton<DatabaseMgr>.GetInstance().Initialize(address.ToString()))
+                Log.Error(string.Format("{0}{1}", (object) LanguageServices.Current.GetTextValue("Index_NodeBList_InitConfigFailed"), (object) address.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Pages\\NodeLoginInfo.xaml.cs", 172, nameof (Click_Confirm));
+              this.Close();
+              this.OnClosed((EventArgs) new NodeBArgs(nb));
+            }
+          }
+          catch (Exception ex)
+          {
+            int num = (int) CustomMessageBox.Show(ex.Message, LanguageServices.Current.GetTextValue("Index_NodeBList_AddNodeB"), messageBoxImage: CustomMessageBoxIcon.Error);
+          }
+        }
+      }
+    }
+
+    private delegate void ClickDelegate(object sender, EventArgs e);
+  }
+}

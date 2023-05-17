@@ -1,0 +1,12 @@
+using SCMTOperationCore.Elements;
+using System;
+
+namespace LMT.Pages
+{
+  internal class NodeBArgs : EventArgs
+  {
+    public NodeB m_NodeB { get; set; }
+
+    public NodeBArgs(NodeB nb) => this.m_NodeB = nb;
+  }
+}

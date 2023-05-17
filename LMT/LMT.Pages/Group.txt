@@ -1,0 +1,74 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq.Expressions;
+
+namespace LMT.Pages
+{
+  public class Group : ViewModelBase
+  {
+    private string _groupId;
+    private string _groupName;
+    private ObservableCollection<Node> _nodes;
+    private int _nodesCount;
+    private int _conCount;
+
+    public string GroupId
+    {
+      get => this._groupId;
+      set
+      {
+        this._groupId = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.GroupId));
+      }
+    }
+
+    public string GroupName
+    {
+      get => this._groupName;
+      set
+      {
+        this._groupName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.GroupName));
+      }
+    }
+
+    public ObservableCollection<Node> Nodes
+    {
+      get => this._nodes;
+      set
+      {
+        this._nodes = value;
+        this.RaisePropertyChanged<ObservableCollection<Node>>((Expression<Func<ObservableCollection<Node>>>) (() => this.Nodes));
+      }
+    }
+
+    public int NodesCount
+    {
+      get => this._nodesCount;
+      set
+      {
+        this._nodesCount = value;
+        this.RaisePropertyChanged<int>((Expression<Func<int>>) (() => this.NodesCount));
+      }
+    }
+
+    public int ConCount
+    {
+      get => this._conCount;
+      set
+      {
+        this._conCount = value;
+        this.RaisePropertyChanged<int>((Expression<Func<int>>) (() => this.ConCount));
+      }
+    }
+
+    public Group()
+    {
+      this.GroupId = "";
+      this.Nodes = new ObservableCollection<Node>();
+      this.NodesCount = 0;
+      this.ConCount = 0;
+    }
+  }
+}
