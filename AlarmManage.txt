@@ -1,0 +1,343 @@
+using AlarmManage.Model;
+using CommonUtility;
+using LinkPath;
+using System;
+using System.Collections.Generic;
+using UILanguageHelper;
+
+namespace AlarmManage
+{
+  public class AlarmFunc
+  {
+    public static string ALARM_SEVERITY_NO_FILTER = LanguageServices.Current.GetTextValue("Alarm_Filter_NoFilter");
+    public static string ALARM_SEVERITY_CRITICAL = LanguageServices.Current.GetTextValue("Alarm_Filter_Critical");
+    public static string ALARM_SEVERITY_MAJOR = LanguageServices.Current.GetTextValue("Alarm_Filter_Major");
+    public static string ALARM_SEVERITY_MINOR = LanguageServices.Current.GetTextValue("Alarm_Filter_Minor");
+    public static string ALARM_SEVERITY_WARN = LanguageServices.Current.GetTextValue("Alarm_Filter_Alarm");
+    public static List<string> ALARM_FILTER_COUNT_LIST = new List<string>()
+    {
+      AlarmFunc.ALARM_SEVERITY_NO_FILTER,
+      AlarmFunc.ALARM_SEVERITY_CRITICAL,
+      AlarmFunc.ALARM_SEVERITY_MAJOR,
+      AlarmFunc.ALARM_SEVERITY_MINOR,
+      AlarmFunc.ALARM_SEVERITY_WARN
+    };
+
+    public static string GetAlarmAttribute(int attributeNo)
+    {
+      switch (attributeNo)
+      {
+        case 0:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_StatelessAlarmCreate");
+        case 1:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmCreate");
+        case 2:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmAutoClear");
+        case 3:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmProblemSourceResetClear");
+        case 4:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmProblemSourceConfigDeletClear");
+        case 5:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmReportSourceResetClear");
+        case 6:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmReportSourceConfigDeleteClear");
+        case 7:
+          return LanguageServices.Current.GetTextValue("Alarm_Attr_AlarmManualClear");
+        default:
+          return attributeNo.ToString() + LanguageServices.Current.GetTextValue("Alarm_Attr_Unknown");
+      }
+    }
+
+    public AlarmShowModel getAlarmShow(int alarmCauseNo, string currentIp)
+    {
+      AlarmTable alarmTable = new AlarmTable();
+      AlarmShowModel alarmShow = new AlarmShowModel();
+      EnbTypeEnum stationFrameType = CSEnbHelper.GetStationFrameType(currentIp);
+      AlarmTable alarmTypeByIndex = Singleton<AlarmInfoHelper>.GetInstance().GetAlarmTypeByIndex(alarmCauseNo, stationFrameType);
+      foreach (VALDESC valdesc in alarmTypeByIndex.alarmSubCauseNo)
+        alarmShow.AlarmSubCauseNo = valdesc.desc;
+      alarmShow.AlarmExplain = alarmTypeByIndex.alarmExplain;
+      alarmShow.AlarmConsequence = alarmTypeByIndex.alarmConsequence;
+      alarmShow.AlarmRepairAdvise = alarmTypeByIndex.alarmRepairAdvise;
+      return alarmShow;
+    }
+
+    public static void InputTextCheck(string sText, out int value)
+    {
+      value = 0;
+      if (sText == null || sText.Length <= 0)
+        return;
+      foreach (char ch in sText)
+      {
+        if (ch <= '/' || ch >= ':')
+          value = -1;
+      }
+      value = Convert.ToInt32(sText);
+    }
+
+    public static string GetTblFeildById(AlarmFunc.ALARM_FEILD_NAME id)
+    {
+      string tblFeildById = "";
+      switch (id)
+      {
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_NO:
+          tblFeildById = "AlarmNotiCauseNo";
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_VALUE:
+          tblFeildById = "AlarmNotiSubCauseNo";
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_SEVERITY:
+          tblFeildById = "AlarmNotiSeverity";
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_TYPE:
+          tblFeildById = "AlarmNotiType";
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_TIME:
+          tblFeildById = "AlarmNotiTime";
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.FRAME_NO:
+          tblFeildById = "FrameNo";
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.PROCESS_NO:
+          tblFeildById = "ProcName";
+          break;
+      }
+      return tblFeildById;
+    }
+
+    public static string GetOperatorById(AlarmFunc.ALARM_OPERATOR id)
+    {
+      string operatorById = "";
+      switch (id)
+      {
+        case AlarmFunc.ALARM_OPERATOR.EQUAL:
+          operatorById = "=";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.NOT_EQUAL:
+          operatorById = "!=";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.GREATER_THAN:
+          operatorById = ">";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.LESS_EQUAL:
+          operatorById = "<=";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.IN:
+          operatorById = "IN";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.NOT_IN:
+          operatorById = "NOT IN";
+          break;
+      }
+      return operatorById;
+    }
+
+    public static string GetFeildCnNameById(AlarmFunc.ALARM_FEILD_NAME id)
+    {
+      string feildCnNameById = "";
+      switch (id)
+      {
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_NO:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_Alarm_CauseNo");
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_VALUE:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_Alarm_SubCause");
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_SEVERITY:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_Alarm_Severity");
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_TYPE:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_Alarm_Type");
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.ALARM_TIME:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_Alarm_Timming");
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.FRAME_NO:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_FrameNO");
+          break;
+        case AlarmFunc.ALARM_FEILD_NAME.PROCESS_NO:
+          feildCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_ProcessNO");
+          break;
+      }
+      return feildCnNameById;
+    }
+
+    public static string GetOperatorCnNameById(AlarmFunc.ALARM_OPERATOR id)
+    {
+      string operatorCnNameById = "";
+      switch (id)
+      {
+        case AlarmFunc.ALARM_OPERATOR.EQUAL:
+          operatorCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Equal") + "(=)";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.NOT_EQUAL:
+          operatorCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Unequal") + "(!=)";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.GREATER_THAN:
+          operatorCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Greater") + "(>)";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.LESS_EQUAL:
+          operatorCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Less") + "(<=)";
+          break;
+        case AlarmFunc.ALARM_OPERATOR.IN:
+          operatorCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Within");
+          break;
+        case AlarmFunc.ALARM_OPERATOR.NOT_IN:
+          operatorCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Outside");
+          break;
+      }
+      return operatorCnNameById;
+    }
+
+    public static string GetAlarmSeverityCnNameById(AlarmFunc.ALARM_SEVERITY id)
+    {
+      string severityCnNameById = "";
+      switch (id)
+      {
+        case AlarmFunc.ALARM_SEVERITY.CRITICAL:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Critical");
+          break;
+        case AlarmFunc.ALARM_SEVERITY.MAJOR:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Major");
+          break;
+        case AlarmFunc.ALARM_SEVERITY.MINOR:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Minor");
+          break;
+        case AlarmFunc.ALARM_SEVERITY.WARN:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Alarm");
+          break;
+      }
+      return severityCnNameById;
+    }
+
+    public static string GetAlarmTypeCnName(AlarmFunc.ALARM_TYPE id)
+    {
+      string alarmTypeCnName = "";
+      switch (id)
+      {
+        case AlarmFunc.ALARM_TYPE.COMMUNICATION:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Comm");
+          break;
+        case AlarmFunc.ALARM_TYPE.QOS:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_QOS");
+          break;
+        case AlarmFunc.ALARM_TYPE.PROCESSING:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_ProError");
+          break;
+        case AlarmFunc.ALARM_TYPE.EQUIPMENT:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_EquipError");
+          break;
+        case AlarmFunc.ALARM_TYPE.ENVIRONMENT:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_EnvirError");
+          break;
+        case AlarmFunc.ALARM_TYPE.DEBUG:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_DebugError");
+          break;
+      }
+      return alarmTypeCnName;
+    }
+
+    public static string GetSqlByFilterSeverity(string filterName)
+    {
+      string byFilterSeverity = "";
+      if (AlarmFunc.ALARM_SEVERITY_NO_FILTER.Equals(filterName))
+        byFilterSeverity = "";
+      else if (AlarmFunc.ALARM_SEVERITY_CRITICAL.Equals(filterName))
+        byFilterSeverity = " AND AlarmNotiSeverity=1";
+      else if (AlarmFunc.ALARM_SEVERITY_MAJOR.Equals(filterName))
+        byFilterSeverity = " AND AlarmNotiSeverity=2";
+      else if (AlarmFunc.ALARM_SEVERITY_MINOR.Equals(filterName))
+        byFilterSeverity = " AND AlarmNotiSeverity=3";
+      else if (AlarmFunc.ALARM_SEVERITY_WARN.Equals(filterName))
+        byFilterSeverity = " AND AlarmNotiSeverity=4";
+      return byFilterSeverity;
+    }
+
+    public static string GetAlarmSeverityCnNameById(int id)
+    {
+      string severityCnNameById = "";
+      switch (id)
+      {
+        case 1:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Critical");
+          break;
+        case 2:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Major");
+          break;
+        case 3:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Minor");
+          break;
+        case 4:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Alarm");
+          break;
+        case 6:
+          severityCnNameById = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Clear");
+          break;
+      }
+      return severityCnNameById;
+    }
+
+    public static string GetAlarmTypeCnName(int id)
+    {
+      string alarmTypeCnName = "";
+      switch (id)
+      {
+        case 1:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_Comm");
+          break;
+        case 2:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_QOS");
+          break;
+        case 3:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_ProError");
+          break;
+        case 4:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_EquipError");
+          break;
+        case 5:
+          alarmTypeCnName = LanguageServices.Current.GetTextValue("Alarm_FilterEdit_EnvirError");
+          break;
+      }
+      return alarmTypeCnName;
+    }
+
+    public enum ALARM_FEILD_NAME
+    {
+      ALARM_NO,
+      ALARM_VALUE,
+      ALARM_SEVERITY,
+      ALARM_TYPE,
+      ALARM_TIME,
+      FRAME_NO,
+      PROCESS_NO,
+    }
+
+    public enum ALARM_OPERATOR
+    {
+      EQUAL,
+      NOT_EQUAL,
+      GREATER_THAN,
+      LESS_EQUAL,
+      IN,
+      NOT_IN,
+    }
+
+    public enum ALARM_SEVERITY
+    {
+      CRITICAL = 1,
+      MAJOR = 2,
+      MINOR = 3,
+      WARN = 4,
+    }
+
+    public enum ALARM_TYPE
+    {
+      COMMUNICATION = 1,
+      QOS = 2,
+      PROCESSING = 3,
+      EQUIPMENT = 4,
+      ENVIRONMENT = 5,
+      DEBUG = 6,
+    }
+  }
+}

@@ -1,0 +1,417 @@
+using CommonUtility;
+using MsgQueue;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace BidCfgParser
+{
+  public class BidHelper : Singleton<BidHelper>
+  {
+    private readonly object context_lock = new object();
+    private BidCfg bidCfg;
+    private FileSystemWatcher fileWatcher;
+    private string strFileMD5;
+    private readonly string path = FilePathHelper.GetAppPath() + "config/bid.json";
+
+    public bool IsActiveBid() => this.bidCfg != null && this.bidCfg.IsSwitchOn();
+
+    public void SetSwitchState(bool bOnState)
+    {
+      if (this.bidCfg == null)
+        this.bidCfg = new BidCfg();
+      this.bidCfg.SetSwitchState(bOnState ? "on" : "off");
+      this.WriteMemoryToBidJson();
+    }
+
+    public bool GetConfigByTableName(
+      string strTblName,
+      out BidCfgParser.MibColumnModify columnCfg,
+      out MibDataModify mibDataCfg)
+    {
+      columnCfg = this.GetMibColumnCfgByTblName(strTblName);
+      mibDataCfg = this.GetMibDataCfgByTblName(strTblName);
+      return true;
+    }
+
+    public bool GetMibTreeNodeConfig(out MibNodeModify nodeCfg)
+    {
+      nodeCfg = this.GetMibNodeCfgByTblName();
+      return true;
+    }
+
+    public bool SaveConfigByTableName(
+      string strTblName,
+      BidCfgParser.MibColumnModify columnCfg,
+      MibDataModify mibDataCfg)
+    {
+      return !string.IsNullOrEmpty(strTblName) && this.SaveMibColumnCfg(strTblName, columnCfg) && this.SaveMibDataCfg(strTblName, mibDataCfg) && this.WriteMemoryToBidJson();
+    }
+
+    public List<NameAndMib> GetAllHideNodes()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<NameAndMib>) null;
+      return this.bidCfg.mib_node_modify?.hide;
+    }
+
+    public List<NameAndMib> GetHideMibNodesByTblName() => this.bidCfg?.mib_node_modify?.hide;
+
+    public List<NodeNameModify> GetAllModifyNodes()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<NodeNameModify>) null;
+      return this.bidCfg?.mib_node_modify?.replace;
+    }
+
+    public List<NodeNameModify> GetReplaceMibNodesByTblName() => this.bidCfg?.mib_node_modify?.replace;
+
+    public MibNodeModify GetMibNodeCfgByTblName() => new MibNodeModify()
+    {
+      hide = this.GetHideMibNodesByTblName(),
+      replace = this.GetReplaceMibNodesByTblName()
+    };
+
+    public bool SaveMibTreeNodeCfg(MibNodeModify cfgData)
+    {
+      if (this.bidCfg == null)
+        this.bidCfg = new BidCfg();
+      if (this.bidCfg.mib_node_modify == null)
+        this.bidCfg.mib_node_modify = new MibNodeModify();
+      return this.bidCfg.mib_node_modify.UpdateData(cfgData) && this.WriteMemoryToBidJson();
+    }
+
+    public List<ColumnHideCfg> GetAllHideColumns()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<ColumnHideCfg>) null;
+      return this.bidCfg?.mib_column_modify?.hide;
+    }
+
+    private List<ColumnHideCfg> GetHideColumnCfgByTblName(string strTblName)
+    {
+      List<ColumnHideCfg> hide = this.bidCfg?.mib_column_modify?.hide;
+      return hide == null ? (List<ColumnHideCfg>) null : hide.Where<ColumnHideCfg>((Func<ColumnHideCfg, bool>) (item => item.tblEntry.Equals(strTblName, StringComparison.OrdinalIgnoreCase))).ToList<ColumnHideCfg>();
+    }
+
+    public List<ColumnModifyCfg> GetAllModifyColumns()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<ColumnModifyCfg>) null;
+      return this.bidCfg?.mib_column_modify?.replace;
+    }
+
+    private List<ColumnModifyCfg> GetReplaceColumnCfgByTblName(string strTblName)
+    {
+      List<ColumnModifyCfg> replace = this.bidCfg?.mib_column_modify?.replace;
+      return replace == null ? (List<ColumnModifyCfg>) null : replace.Where<ColumnModifyCfg>((Func<ColumnModifyCfg, bool>) (item => item.tblEntry.Equals(strTblName, StringComparison.OrdinalIgnoreCase))).ToList<ColumnModifyCfg>();
+    }
+
+    public List<ColumnAddCfg> GetAllAddColumns()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<ColumnAddCfg>) null;
+      return this.bidCfg?.mib_column_modify?.add;
+    }
+
+    private List<ColumnAddCfg> GetAddColumnCfgByTblName(string strTblName)
+    {
+      List<ColumnAddCfg> add = this.bidCfg?.mib_column_modify?.add;
+      return add == null ? (List<ColumnAddCfg>) null : add.Where<ColumnAddCfg>((Func<ColumnAddCfg, bool>) (item => item.tblEntry.Equals(strTblName, StringComparison.OrdinalIgnoreCase))).ToList<ColumnAddCfg>();
+    }
+
+    public BidCfgParser.MibColumnModify GetMibColumnCfgByTblName(string strTblName) => new BidCfgParser.MibColumnModify()
+    {
+      hide = this.GetHideColumnCfgByTblName(strTblName),
+      replace = this.GetReplaceColumnCfgByTblName(strTblName),
+      add = this.GetAddColumnCfgByTblName(strTblName)
+    };
+
+    public void MibColumnModify(
+      Dictionary<string, string> oid2MibName,
+      Dictionary<string, string> oid2NameDesc,
+      string strTblName)
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return;
+      this.bidCfg.mib_column_modify?.AddCol(oid2MibName, oid2NameDesc, strTblName);
+      this.bidCfg.mib_column_modify?.HideCol(oid2MibName, oid2NameDesc, strTblName);
+      this.bidCfg.mib_column_modify?.ReplaceCol(oid2MibName, oid2NameDesc, strTblName);
+    }
+
+    private bool SaveMibColumnCfg(string strTblName, BidCfgParser.MibColumnModify newColumnCfg)
+    {
+      if (this.bidCfg == null)
+        this.bidCfg = new BidCfg();
+      if (this.bidCfg.mib_column_modify == null)
+        this.bidCfg.mib_column_modify = new BidCfgParser.MibColumnModify();
+      return this.bidCfg.mib_column_modify.UpdateCfg(strTblName, newColumnCfg);
+    }
+
+    public List<MibDataCfg> GetAllHideData()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<MibDataCfg>) null;
+      return this.bidCfg?.mib_data_modify?.hide;
+    }
+
+    private List<MibDataCfg> GetHideMibDataCfgByTblName(string strTblName)
+    {
+      BidCfg bidCfg = this.bidCfg;
+      if (bidCfg == null)
+        return (List<MibDataCfg>) null;
+      MibDataModify mibDataModify = bidCfg.mib_data_modify;
+      if (mibDataModify == null)
+        return (List<MibDataCfg>) null;
+      List<MibDataCfg> hide = mibDataModify.hide;
+      return hide == null ? (List<MibDataCfg>) null : hide.Where<MibDataCfg>((Func<MibDataCfg, bool>) (item => item.tblEntry.Equals(strTblName, StringComparison.OrdinalIgnoreCase))).ToList<MibDataCfg>();
+    }
+
+    public List<MibDataCfg> GetAllModifyData()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<MibDataCfg>) null;
+      return this.bidCfg?.mib_data_modify?.replace;
+    }
+
+    private List<MibDataCfg> GetReplaceMibDataCfgByTblName(string strTblName)
+    {
+      BidCfg bidCfg = this.bidCfg;
+      if (bidCfg == null)
+        return (List<MibDataCfg>) null;
+      MibDataModify mibDataModify = bidCfg.mib_data_modify;
+      if (mibDataModify == null)
+        return (List<MibDataCfg>) null;
+      List<MibDataCfg> replace = mibDataModify.replace;
+      return replace == null ? (List<MibDataCfg>) null : replace.Where<MibDataCfg>((Func<MibDataCfg, bool>) (item => item.tblEntry.Equals(strTblName, StringComparison.OrdinalIgnoreCase))).ToList<MibDataCfg>();
+    }
+
+    public List<CopyCfg> GetAllCopyData()
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return (List<CopyCfg>) null;
+      return this.bidCfg?.mib_data_modify?.copy;
+    }
+
+    private List<CopyCfg> GetCopyMibDataCfgByTblName(string strTblName)
+    {
+      BidCfg bidCfg = this.bidCfg;
+      if (bidCfg == null)
+        return (List<CopyCfg>) null;
+      MibDataModify mibDataModify = bidCfg.mib_data_modify;
+      if (mibDataModify == null)
+        return (List<CopyCfg>) null;
+      List<CopyCfg> copy = mibDataModify.copy;
+      return copy == null ? (List<CopyCfg>) null : copy.Where<CopyCfg>((Func<CopyCfg, bool>) (item => item.tblEntry.Equals(strTblName, StringComparison.OrdinalIgnoreCase))).ToList<CopyCfg>();
+    }
+
+    public MibDataModify GetMibDataCfgByTblName(string strTblName) => new MibDataModify()
+    {
+      hide = this.GetHideMibDataCfgByTblName(strTblName),
+      replace = this.GetReplaceMibDataCfgByTblName(strTblName),
+      copy = this.GetCopyMibDataCfgByTblName(strTblName)
+    };
+
+    private bool SaveMibDataCfg(string strTblName, MibDataModify newCfg)
+    {
+      if (this.bidCfg == null)
+        this.bidCfg = new BidCfg();
+      if (this.bidCfg.mib_data_modify == null)
+        this.bidCfg.mib_data_modify = new MibDataModify();
+      return this.bidCfg.mib_data_modify.UpdateCfg(strTblName, newCfg);
+    }
+
+    public void MibDataHandle(
+      ref Dictionary<string, Dictionary<string, string>> allMibData,
+      Dictionary<string, string> oid2MibName,
+      string strTblName)
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return;
+      this.bidCfg.mib_data_modify?.CopyData(ref allMibData, oid2MibName, strTblName);
+      this.bidCfg.mib_data_modify?.HideData(ref allMibData, oid2MibName, strTblName);
+      this.bidCfg.mib_data_modify?.ReplaceData(ref allMibData, oid2MibName, strTblName);
+    }
+
+    public bool? IsFakeIdx(string strTblName, string strIdx)
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return new bool?(false);
+      return this.bidCfg.mib_data_modify?.IsFakeCopyMibDataIndex(strTblName, strIdx);
+    }
+
+    public void MibDataReplaceUpdate(
+      string strTblName,
+      string strColName,
+      string strIndex,
+      string strNewValue)
+    {
+      if (this.bidCfg == null || !this.bidCfg.IsSwitchOn())
+        return;
+      this.bidCfg.mib_data_modify?.SetReplaceCfg(strTblName, strColName, strIndex, strNewValue);
+    }
+
+    public bool WriteMemoryToBidJson()
+    {
+      try
+      {
+        string strNewContents = JsonHelper.SerializeObjectToString((object) this.bidCfg, Formatting.Indented);
+        if (string.IsNullOrEmpty(strNewContents))
+          return false;
+        FileRdWrHelper.OverWriteFileContents(this.path, strNewContents);
+      }
+      catch
+      {
+        return false;
+      }
+      return true;
+    }
+
+    public bool IsHideMenu(string strMenuHeader) => this.bidCfg != null && this.bidCfg.IsSwitchOn() && this.bidCfg.menu_modify != null && this.bidCfg.menu_modify.IsHide(strMenuHeader);
+
+    public bool IsHideFileMgrPath(string strPath) => this.bidCfg != null && this.bidCfg.IsSwitchOn() && this.bidCfg.file_manager_modify != null && this.bidCfg.file_manager_modify.IsHide(strPath);
+
+    public bool IsActiveSimulateUpgrade() => this.bidCfg != null && this.bidCfg.IsSwitchOn() && this.bidCfg.file_manager_modify != null && this.bidCfg.file_manager_modify.simulate != null;
+
+    public string GetIndicator() => this.bidCfg?.file_manager_modify?.simulate != null ? this.bidCfg.file_manager_modify.simulate.GetCompleteFlag() : "1";
+
+    public string GetFileTransState() => this.bidCfg?.file_manager_modify?.simulate != null && this.bidCfg.file_manager_modify.simulate.IsFinishDownloadDtz() ? "2" : "1";
+
+    public string GetFileTransProcess()
+    {
+      if (this.bidCfg?.file_manager_modify?.simulate == null)
+        return "100";
+      int downloadProcess = this.bidCfg.file_manager_modify.simulate.GetDownloadProcess();
+      if (-1 == downloadProcess)
+        return "100";
+      if (-2 != downloadProcess)
+        return downloadProcess.ToString();
+      this.bidCfg.file_manager_modify.simulate.ResetPorcessIndex();
+      return this.GetFileTransProcess();
+    }
+
+    public string GetDlTip() => this.bidCfg?.file_manager_modify?.simulate?.GetDlFinishTip();
+
+    public void StartSyncAndResetProcess(string strFileVersion, string strGnbIp) => this.bidCfg?.file_manager_modify?.simulate?.StartSync(strFileVersion, strGnbIp);
+
+    public void SetPackDownloadTime(string strTime)
+    {
+      this.bidCfg?.mib_data_modify?.SetPackDLTime(strTime);
+      this.bidCfg?.mib_data_modify?.SetPackDLTime(strTime, "softwarePackRunningEntry", "swPackRunningDownloadTime");
+    }
+
+    public void SetPackVersion(string strVersion)
+    {
+      this.bidCfg?.mib_data_modify?.SetPackDLTime(strVersion, strMib: "swPackVersion");
+      this.bidCfg?.mib_data_modify?.SetPackDLTime(strVersion, "softwarePackRunningEntry", "swPackRunningVersion");
+    }
+
+    public void SetPackDetailVersion(string strDetailVersion)
+    {
+      this.bidCfg?.mib_data_modify?.SetPackDLTime(strDetailVersion, strMib: "swPackDetailVersion");
+      this.bidCfg?.mib_data_modify?.SetPackDLTime(strDetailVersion, "softwarePackRunningEntry", "swPackRunningDetailVersion");
+    }
+
+    private void StartupFileWatch()
+    {
+      this.fileWatcher = new FileSystemWatcher();
+      this.fileWatcher.BeginInit();
+      this.fileWatcher.Filter = "bid.json";
+      this.fileWatcher.IncludeSubdirectories = false;
+      this.fileWatcher.Path = FilePathHelper.GetAppPath() + "config/";
+      this.fileWatcher.EnableRaisingEvents = true;
+      this.fileWatcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Attributes | NotifyFilters.Size | NotifyFilters.LastWrite | NotifyFilters.LastAccess | NotifyFilters.CreationTime | NotifyFilters.Security;
+      this.fileWatcher.Changed += new FileSystemEventHandler(this.watch_changed);
+      this.fileWatcher.Deleted += new FileSystemEventHandler(this.watch_deleted);
+      this.fileWatcher.Renamed += new RenamedEventHandler(this.watch_renamed);
+      this.fileWatcher.EndInit();
+    }
+
+    private void StopFileWatch()
+    {
+      if (this.fileWatcher == null)
+        return;
+      this.fileWatcher.EnableRaisingEvents = false;
+    }
+
+    private void StartWatch()
+    {
+      if (this.fileWatcher == null)
+        return;
+      this.fileWatcher.EnableRaisingEvents = true;
+    }
+
+    private bool WriteJsonToBid()
+    {
+      this.StopFileWatch();
+      string fileContent = FileRdWrHelper.GetFileContent(this.path);
+      try
+      {
+        FileRdWrHelper.OverWriteFileContents(this.path, JsonHelper.SerializeObjectToString((object) this.bidCfg, Formatting.Indented));
+      }
+      catch (Exception ex)
+      {
+        FileRdWrHelper.OverWriteFileContents(this.path, fileContent);
+        return false;
+      }
+      finally
+      {
+        this.StartWatch();
+      }
+      return true;
+    }
+
+    private void watch_changed(object sender, FileSystemEventArgs e)
+    {
+      if (FileRdWrHelper.GetFileMD5(this.path) == this.strFileMD5)
+        return;
+      this.bidCfg = (BidCfg) null;
+      this.ParseBidJson();
+      PublishHelper.PublishMsg("BidFileChanged", "", "d:\\code\\SCMT\\src\\scmt\\Submodule\\BidCfgParser\\BidCfgParser.cs", 612, nameof (watch_changed));
+    }
+
+    private void watch_deleted(object sender, FileSystemEventArgs e)
+    {
+    }
+
+    private void watch_renamed(object sender, FileSystemEventArgs e)
+    {
+    }
+
+    private void ParseBidJson()
+    {
+      try
+      {
+        lock (this.context_lock)
+          this.bidCfg = JsonHelper.SerializeJsonToObject<BidCfg>(FileRdWrHelper.GetFileContent(this.path), "d:\\code\\SCMT\\src\\scmt\\Submodule\\BidCfgParser\\BidCfgParser.cs", 631, nameof (ParseBidJson));
+      }
+      catch (Exception ex)
+      {
+        throw;
+      }
+    }
+
+    private void OnSimulateFinish(SubscribeMsg msg)
+    {
+      lock (this.context_lock)
+        this.WriteJsonToBid();
+    }
+
+    private BidHelper()
+    {
+      this.bidCfg = (BidCfg) null;
+      this.ParseBidJson();
+      this.StartupFileWatch();
+      this.strFileMD5 = FileRdWrHelper.GetFileMD5(this.path);
+      SubscribeHelper.AddSubscribe("simulate-finished", new HandlerSubscribeMsg(this.OnSimulateFinish), "d:\\code\\SCMT\\src\\scmt\\Submodule\\BidCfgParser\\BidCfgParser.cs", 656, ".ctor");
+    }
+
+    ~BidHelper()
+    {
+      this.StopFileWatch();
+      SubscribeHelper.CancelSubscribe("simulate-finished", "d:\\code\\SCMT\\src\\scmt\\Submodule\\BidCfgParser\\BidCfgParser.cs", 662, nameof (Finalize));
+    }
+  }
+}
