@@ -1,0 +1,59 @@
+using System.Collections.Generic;
+using System.ComponentModel;
+
+namespace LMT.Property
+{
+  public class Propertyies
+  {
+    private string property;
+    private string value;
+    private string name;
+    private List<string> ls = new List<string>();
+    private Propertyies.en enlt = Propertyies.en.a1;
+
+    public Propertyies.en Enlt
+    {
+      get => this.enlt;
+      set => this.enlt = value;
+    }
+
+    public Propertyies(string name, string property, string value)
+    {
+      this.name = name;
+      this.property = property;
+      this.value = value;
+    }
+
+    public string Property
+    {
+      get => this.property;
+      set => this.property = value;
+    }
+
+    public string Value
+    {
+      get => this.value;
+      set => this.value = value;
+    }
+
+    [Category("基本")]
+    [DisplayName("名称")]
+    [ReadOnly(true)]
+    [Browsable(true)]
+    [Description("wwwwwwwwwwwwwww")]
+    public string Name
+    {
+      get => this.name;
+      set => this.name = value;
+    }
+
+    public enum en
+    {
+      a1 = 1,
+      a2 = 2,
+      a3 = 3,
+      a4 = 4,
+      a5 = 5,
+    }
+  }
+}

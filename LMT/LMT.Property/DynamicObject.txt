@@ -1,0 +1,114 @@
+using NetPlan;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Threading;
+using System.Windows;
+
+namespace LMT.Property
+{
+  public class DynamicObject
+  {
+    public static Type BuildTypeWithCustomAttributesOnMethod(
+      string TypeName,
+      List<MibLeafNodeInfo> mibList)
+    {
+      try
+      {
+        AppDomain domain = Thread.GetDomain();
+        AssemblyName assemblyName = new AssemblyName();
+        assemblyName.Name = "MyAssembly";
+        AssemblyName name = assemblyName;
+        TypeBuilder typeBuilder = domain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave).DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll").DefineType(nameof (TypeName), TypeAttributes.Public);
+        Type[] types1 = new Type[1]{ typeof (string) };
+        Type[] types2 = new Type[1]{ typeof (bool) };
+        typeof (DescriptionAttribute).GetConstructor(types1);
+        object[] objArray = new object[mibList.Count];
+        Type[] parameterTypes = new Type[mibList.Count];
+        for (int index = 0; index < mibList.Count; ++index)
+        {
+          Type typeByName = DynamicObject.GetTypeByName(mibList[index].mibAttri.mibSyntax);
+          parameterTypes[index] = typeByName;
+        }
+        ILGenerator ilGenerator1 = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.HasThis, parameterTypes).GetILGenerator();
+        for (int index = 0; index < mibList.Count; ++index)
+        {
+          Type typeByName = DynamicObject.GetTypeByName(mibList[index].mibAttri.mibSyntax);
+          parameterTypes[index] = typeByName;
+          string mStrOriginValue = mibList[0].m_strOriginValue;
+          string str = DynamicObject.TpLowerFirst(mibList[index].mibAttri.childNameMib);
+          FieldBuilder field = typeBuilder.DefineField(str, typeByName, FieldAttributes.Private);
+          string upperFirst = DynamicObject.ToUpperFirst(str);
+          PropertyBuilder propertyBuilder = typeBuilder.DefineProperty(upperFirst, PropertyAttributes.HasDefault, typeByName, (Type[]) null);
+          CustomAttributeBuilder customBuilder1 = new CustomAttributeBuilder(typeof (DescriptionAttribute).GetConstructor(types1), new object[1]
+          {
+            (object) mibList[index].mibAttri.detailDesc
+          });
+          propertyBuilder.SetCustomAttribute(customBuilder1);
+          CustomAttributeBuilder customBuilder2 = new CustomAttributeBuilder(typeof (DisplayNameAttribute).GetConstructor(types1), new object[1]
+          {
+            (object) mibList[index].mibAttri.childNameCh
+          });
+          propertyBuilder.SetCustomAttribute(customBuilder2);
+          CustomAttributeBuilder customBuilder3 = new CustomAttributeBuilder(typeof (ReadOnlyAttribute).GetConstructor(types2), new object[1]
+          {
+            (object) mibList[index].m_bReadOnly
+          });
+          propertyBuilder.SetCustomAttribute(customBuilder3);
+          CustomAttributeBuilder customBuilder4 = new CustomAttributeBuilder(typeof (BrowsableAttribute).GetConstructor(types2), new object[1]
+          {
+            (object) mibList[index].m_bVisible
+          });
+          propertyBuilder.SetCustomAttribute(customBuilder4);
+          MethodBuilder mdBuilder = typeBuilder.DefineMethod("get", MethodAttributes.Public, typeByName, Type.EmptyTypes);
+          ILGenerator ilGenerator2 = mdBuilder.GetILGenerator();
+          ilGenerator2.Emit(OpCodes.Ldarg_0);
+          ilGenerator2.Emit(OpCodes.Ldfld, (FieldInfo) field);
+          ilGenerator2.Emit(OpCodes.Ret);
+          ILGenerator ilGenerator3 = typeBuilder.DefineMethod("set", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName, (Type) null, new Type[1]
+          {
+            typeByName
+          }).GetILGenerator();
+          ilGenerator3.Emit(OpCodes.Ldarg_0);
+          ilGenerator3.Emit(OpCodes.Ldarg_1);
+          ilGenerator3.Emit(OpCodes.Stfld, (FieldInfo) field);
+          ilGenerator3.Emit(OpCodes.Ret);
+          propertyBuilder.SetGetMethod(mdBuilder);
+          propertyBuilder.SetSetMethod(mdBuilder);
+          ilGenerator1.Emit(OpCodes.Ldarg_0);
+          ilGenerator1.Emit(OpCodes.Ldarg_S, index);
+          ilGenerator1.Emit(OpCodes.Stfld, (FieldInfo) field);
+        }
+        ilGenerator1.Emit(OpCodes.Ret);
+        return typeBuilder.CreateType();
+      }
+      catch (Exception ex)
+      {
+        int num = (int) MessageBox.Show(ex.Message);
+      }
+      return (Type) null;
+    }
+
+    public static Type GetTypeByName(string name)
+    {
+      switch (name)
+      {
+        case "string":
+          return typeof (string);
+        case "Integer":
+          return typeof (int);
+        case "enum":
+          return typeof (Enum);
+        default:
+          return (Type) null;
+      }
+    }
+
+    public static string ToUpperFirst(string originString) => originString.First<char>().ToString().ToUpper() + originString.Substring(1);
+
+    public static string TpLowerFirst(string originString) => originString.First<char>().ToString().ToLower() + originString.Substring(1);
+  }
+}
