@@ -1,0 +1,103 @@
+using System.Collections.Generic;
+using System.ComponentModel;
+
+namespace LMT.Component
+{
+  public class TraceSetTreeModel : System.ComponentModel.INotifyPropertyChanged
+  {
+    private string _name;
+    private bool _isChecked;
+    private bool _isExpanded;
+    private IList<TraceSetTreeModel> _children;
+    private TraceSetTreeModel _parent;
+
+    public TraceSetTreeModel()
+    {
+      this._children = (IList<TraceSetTreeModel>) new List<TraceSetTreeModel>();
+      this._isChecked = false;
+      this._isExpanded = false;
+    }
+
+    public string Name
+    {
+      get => this._name;
+      set => this._name = value;
+    }
+
+    public string ToolTip => this.Name;
+
+    public bool ISChecked
+    {
+      get => this._isChecked;
+      set
+      {
+        if (value == this._isChecked)
+          return;
+        this._isChecked = value;
+        this.INotifyPropertyChanged("IsChecked");
+        if (this._isChecked)
+        {
+          if (this.Parent == null)
+            return;
+          this.Parent.ISChecked = true;
+        }
+        else
+        {
+          foreach (TraceSetTreeModel child in (IEnumerable<TraceSetTreeModel>) this.Children)
+            child.ISChecked = false;
+        }
+      }
+    }
+
+    public bool IsExpanded
+    {
+      get => this._isExpanded;
+      set
+      {
+        if (value == this._isExpanded)
+          return;
+        this._isExpanded = value;
+        this.INotifyPropertyChanged(nameof (IsExpanded));
+      }
+    }
+
+    public TraceSetTreeModel Parent
+    {
+      get => this._parent;
+      set => this._parent = value;
+    }
+
+    public IList<TraceSetTreeModel> Children
+    {
+      get => this._children;
+      set => this._children = value;
+    }
+
+    public void SetAllChildrenChecked(bool bChecked)
+    {
+      foreach (TraceSetTreeModel child in (IEnumerable<TraceSetTreeModel>) this.Children)
+      {
+        child.ISChecked = bChecked;
+        child.SetAllChildrenChecked(bChecked);
+      }
+    }
+
+    public void SetAllChildrenExpended(bool bExpanded)
+    {
+      foreach (TraceSetTreeModel child in (IEnumerable<TraceSetTreeModel>) this.Children)
+      {
+        child.IsExpanded = bExpanded;
+        child.SetAllChildrenExpended(bExpanded);
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void INotifyPropertyChanged(string info)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(info));
+    }
+  }
+}
