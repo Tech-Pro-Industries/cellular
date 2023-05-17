@@ -1,0 +1,11 @@
+namespace LMT.View
+{
+  public enum UICmdOperatorType
+  {
+    Query,
+    Add,
+    Del,
+    Modify,
+    Other,
+  }
+}

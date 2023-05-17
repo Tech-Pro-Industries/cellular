@@ -1,0 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Windows.Data;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class StringToChecklistConverter : IValueConverter
+  {
+    public object Convert(object obj, Type type, object parameter, CultureInfo culture)
+    {
+      List<string> list = ((IEnumerable<string>) obj.ToString().Split('/')).ToList<string>();
+      return list.Count <= 0 ? (object) null : (object) list.ConvertAll<object>((Converter<string, object>) (x => (object) x));
+    }
+
+    public object ConvertBack(object obj, Type type, object parameter, CultureInfo culture)
+    {
+      List<object> objectList = obj as List<object>;
+      string str = "";
+      if (objectList == null || objectList.Count == 0)
+      {
+        str = LanguageServices.Current.GetTextValue("BaseInfo_DataGrid_InvalidValue");
+      }
+      else
+      {
+        foreach (object obj1 in objectList)
+          str = str + (string) obj1 + "/";
+      }
+      return (object) str.TrimEnd('/');
+    }
+  }
+}

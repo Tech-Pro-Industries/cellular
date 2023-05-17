@@ -1,0 +1,76 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Linq.Expressions;
+
+namespace LMT.View
+{
+  public class DataCopyItem : ViewModelBase
+  {
+    private string _tblEntry;
+    private string _tblEntryCh;
+    private string _colMibName;
+    private string _colNameCh;
+    private string _sourceIndex;
+    private string _destIndex;
+
+    public string TblEntry
+    {
+      get => this._tblEntry;
+      set
+      {
+        this._tblEntry = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntry));
+      }
+    }
+
+    public string TblEntryCh
+    {
+      get => this._tblEntryCh;
+      set
+      {
+        this._tblEntryCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntryCh));
+      }
+    }
+
+    public string ColMibName
+    {
+      get => this._colMibName;
+      set
+      {
+        this._colMibName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColMibName));
+      }
+    }
+
+    public string ColNameCh
+    {
+      get => this._colNameCh;
+      set
+      {
+        this._colNameCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColNameCh));
+      }
+    }
+
+    public string SourceIndex
+    {
+      get => this._sourceIndex;
+      set
+      {
+        this._sourceIndex = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.SourceIndex));
+      }
+    }
+
+    public string DestIndex
+    {
+      get => this._destIndex;
+      set
+      {
+        this._destIndex = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.DestIndex));
+      }
+    }
+  }
+}

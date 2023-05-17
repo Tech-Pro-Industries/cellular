@@ -1,0 +1,1302 @@
+using CfgFileOperation.UIShowManger;
+using CommonUtility;
+using DataBaseUtil;
+using DevExpress.Xpf.Editors;
+using DevExpress.Xpf.Grid;
+using LinkPath;
+using LMT.Component.ViewModel;
+using LMT.ViewModel;
+using LmtbSnmp;
+using MIBDataParser;
+using Microsoft.CSharp.RuntimeBinder;
+using MsgQueue;
+using SCMTOperationCore.Control;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Markup;
+using System.Windows.Media;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class MainDataGridParaSet : 
+    UserControl,
+    INotifyPropertyChanged,
+    IComponentConnector,
+    IStyleConnector
+  {
+    private CmdMibInfo cmdMibInfo = new CmdMibInfo();
+    private List<MibLeafInfo> listIndexInfo = new List<MibLeafInfo>();
+    private MibTableInfo m_MibTable;
+    private UICmdOperatorType m_operType;
+    private int m_ModifyIndexGrade;
+    private ObservableCollection<DataSetPara> m_CmdDataList = new ObservableCollection<DataSetPara>();
+    private List<DyDataGrid_MIBModel> m_listSelectItems = new List<DyDataGrid_MIBModel>();
+    public MainDataGrid m_MainDataGrid;
+    private int currentRowIndex;
+    private int m_instUUID;
+    private MainDataGridParaTreeVM treeView;
+    private bool IsMultiAdd;
+    private bool IsMultiQuery;
+    private Dictionary<int, List<string>> dicMultiIndexValue = new Dictionary<int, List<string>>();
+    private List<string> ListMultiIndex = new List<string>();
+    public Window paraSetWin;
+    public string Title = "";
+    private string strOldCellValue = "";
+    public CancellationTokenSource cts;
+    private ObservableCollection<DataSetPara> m_listPara = new ObservableCollection<DataSetPara>();
+    private bool? isSelectAll;
+    internal MainDataGridParaSet Self;
+    internal Border treeBorder;
+    internal MainDataGridParaTreeSet paraTree;
+    internal GridControl dataGrid;
+    internal TableView tableView;
+    internal TextBox ParaDescription;
+    internal Button BtnOK;
+    internal Button BtnCancle;
+    private bool _contentLoaded;
+
+    public MainDataGridParaTreeVM TreeView
+    {
+      get => this.treeView;
+      set
+      {
+        this.treeView = value;
+        this.RaisePropertyChanged(nameof (TreeView));
+      }
+    }
+
+    public MainDataGridParaSet()
+    {
+      this.InitializeComponent();
+      this.tableView.ShowingEditor += new ShowingEditorEventHandler(this.DataGrid_BeginningEdit);
+      this.tableView.ShowingEditor += new ShowingEditorEventHandler(this.DataGrid_ShowingEditor);
+      this.tableView.HiddenEditor += new EditorEventHandler(this.DataGrid_EndEdit);
+      this.TreeView = new MainDataGridParaTreeVM();
+      this.IsMultiAdd = false;
+      this.IsMultiQuery = false;
+      this.DataContext = (object) this;
+      this.dataGrid.Columns["ParaValue"].CellEditTemplateSelector = (DataTemplateSelector) new MultiEditorsTemplateSelector();
+    }
+
+    private void InitNetElementTree()
+    {
+      this.treeBorder.Visibility = Visibility.Visible;
+      ObservableCollection<MainDataGridParaTreeModel> observableCollection = new ObservableCollection<MainDataGridParaTreeModel>();
+      MainDataGridParaTreeModel parent = new MainDataGridParaTreeModel("0", "0", LanguageServices.Current.GetTextValue("CfgFile_Win_NetList"), "", (MainDataGridParaTreeModel) null);
+      int num = 1;
+      if (this.m_MainDataGrid.IsOnLine)
+      {
+        foreach (KeyValuePair<string, bool> keyValuePair in CSEnbHelper.GetAllEnbInfo())
+        {
+          if (keyValuePair.Value)
+          {
+            string friendlyNameByIp = NodeBControl.GetInstance().GetFriendlyNameByIp(keyValuePair.Key);
+            if (!string.IsNullOrEmpty(friendlyNameByIp))
+            {
+              MainDataGridParaTreeModel gridParaTreeModel = new MainDataGridParaTreeModel(num.ToString(), parent.Id, friendlyNameByIp, parent.Name, parent);
+              parent.Children.Add(gridParaTreeModel);
+              if (keyValuePair.Key.Equals(this.m_MainDataGrid.m_gnbIp))
+                gridParaTreeModel.IsChecked = new bool?(true);
+              ++num;
+            }
+          }
+        }
+      }
+      else
+      {
+        List<string> listUuid = new List<string>();
+        CfgLogicMid.GetInstance().GetDBAllUUID(listUuid);
+        foreach (string strName in listUuid)
+        {
+          MainDataGridParaTreeModel gridParaTreeModel = new MainDataGridParaTreeModel(num.ToString(), parent.Id, strName, parent.Name, parent);
+          parent.Children.Add(gridParaTreeModel);
+          if (strName.Equals(this.m_MainDataGrid.cfgUUID))
+            gridParaTreeModel.IsChecked = new bool?(true);
+          ++num;
+        }
+      }
+      observableCollection.Add(parent);
+      this.TreeView.ItemsSourceData = observableCollection;
+    }
+
+    private void SetTreeShow()
+    {
+      if (this.m_MainDataGrid.IsOnLine)
+        this.treeBorder.Visibility = Visibility.Collapsed;
+      else
+        this.treeBorder.Visibility = Visibility.Visible;
+    }
+
+    public void InitAddDataGridInfo(
+      CmdMibInfo mibInfo,
+      List<DyDataGrid_MIBModel> ListModel,
+      MibTableInfo table,
+      UICmdOperatorType operType,
+      bool isMultiAdd = false)
+    {
+      this.cmdMibInfo = mibInfo;
+      this.m_operType = operType;
+      this.m_MibTable = table;
+      this.listIndexInfo.Clear();
+      this.m_CmdDataList.Clear();
+      this.m_listPara.Clear();
+      this.InitNetElementTree();
+      string str1 = "\r\n" + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat") + "：\r\n " + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat1") + ": min-max; " + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat2") + ": v1,v2,...vn; \r\n" + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat3");
+      this.IsMultiAdd = isMultiAdd;
+      foreach (MibLeafInfo child in table.childList)
+      {
+        if (child.IsIndex.Equals("True"))
+          this.listIndexInfo.Add(child);
+      }
+      this.Title = !this.IsMultiAdd ? mibInfo.m_cmdDesc : LanguageServices.Current.GetTextValue("BaseInfo_DataGrid_MultiAdd") + " " + table.nameCh;
+      int num = 0;
+      if (this.cmdMibInfo == null)
+        return;
+      if (this.listIndexInfo.Count > 0)
+      {
+        foreach (MibLeafInfo mibLeafInfo in this.listIndexInfo)
+        {
+          string defaultValue = SnmpToDatabase.GetDefaultValue(mibLeafInfo);
+          DataSetPara dataSetPara = new DataSetPara();
+          dataSetPara.OID = mibLeafInfo.childOid;
+          dataSetPara.ID = num;
+          dataSetPara.IsSelected = true;
+          dataSetPara.ParaName = mibLeafInfo.childNameCh;
+          dataSetPara.MibNameEN = mibLeafInfo.childNameMib;
+          dataSetPara.ParaRange = SnmpMibUtil.GetMibNodeValueDesc(mibLeafInfo);
+          dataSetPara.ParaUnit = mibLeafInfo.unit;
+          dataSetPara.ParaType = SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp);
+          if (isMultiAdd)
+          {
+            string str2 = "";
+            if (SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp) == DataGrid_CellDataType.bitType)
+              str2 = LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexType") + " BIT; ";
+            else if (SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp) == DataGrid_CellDataType.enumType)
+              str2 = LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexType") + " Enum; ";
+            dataSetPara.MibDesc = str2 + mibLeafInfo.GetDetailValue() + str1;
+            dataSetPara.ParaType = DataGrid_CellDataType.RegularType;
+            dataSetPara.ParaValue = "";
+          }
+          else
+          {
+            dataSetPara.MibDesc = mibLeafInfo.GetDetailValue();
+            dataSetPara.ParaType = SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp);
+            if (dataSetPara.ParaType == DataGrid_CellDataType.RegularType || dataSetPara.ParaType == DataGrid_CellDataType.OID || dataSetPara.ParaType == DataGrid_CellDataType.Array)
+              dataSetPara.ParaValue = defaultValue;
+            else if (dataSetPara.ParaType == DataGrid_CellDataType.enumType || dataSetPara.ParaType == DataGrid_CellDataType.bitType)
+            {
+              dataSetPara.DicList = SnmpToDatabase.ConvertSnmpValueToEnumContent(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp);
+              dataSetPara.ParaValue = SnmpToDatabase.ConvertSnmpValueToString(mibLeafInfo.childNameMib, defaultValue, this.m_MainDataGrid.m_gnbIp) as string;
+            }
+            else if (dataSetPara.ParaType == DataGrid_CellDataType.DateTime)
+              dataSetPara.ParaValue = defaultValue;
+          }
+          this.m_listPara.Add(dataSetPara);
+          ++num;
+        }
+      }
+      Dictionary<string, string> temdicValue = new Dictionary<string, string>();
+      Dictionary<string, string> temdicOid = new Dictionary<string, string>();
+      string strIndex = "";
+      this.GetModifyedInfo(ListModel, table, ref temdicValue, ref temdicOid, ref strIndex);
+      if (this.cmdMibInfo.m_leaflist.Count > 0)
+      {
+        foreach (string str3 in this.cmdMibInfo.m_leaflist)
+        {
+          MibLeafInfo mibDataByOid = Database.GetInstance().GetMibDataByOid(str3, this.m_MainDataGrid.m_gnbIp);
+          if ((this.m_MainDataGrid.IsOnLine || !mibDataByOid.ICFWriteAble.Equals("×")) && mibDataByOid.IsValidMib())
+          {
+            string defaultValue = SnmpToDatabase.GetDefaultValue(mibDataByOid);
+            bool flag = false;
+            if (this.cmdMibInfo.m_leafDefault != null && this.cmdMibInfo.m_leafDefault.ContainsKey(str3))
+            {
+              defaultValue = this.cmdMibInfo.m_leafDefault[str3];
+              flag = true;
+            }
+            if (!flag && temdicValue.Count > 0 && temdicValue.ContainsKey(mibDataByOid.childNameMib) && !string.IsNullOrWhiteSpace(temdicValue[mibDataByOid.childNameMib]))
+              defaultValue = temdicValue[mibDataByOid.childNameMib];
+            DataSetPara dataSetPara = new DataSetPara();
+            dataSetPara.OID = mibDataByOid.childOid;
+            dataSetPara.ID = num;
+            dataSetPara.IsSelected = true;
+            dataSetPara.ParaName = mibDataByOid.childNameCh;
+            dataSetPara.MibNameEN = mibDataByOid.childNameMib;
+            dataSetPara.ParaRange = SnmpMibUtil.GetMibNodeValueDesc(mibDataByOid);
+            dataSetPara.ParaUnit = mibDataByOid.unit;
+            dataSetPara.MibDesc = mibDataByOid.GetDetailValue();
+            dataSetPara.ParaType = SnmpToDatabase.GetMibNodeDataType(mibDataByOid.childNameMib, this.m_MainDataGrid.m_gnbIp);
+            if (dataSetPara.ParaType == DataGrid_CellDataType.RegularType || dataSetPara.ParaType == DataGrid_CellDataType.OID || dataSetPara.ParaType == DataGrid_CellDataType.Array)
+              dataSetPara.ParaValue = defaultValue;
+            else if (dataSetPara.ParaType == DataGrid_CellDataType.enumType || dataSetPara.ParaType == DataGrid_CellDataType.bitType)
+            {
+              dataSetPara.DicList = SnmpToDatabase.ConvertSnmpValueToEnumContent(mibDataByOid.childNameMib, this.m_MainDataGrid.m_gnbIp);
+              dataSetPara.ParaValue = SnmpToDatabase.ConvertSnmpValueToString(mibDataByOid.childNameMib, defaultValue, this.m_MainDataGrid.m_gnbIp) as string;
+            }
+            else if (dataSetPara.ParaType == DataGrid_CellDataType.DateTime)
+              dataSetPara.ParaValue = defaultValue;
+            if ((mibDataByOid.ASNType.Equals("Unsigned32Array", StringComparison.OrdinalIgnoreCase) || mibDataByOid.ASNType.Equals("Integer32Array", StringComparison.OrdinalIgnoreCase)) && string.IsNullOrEmpty(dataSetPara.ParaValue))
+              dataSetPara.ParaValue = "{}";
+            if (flag)
+            {
+              this.m_CmdDataList.Add(dataSetPara);
+            }
+            else
+            {
+              this.m_listPara.Add(dataSetPara);
+              ++num;
+            }
+          }
+        }
+      }
+      this.RefreshCheckBox();
+      this.RefreshCellTemplate();
+    }
+
+    public bool InitModifyParaSetGrid(
+      CmdMibInfo mibInfo,
+      List<DyDataGrid_MIBModel> ListModel,
+      MibTableInfo table,
+      UICmdOperatorType operType,
+      bool isOnline = true)
+    {
+      if (ListModel == null || ListModel.Count == 0 || mibInfo == null)
+        return false;
+      this.listIndexInfo.Clear();
+      this.m_CmdDataList.Clear();
+      this.m_listPara.Clear();
+      this.m_listSelectItems.Clear();
+      this.m_ModifyIndexGrade = 0;
+      this.m_listSelectItems = ListModel;
+      this.cmdMibInfo = mibInfo;
+      this.m_MibTable = table;
+      this.m_operType = operType;
+      this.Title = mibInfo.m_cmdDesc;
+      this.InitNetElementTree();
+      Dictionary<string, string> temdicValue = new Dictionary<string, string>();
+      Dictionary<string, string> temdicOid = new Dictionary<string, string>();
+      string strIndex = "";
+      int rowIndex = 0;
+      this.GetModifyedInfo(ListModel, table, ref temdicValue, ref temdicOid, ref strIndex);
+      return this.ModifyParaSetGrid(this.cmdMibInfo, temdicValue, temdicOid, strIndex, ref rowIndex, isOnline);
+    }
+
+    private void GetModifyedInfo(
+      List<DyDataGrid_MIBModel> ListModel,
+      MibTableInfo table,
+      ref Dictionary<string, string> temdicValue,
+      ref Dictionary<string, string> temdicOid,
+      ref string strIndex)
+    {
+      if (ListModel == null || ListModel.Count == 0)
+        return;
+      DyDataGrid_MIBModel dataGridMibModel = ListModel[0];
+      if (temdicValue == null)
+        temdicValue = new Dictionary<string, string>();
+      if (temdicOid == null)
+        temdicOid = new Dictionary<string, string>();
+      this.m_ModifyIndexGrade = table.indexNum;
+      foreach (KeyValuePair<string, object> property in dataGridMibModel.Properties)
+      {
+        if (!property.Key.Equals("indexlist"))
+        {
+          MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(property.Key, this.m_MainDataGrid.m_gnbIp);
+          if (mibNodeInfoByName != null && !temdicValue.ContainsKey(mibNodeInfoByName.childNameMib) && !temdicOid.ContainsKey(mibNodeInfoByName.childNameMib))
+          {
+            if (property.Value is DataGrid_Cell_MIB)
+            {
+              if (property.Value is DataGrid_Cell_MIB dataGridCellMib)
+              {
+                string mContent = dataGridCellMib.m_Content;
+                // ISSUE: reference to a compiler-generated field
+                if (MainDataGridParaSet.\u003C\u003Eo__25.\u003C\u003Ep__0 == null)
+                {
+                  // ISSUE: reference to a compiler-generated field
+                  MainDataGridParaSet.\u003C\u003Eo__25.\u003C\u003Ep__0 = CallSite<Func<CallSite, object, string>>.Create(Binder.Convert(CSharpBinderFlags.None, typeof (string), typeof (MainDataGridParaSet)));
+                }
+                // ISSUE: reference to a compiler-generated field
+                // ISSUE: reference to a compiler-generated field
+                string str = MainDataGridParaSet.\u003C\u003Eo__25.\u003C\u003Ep__0.Target((CallSite) MainDataGridParaSet.\u003C\u003Eo__25.\u003C\u003Ep__0, SnmpToDatabase.ConvertDefaultValueToInt(mibNodeInfoByName, mContent));
+                temdicValue.Add(mibNodeInfoByName.childNameMib, str);
+                temdicOid.Add(mibNodeInfoByName.childNameMib, dataGridCellMib.oid);
+                if (this.m_ModifyIndexGrade > 0)
+                  strIndex = MibStringHelper.GetIndexValueByGrade(dataGridCellMib.oid, this.m_ModifyIndexGrade);
+              }
+            }
+            else if (property.Value is DataGrid_Cell_MIB_ENUM)
+            {
+              if (property.Value is DataGrid_Cell_MIB_ENUM dataGridCellMibEnum)
+              {
+                temdicValue.Add(mibNodeInfoByName.childNameMib, dataGridCellMibEnum.m_CurrentValue.ToString());
+                temdicOid.Add(mibNodeInfoByName.childNameMib, dataGridCellMibEnum.oid);
+                if (this.m_ModifyIndexGrade > 0)
+                  strIndex = MibStringHelper.GetIndexValueByGrade(dataGridCellMibEnum.oid, this.m_ModifyIndexGrade);
+              }
+            }
+            else if (property.Value is DataGrid_Cell_MIB_BIT && property.Value is DataGrid_Cell_MIB_BIT dataGridCellMibBit)
+            {
+              temdicValue.Add(mibNodeInfoByName.childNameMib, dataGridCellMibBit.m_Content);
+              temdicOid.Add(mibNodeInfoByName.childNameMib, dataGridCellMibBit.oid);
+              if (this.m_ModifyIndexGrade > 0)
+                strIndex = MibStringHelper.GetIndexValueByGrade(dataGridCellMibBit.oid, this.m_ModifyIndexGrade);
+            }
+          }
+        }
+      }
+      if (this.m_ModifyIndexGrade != 0)
+        return;
+      strIndex = ".0";
+    }
+
+    public bool ModifyParaSetGrid(
+      CmdMibInfo mibInfo,
+      Dictionary<string, string> temdicValue,
+      Dictionary<string, string> temdicOid,
+      string strIndex,
+      ref int rowIndex,
+      bool isOnline = true)
+    {
+      if (mibInfo == null || string.IsNullOrEmpty(strIndex) || isOnline && !mibInfo.m_cmdDesc.Equals(this.Title))
+        return false;
+      if (mibInfo.m_leaflist.Count > 0)
+      {
+        foreach (string str1 in mibInfo.m_leaflist)
+        {
+          MibLeafInfo mibLeaf = Database.GetInstance().GetMibDataByOid(str1, this.m_MainDataGrid.m_gnbIp);
+          if (mibLeaf != null && this.m_listPara.ToList<DataSetPara>().Find((Predicate<DataSetPara>) (p => p.MibNameEN.Equals(mibLeaf.childNameMib))) == null && (this.m_MainDataGrid.IsOnLine || !mibLeaf.ICFWriteAble.Equals("×")) && mibLeaf.IsValidMib())
+          {
+            string strValue = (string) null;
+            bool flag = false;
+            if (mibInfo.m_leafDefault != null && mibInfo.m_leafDefault.ContainsKey(str1))
+            {
+              strValue = mibInfo.m_leafDefault[str1];
+              flag = true;
+            }
+            string str2;
+            if (!flag)
+            {
+              strValue = !temdicValue.ContainsKey(mibLeaf.childNameMib) || string.IsNullOrWhiteSpace(temdicValue[mibLeaf.childNameMib]) ? SnmpToDatabase.GetDefaultValue(mibLeaf) : temdicValue[mibLeaf.childNameMib];
+              str2 = !temdicOid.ContainsKey(mibLeaf.childNameMib) ? SnmpToDatabase.GetMibPrefix() + str1 + strIndex : temdicOid[mibLeaf.childNameMib];
+            }
+            else
+              str2 = !temdicOid.ContainsKey(mibLeaf.childNameMib) ? SnmpToDatabase.GetMibPrefix() + str1 + strIndex : (!temdicOid[mibLeaf.childNameMib].Contains(str1) ? SnmpToDatabase.GetMibPrefix() + str1 + strIndex : temdicOid[mibLeaf.childNameMib]);
+            DataSetPara dataSetPara = new DataSetPara();
+            dataSetPara.OID = str2;
+            dataSetPara.ID = rowIndex;
+            dataSetPara.IsSelected = true;
+            dataSetPara.ParaName = mibLeaf.childNameCh;
+            dataSetPara.MibNameEN = mibLeaf.childNameMib;
+            dataSetPara.ParaRange = SnmpMibUtil.GetMibNodeValueDesc(mibLeaf);
+            dataSetPara.ParaUnit = mibLeaf.unit;
+            dataSetPara.MibDesc = mibLeaf.GetDetailValue();
+            dataSetPara.ParaType = SnmpToDatabase.GetMibNodeDataType(mibLeaf.childNameMib, this.m_MainDataGrid.m_gnbIp);
+            if (dataSetPara.ParaType == DataGrid_CellDataType.RegularType || dataSetPara.ParaType == DataGrid_CellDataType.OID || dataSetPara.ParaType == DataGrid_CellDataType.Array)
+              dataSetPara.ParaValue = strValue;
+            else if (dataSetPara.ParaType == DataGrid_CellDataType.enumType || dataSetPara.ParaType == DataGrid_CellDataType.bitType)
+            {
+              dataSetPara.DicList = SnmpToDatabase.ConvertSnmpValueToEnumContent(mibLeaf.childNameMib, this.m_MainDataGrid.m_gnbIp);
+              dataSetPara.ParaValue = SnmpToDatabase.ConvertSnmpValueToString(mibLeaf.childNameMib, strValue, this.m_MainDataGrid.m_gnbIp) as string;
+            }
+            else if (dataSetPara.ParaType == DataGrid_CellDataType.DateTime)
+              dataSetPara.ParaValue = strValue;
+            if (flag)
+            {
+              this.m_CmdDataList.Add(dataSetPara);
+            }
+            else
+            {
+              this.m_listPara.Add(dataSetPara);
+              ++rowIndex;
+            }
+          }
+        }
+      }
+      this.RefreshCheckBox();
+      this.RefreshCellTemplate();
+      return true;
+    }
+
+    public void InitQueryParaSetGrid(
+      CmdMibInfo mibInfo,
+      MibTableInfo table,
+      UICmdOperatorType operType,
+      bool isMultiQuery = false)
+    {
+      this.cmdMibInfo = mibInfo;
+      this.m_operType = operType;
+      this.m_MibTable = table;
+      this.listIndexInfo.Clear();
+      this.m_CmdDataList.Clear();
+      this.m_listPara.Clear();
+      this.treeBorder.Visibility = Visibility.Collapsed;
+      this.IsMultiQuery = isMultiQuery;
+      if (this.IsMultiQuery)
+        this.cts = new CancellationTokenSource();
+      string str1 = "\r\n" + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat") + "：\r\n " + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat1") + ": min-max; " + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat2") + ": v1,v2,...vn; \r\n" + LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexFormat3");
+      foreach (MibLeafInfo child in table.childList)
+      {
+        if (child.IsIndex.Equals("True"))
+          this.listIndexInfo.Add(child);
+      }
+      this.Title = mibInfo.m_cmdDesc;
+      int num = 0;
+      if (this.cmdMibInfo == null)
+        return;
+      if (this.cmdMibInfo.m_cmdDesc.Equals(this.Title))
+      {
+        if (this.listIndexInfo.Count > 0)
+        {
+          foreach (MibLeafInfo mibLeafInfo in this.listIndexInfo)
+          {
+            string defaultValue = SnmpToDatabase.GetDefaultValue(mibLeafInfo);
+            DataSetPara dataSetPara = new DataSetPara();
+            dataSetPara.OID = mibLeafInfo.childOid;
+            dataSetPara.ID = num;
+            dataSetPara.IsSelected = true;
+            dataSetPara.ParaName = mibLeafInfo.childNameCh;
+            dataSetPara.MibNameEN = mibLeafInfo.childNameMib;
+            dataSetPara.ParaRange = SnmpMibUtil.GetMibNodeValueDesc(mibLeafInfo);
+            dataSetPara.ParaUnit = mibLeafInfo.unit;
+            if (isMultiQuery)
+            {
+              string str2 = "";
+              if (SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp) == DataGrid_CellDataType.bitType)
+                str2 = LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexType") + " BIT; ";
+              else if (SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp) == DataGrid_CellDataType.enumType)
+                str2 = LanguageServices.Current.GetTextValue("BaseInfo_Msg_IndexType") + " Enum; ";
+              dataSetPara.MibDesc = str2 + mibLeafInfo.GetDetailValue() + str1;
+              dataSetPara.ParaType = DataGrid_CellDataType.RegularType;
+              dataSetPara.ParaValue = "";
+            }
+            else
+            {
+              dataSetPara.MibDesc = mibLeafInfo.GetDetailValue();
+              dataSetPara.ParaType = SnmpToDatabase.GetMibNodeDataType(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp);
+              if (dataSetPara.ParaType == DataGrid_CellDataType.RegularType || dataSetPara.ParaType == DataGrid_CellDataType.OID || dataSetPara.ParaType == DataGrid_CellDataType.Array)
+                dataSetPara.ParaValue = defaultValue;
+              else if (dataSetPara.ParaType == DataGrid_CellDataType.enumType || dataSetPara.ParaType == DataGrid_CellDataType.bitType)
+              {
+                dataSetPara.DicList = SnmpToDatabase.ConvertSnmpValueToEnumContent(mibLeafInfo.childNameMib, this.m_MainDataGrid.m_gnbIp);
+                dataSetPara.ParaValue = SnmpToDatabase.ConvertSnmpValueToString(mibLeafInfo.childNameMib, defaultValue, this.m_MainDataGrid.m_gnbIp) as string;
+              }
+              else if (dataSetPara.ParaType == DataGrid_CellDataType.DateTime)
+                dataSetPara.ParaValue = defaultValue;
+            }
+            this.m_listPara.Add(dataSetPara);
+            ++num;
+          }
+        }
+      }
+      this.RefreshCheckBox();
+      this.RefreshCellTemplate();
+    }
+
+    public bool InitCfgModifyParaSetGrid(
+      List<CmdMibInfo> listMibInfo,
+      List<DyDataGrid_MIBModel> ListModel,
+      MibTableInfo table,
+      UICmdOperatorType operType,
+      bool isOnline)
+    {
+      if (ListModel == null || ListModel.Count == 0 || listMibInfo == null || listMibInfo.Count == 0)
+        return false;
+      this.listIndexInfo.Clear();
+      this.m_CmdDataList.Clear();
+      this.m_listPara.Clear();
+      this.m_listSelectItems.Clear();
+      this.m_ModifyIndexGrade = 0;
+      this.m_listSelectItems = ListModel;
+      this.cmdMibInfo = (CmdMibInfo) null;
+      this.m_MibTable = table;
+      this.m_operType = operType;
+      this.Title = LanguageServices.Current.GetTextValue("BaseInfo_DataGrid_Set") + " " + table.nameCh;
+      this.InitNetElementTree();
+      Dictionary<string, string> temdicValue = new Dictionary<string, string>();
+      Dictionary<string, string> temdicOid = new Dictionary<string, string>();
+      string strIndex = "";
+      int rowIndex = 0;
+      this.GetModifyedInfo(ListModel, table, ref temdicValue, ref temdicOid, ref strIndex);
+      foreach (CmdMibInfo mibInfo in listMibInfo)
+      {
+        int result;
+        if (int.TryParse(mibInfo.m_cmdType, out result) && (UICmdOperatorType) result == operType)
+          this.ModifyParaSetGrid(mibInfo, temdicValue, temdicOid, strIndex, ref rowIndex, isOnline);
+      }
+      return true;
+    }
+
+    private void DataGrid_BeginningEdit(object sender, ShowingEditorEventArgs e)
+    {
+      if (!(this.dataGrid.CurrentItem is DataSetPara currentItem))
+        return;
+      MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(currentItem.MibNameEN, this.m_MainDataGrid.m_gnbIp);
+      if (mibNodeInfoByName != null && mibNodeInfoByName.IsIndex.Equals("True") && this.m_operType == UICmdOperatorType.Modify)
+      {
+        e.Cancel = true;
+      }
+      else
+      {
+        if (!(e.Column.FieldName.ToString() == "ParaValue") || currentItem.ParaType != DataGrid_CellDataType.enumType)
+          return;
+        this.strOldCellValue = currentItem.ParaValue;
+      }
+    }
+
+    private void DataGrid_EndEdit(object sender, EditorEventArgs e)
+    {
+      if (!(e.Column.FieldName.ToString() == "ParaValue"))
+        return;
+      DataSetPara row = e.Row as DataSetPara;
+      if (row.ParaType == DataGrid_CellDataType.enumType && string.IsNullOrEmpty(row.ParaValue))
+        row.ParaValue = this.strOldCellValue;
+      if (row.ParaType != DataGrid_CellDataType.DateTime)
+        return;
+      row.ParaValue = Convert.ToDateTime(e.Value.ToString()).ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private void RefreshCellTemplate()
+    {
+      if (this.m_listPara == null)
+        return;
+      this.dataGrid.Resources.Clear();
+      foreach (DataSetPara dataSetPara in (Collection<DataSetPara>) this.m_listPara)
+      {
+        MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(dataSetPara.MibNameEN, this.m_MainDataGrid.m_gnbIp);
+        if (mibNodeInfoByName == null || !mibNodeInfoByName.IsIndex.Equals("True") || this.m_operType != UICmdOperatorType.Modify)
+        {
+          if (dataSetPara.ParaType == DataGrid_CellDataType.enumType)
+          {
+            ObservableCollection<string> observableCollection = new ObservableCollection<string>();
+            foreach (int key in dataSetPara.DicList.Keys)
+              observableCollection.Add(dataSetPara.DicList[key]);
+            FrameworkElementFactory frameworkElementFactory = new FrameworkElementFactory(typeof (ComboBoxEdit));
+            frameworkElementFactory.SetValue(LookUpEditBase.ItemsSourceProperty, (object) observableCollection);
+            frameworkElementFactory.SetBinding(LookUpEditBase.SelectedItemProperty, (BindingBase) new Binding("RowData.Row.ParaValue"));
+            frameworkElementFactory.SetValue(ButtonEdit.IsTextEditableProperty, (object) false);
+            frameworkElementFactory.SetValue(System.Windows.Controls.Control.BorderBrushProperty, (object) Brushes.Transparent);
+            DataTemplate dataTemplate1 = new DataTemplate();
+            dataTemplate1.VisualTree = frameworkElementFactory;
+            DataTemplate dataTemplate2 = dataTemplate1;
+            this.dataGrid.Resources.Add((object) ("Template" + dataSetPara.ID.ToString()), (object) dataTemplate2);
+          }
+          else if (dataSetPara.ParaType == DataGrid_CellDataType.bitType)
+          {
+            FrameworkElementFactory frameworkElementFactory = new FrameworkElementFactory(typeof (ComboBoxEdit));
+            frameworkElementFactory.SetValue(LookUpEditBase.ItemsSourceProperty, (object) dataSetPara.DicList);
+            frameworkElementFactory.SetValue(LookUpEditBase.ValueMemberProperty, (object) "Value");
+            frameworkElementFactory.SetValue(LookUpEditBase.DisplayMemberProperty, (object) "Value");
+            frameworkElementFactory.SetBinding(BaseEdit.EditValueProperty, (BindingBase) new Binding("RowData.Row.ParaValue")
+            {
+              Mode = BindingMode.TwoWay,
+              Converter = (IValueConverter) new StringToChecklistConverter()
+            });
+            frameworkElementFactory.SetValue(ButtonEdit.IsTextEditableProperty, (object) false);
+            frameworkElementFactory.SetValue(LookUpEditBase.SeparatorStringProperty, (object) "/");
+            Style style = new Style(typeof (ComboBoxEdit));
+            style.Setters.Add((SetterBase) new Setter(BaseEdit.StyleSettingsProperty, (object) new CheckedComboBoxStyleSettings()));
+            frameworkElementFactory.SetValue(FrameworkElement.StyleProperty, (object) style);
+            DataTemplate dataTemplate3 = new DataTemplate();
+            dataTemplate3.VisualTree = frameworkElementFactory;
+            DataTemplate dataTemplate4 = dataTemplate3;
+            this.dataGrid.Resources.Add((object) ("Template" + dataSetPara.ID.ToString()), (object) dataTemplate4);
+          }
+          else if (dataSetPara.ParaType == DataGrid_CellDataType.DateTime && this.dataGrid.Resources[(object) "DatetimeTemplate"] == null)
+          {
+            FrameworkElementFactory frameworkElementFactory = new FrameworkElementFactory(typeof (DateEdit));
+            frameworkElementFactory.SetBinding(BaseEdit.EditValueProperty, (BindingBase) new Binding("RowData.Row.ParaValue"));
+            frameworkElementFactory.SetValue(ButtonEdit.IsTextEditableProperty, (object) false);
+            Style style = new Style(typeof (DateEdit));
+            style.Setters.Add((SetterBase) new Setter(BaseEdit.StyleSettingsProperty, (object) new DateEditNavigatorWithTimePickerStyleSettings()));
+            frameworkElementFactory.SetValue(FrameworkElement.StyleProperty, (object) style);
+            frameworkElementFactory.SetValue(TextEdit.MaskProperty, (object) "yyyy-MM-dd HH:mm:ss");
+            frameworkElementFactory.SetValue(TextEdit.MaskUseAsDisplayFormatProperty, (object) true);
+            DataTemplate dataTemplate = new DataTemplate();
+            dataTemplate.VisualTree = frameworkElementFactory;
+            this.dataGrid.Resources.Add((object) "DatetimeTemplate", (object) dataTemplate);
+          }
+        }
+      }
+    }
+
+    private void BtnCancle_Click(object sender, RoutedEventArgs e) => this.paraSetWin.Close();
+
+    private void BtnOK_Click(object sender, RoutedEventArgs e)
+    {
+      try
+      {
+        Dictionary<string, string> oidToenName = new Dictionary<string, string>();
+        Dictionary<string, string> oidToValue = new Dictionary<string, string>();
+        this.dicMultiIndexValue.Clear();
+        this.ListMultiIndex.Clear();
+        bool flag = true;
+        string gnbIp = this.m_MainDataGrid.m_gnbIp;
+        bool isIpv4 = true;
+        if (this.tableView.IsEditing)
+          this.tableView.HideEditor();
+        if (this.ParaListValue.All<DataSetPara>((Func<DataSetPara, bool>) (p => !p.IsSelected)))
+        {
+          this.paraSetWin.Close();
+        }
+        else
+        {
+          foreach (DataSetPara dataSetPara in (Collection<DataSetPara>) this.ParaListValue)
+          {
+            DataSetPara para = dataSetPara;
+            if (para.IsSelected)
+            {
+              MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(para.MibNameEN, gnbIp);
+              if (mibNodeInfoByName == null)
+              {
+                string textValue = LanguageServices.Current.GetTextValue("CellPlan_Msg_NoMibInfo");
+                LogManager.Log.Error(textValue, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1080, nameof (BtnOK_Click));
+                int num = (int) CustomMessageBox.Show(textValue);
+                return;
+              }
+              if ((this.IsMultiAdd && this.m_operType == UICmdOperatorType.Add || this.IsMultiQuery && this.m_operType == UICmdOperatorType.Query) && mibNodeInfoByName.IsIndex.Equals("True"))
+              {
+                if (!this.GetMutiAddIndex(mibNodeInfoByName, para))
+                  return;
+              }
+              else
+              {
+                string strMibVal = para.ParaType != DataGrid_CellDataType.enumType ? para.ParaValue : (!para.DicList.ContainsValue(para.ParaValue) ? para.ParaValue : para.DicList.FirstOrDefault<KeyValuePair<int, string>>((Func<KeyValuePair<int, string>, bool>) (q => q.Value == para.ParaValue)).Key.ToString());
+                if (mibNodeInfoByName.ASNType.Equals("InetAddressType") && para.ParaValue.Equals("IPv6"))
+                  isIpv4 = false;
+                if (!this.CheckInputValue(mibNodeInfoByName, para, strMibVal, isIpv4))
+                  return;
+              }
+            }
+          }
+          if (this.IsMultiAdd && this.m_operType == UICmdOperatorType.Add || this.IsMultiQuery && this.m_operType == UICmdOperatorType.Query)
+            this.CombinMultiAddIndex();
+          if (this.m_operType != UICmdOperatorType.Query)
+          {
+            if (this.IsMultiAdd && this.m_operType == UICmdOperatorType.Add)
+            {
+              foreach (string strIndex in this.ListMultiIndex)
+              {
+                oidToValue.Clear();
+                oidToenName.Clear();
+                if (this.ParaListValue.Count > 0)
+                  this.m_MainDataGrid.SetDataParaOid(this.ParaListValue, strIndex, ref oidToValue, ref oidToenName);
+                if (this.m_CmdDataList.Count > 0)
+                  this.m_MainDataGrid.SetDataParaOid(this.m_CmdDataList, strIndex, ref oidToValue, ref oidToenName);
+                if (this.m_MainDataGrid.IsOnLine)
+                  this.OnLineMutiIPProcess(oidToValue, oidToenName, strIndex, UICmdOperatorType.Add);
+                else
+                  this.CfgFileAdd(oidToValue, oidToenName, strIndex);
+              }
+            }
+            else
+            {
+              string strIndex = "";
+              if (!this.IsMultiAdd && (this.m_operType == UICmdOperatorType.Add || this.m_operType == UICmdOperatorType.Other))
+                strIndex = this.GetSingleAddIndex();
+              if (this.m_operType == UICmdOperatorType.Add && string.IsNullOrWhiteSpace(strIndex))
+                return;
+              if (this.ParaListValue.Count > 0)
+                this.m_MainDataGrid.SetDataParaOid(this.ParaListValue, strIndex, ref oidToValue, ref oidToenName);
+              if (this.m_CmdDataList.Count > 0)
+                this.m_MainDataGrid.SetDataParaOid(this.m_CmdDataList, strIndex, ref oidToValue, ref oidToenName);
+              if (this.m_operType != UICmdOperatorType.Add)
+                flag = this.MutiSelectInfoProcess(oidToValue, oidToenName);
+              else if (this.m_MainDataGrid.IsOnLine)
+                flag = this.OnLineMutiIPProcess(oidToValue, oidToenName, strIndex, UICmdOperatorType.Add);
+              else
+                this.CfgFileAdd(oidToValue, oidToenName, strIndex);
+            }
+          }
+          else
+          {
+            string str1 = "";
+            long errorcode = 0;
+            Dictionary<string, string> dicMibToValue = new Dictionary<string, string>();
+            Dictionary<string, string> dicMibToOid = new Dictionary<string, string>();
+            Dictionary<int, string> source = new Dictionary<int, string>();
+            this.m_MainDataGrid.GetChildMibInfo(this.cmdMibInfo, ref dicMibToValue, ref dicMibToOid);
+            if (this.IsMultiQuery && this.cts != null)
+            {
+              if (this.Dispatcher != null)
+                this.Dispatcher.Invoke((Action) (() => this.m_MainDataGrid.BtnCancelMutiQuery.Visibility = Visibility.Visible));
+              new Task((Action) (() => this.MutiQueryProcess(dicMibToValue, dicMibToOid, this.cts.Token)), this.cts.Token).Start();
+            }
+            else
+            {
+              foreach (DataSetPara dataSetPara in (Collection<DataSetPara>) this.ParaListValue)
+              {
+                DataSetPara para = dataSetPara;
+                string str2 = para.ParaType != DataGrid_CellDataType.enumType ? para.ParaValue : (!para.DicList.ContainsValue(para.ParaValue) ? para.ParaValue : para.DicList.FirstOrDefault<KeyValuePair<int, string>>((Func<KeyValuePair<int, string>, bool>) (p => p.Value == para.ParaValue)).Key.ToString());
+                MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(para.MibNameEN, gnbIp);
+                if (mibNodeInfoByName == null)
+                  return;
+                if (!source.ContainsKey(mibNodeInfoByName.childNo))
+                  source.Add(mibNodeInfoByName.childNo, str2);
+              }
+              List<int> list = source.OrderBy<KeyValuePair<int, string>, int>((Func<KeyValuePair<int, string>, int>) (d => d.Key)).Select<KeyValuePair<int, string>, int>((Func<KeyValuePair<int, string>, int>) (d => d.Key)).ToList<int>();
+              foreach (int key in list)
+                str1 = str1 + "." + source[key];
+              flag = CommLinkPath.GetMibValueFromCmdExeResult(str1, this.cmdMibInfo.m_cmdNameEn, ref dicMibToValue, gnbIp, ref errorcode);
+              if (flag)
+              {
+                this.m_MainDataGrid.QuerySuccessRefreshDataGrid(dicMibToValue, dicMibToOid, str1, list.Count);
+              }
+              else
+              {
+                EnbTypeEnum stationFrameType = CSEnbHelper.GetStationFrameType(gnbIp);
+                string errDescById = SnmpErrDescHelper.GetErrDescById(errorcode, stationFrameType);
+                if (!string.IsNullOrEmpty(errDescById))
+                {
+                  LogManager.Log.Error("表:" + this.m_MibTable.nameCh + ",索引:" + str1 + "," + errDescById, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1239, nameof (BtnOK_Click));
+                  int num = (int) CustomMessageBox.Show(errDescById);
+                }
+              }
+            }
+          }
+          if (!flag && !this.IsMultiQuery)
+            return;
+          this.paraSetWin.Close();
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1251, nameof (BtnOK_Click));
+        int num = (int) CustomMessageBox.Show(ex.Message);
+      }
+    }
+
+    private void MutiQueryProcess(
+      Dictionary<string, string> dicMibToValue,
+      Dictionary<string, string> dicMibToOid,
+      CancellationToken token)
+    {
+      if (dicMibToValue == null || dicMibToOid == null || this.cmdMibInfo == null)
+        return;
+      long errorcode = 0;
+      string gnbIp = this.m_MainDataGrid.m_gnbIp;
+      foreach (string str in this.ListMultiIndex)
+      {
+        string strIndex = str;
+        if (token.IsCancellationRequested)
+          return;
+        if (CommLinkPath.GetMibValueFromCmdExeResult(strIndex, this.cmdMibInfo.m_cmdNameEn, ref dicMibToValue, gnbIp, ref errorcode))
+        {
+          if (this.Dispatcher != null)
+            this.Dispatcher.Invoke((Action) (() => this.m_MainDataGrid.QuerySuccessRefreshDataGrid(dicMibToValue, dicMibToOid, strIndex, this.m_MibTable.indexNum)));
+        }
+        else
+        {
+          EnbTypeEnum stationFrameType = CSEnbHelper.GetStationFrameType(gnbIp);
+          string errDescById = SnmpErrDescHelper.GetErrDescById(errorcode, stationFrameType);
+          if (!string.IsNullOrEmpty(errDescById))
+          {
+            string msg = LanguageServices.Current.GetTextValue("BaseInfo_Log_129_0") + ":" + this.m_MibTable.nameCh + "," + LanguageServices.Current.GetTextValue("BaseInfo_Log_129_1") + ":" + strIndex + "," + errDescById;
+            LogManager.Log.Error(msg, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1290, nameof (MutiQueryProcess));
+            ShowLogHelper.Show(msg, gnbIp);
+          }
+        }
+      }
+      if (this.Dispatcher == null)
+        return;
+      this.Dispatcher.Invoke((Action) (() => this.m_MainDataGrid.BtnCancelMutiQuery.Visibility = Visibility.Collapsed));
+    }
+
+    private bool OnLineMutiIPProcess(
+      Dictionary<string, string> oidToValue,
+      Dictionary<string, string> oidToenName,
+      string strIndex,
+      UICmdOperatorType cmdType)
+    {
+      List<MainDataGridParaTreeModel> list = this.TreeView.GetCheckedItems().ToList<MainDataGridParaTreeModel>();
+      if (list.Count == 0)
+        return true;
+      foreach (MainDataGridParaTreeModel gridParaTreeModel in list)
+      {
+        string ipByFriendlyName = NodeBControl.GetInstance().GetNodeIpByFriendlyName(gridParaTreeModel.Name);
+        if (!string.IsNullOrEmpty(ipByFriendlyName))
+          this.m_MainDataGrid.SentCmdAndUpdateList(oidToValue, oidToenName, strIndex, cmdType, ipByFriendlyName);
+      }
+      return true;
+    }
+
+    private string GetSingleAddIndex()
+    {
+      if (this.IsMultiAdd || this.m_operType != UICmdOperatorType.Add && this.m_operType != UICmdOperatorType.Other)
+        return "";
+      string singleAddIndex = "";
+      if (this.m_MibTable != null && this.m_MibTable.indexNum == 0)
+        return ".0";
+      foreach (DataSetPara para in (Collection<DataSetPara>) this.ParaListValue)
+      {
+        MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(para.MibNameEN, this.m_MainDataGrid.m_gnbIp);
+        if (mibNodeInfoByName == null)
+        {
+          string textValue = LanguageServices.Current.GetTextValue("CellPlan_Msg_NoMibInfo");
+          LogManager.Log.Error(textValue, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1353, nameof (GetSingleAddIndex));
+          int num = (int) CustomMessageBox.Show(textValue);
+          return (string) null;
+        }
+        string valueToType = this.m_MainDataGrid.GetValueToType(para, mibNodeInfoByName);
+        if ("True".Equals(mibNodeInfoByName.IsIndex))
+          singleAddIndex = singleAddIndex + "." + valueToType;
+      }
+      return singleAddIndex;
+    }
+
+    private bool GetMutiAddIndex(MibLeafInfo mibLeaf, DataSetPara para)
+    {
+      if (this.m_operType == UICmdOperatorType.Add && !this.IsMultiAdd || this.m_operType == UICmdOperatorType.Query && !this.IsMultiQuery)
+        return true;
+      string paraValue = para.ParaValue;
+      List<string> listIndexValue = (List<string>) null;
+      if (mibLeaf.IsIndex.Equals("True"))
+      {
+        listIndexValue = new List<string>();
+        if (paraValue.Contains("-"))
+        {
+          string[] strArray = paraValue.Split('-');
+          int result1;
+          bool flag1 = int.TryParse(strArray[0], out result1);
+          int result2;
+          bool flag2 = int.TryParse(strArray[1], out result2);
+          if (!flag1 || !flag2)
+          {
+            string str = string.Format("{0}:" + LanguageServices.Current.GetTextValue("CellPlan_Msg_FormatError"), (object) mibLeaf.childNameCh);
+            LogManager.Log.Error(str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1401, nameof (GetMutiAddIndex));
+            int num = (int) CustomMessageBox.Show(str);
+            return false;
+          }
+          for (int index = result1; index <= result2; ++index)
+            listIndexValue.Add(index.ToString());
+        }
+        else if (paraValue.Contains(","))
+        {
+          string str = paraValue;
+          char[] chArray = new char[1]{ ',' };
+          foreach (string indexValue in str.Split(chArray))
+          {
+            if (!this.CheckInputIndex(mibLeaf, indexValue, listIndexValue))
+              return false;
+          }
+        }
+        else if (!this.CheckInputIndex(mibLeaf, paraValue, listIndexValue))
+          return false;
+      }
+      if (listIndexValue == null || listIndexValue.Count == 0)
+        return false;
+      foreach (string strMibVal in listIndexValue)
+      {
+        if (!string.Equals(mibLeaf.mibSyntax, "BITS", StringComparison.OrdinalIgnoreCase) && !this.CheckInputValue(mibLeaf, para, strMibVal))
+          return false;
+        if (!this.dicMultiIndexValue.ContainsKey(mibLeaf.childNo))
+          this.dicMultiIndexValue.Add(mibLeaf.childNo, listIndexValue);
+      }
+      return true;
+    }
+
+    private void CombinMultiAddIndex()
+    {
+      if (this.dicMultiIndexValue.Count == 0)
+        return;
+      int indexNum = this.m_MibTable.indexNum;
+      if (!this.dicMultiIndexValue.ContainsKey(1))
+        return;
+      foreach (string str1 in this.dicMultiIndexValue[1])
+      {
+        string str2 = "." + str1;
+        if (indexNum == 1 && this.dicMultiIndexValue.Count == 1)
+          this.ListMultiIndex.Add(str2);
+        if (this.dicMultiIndexValue.ContainsKey(2))
+        {
+          foreach (string str3 in this.dicMultiIndexValue[2])
+          {
+            string str4 = str2 + "." + str3;
+            if (indexNum == 2 && this.dicMultiIndexValue.Count == 2)
+              this.ListMultiIndex.Add(str4);
+            if (this.dicMultiIndexValue.ContainsKey(3))
+            {
+              foreach (string str5 in this.dicMultiIndexValue[3])
+              {
+                string str6 = str4 + "." + str5;
+                if (indexNum == 3 && this.dicMultiIndexValue.Count == 3)
+                  this.ListMultiIndex.Add(str6);
+                if (this.dicMultiIndexValue.ContainsKey(4))
+                {
+                  foreach (string str7 in this.dicMultiIndexValue[4])
+                  {
+                    string str8 = str6 + "." + str7;
+                    if (indexNum == 4 && this.dicMultiIndexValue.Count == 4)
+                      this.ListMultiIndex.Add(str8);
+                    if (this.dicMultiIndexValue.ContainsKey(5))
+                    {
+                      foreach (string str9 in this.dicMultiIndexValue[5])
+                      {
+                        string str10 = str8 + "." + str9;
+                        if (indexNum == 5 && this.dicMultiIndexValue.Count == 5)
+                          this.ListMultiIndex.Add(str10);
+                        if (this.dicMultiIndexValue.ContainsKey(6))
+                        {
+                          foreach (string str11 in this.dicMultiIndexValue[6])
+                          {
+                            string str12 = str10 + "." + str11;
+                            if (indexNum == 6 && this.dicMultiIndexValue.Count == 6)
+                              this.ListMultiIndex.Add(str12);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    private bool CheckInputIndex(
+      MibLeafInfo mibLeaf,
+      string indexValue,
+      List<string> listIndexValue)
+    {
+      if (string.Equals(mibLeaf.mibSyntax, "BITS", StringComparison.OrdinalIgnoreCase))
+      {
+        uint outValue;
+        if (!SnmpMibUtil.GetBitsTypeValueFromDesc(mibLeaf.mibValAllList, indexValue, out outValue))
+        {
+          string str = string.Format("{0}:" + LanguageServices.Current.GetTextValue("CellPlan_Msg_FormatError"), (object) mibLeaf.childNameCh);
+          LogManager.Log.Error(str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1528, nameof (CheckInputIndex));
+          int num = (int) CustomMessageBox.Show(str);
+          return false;
+        }
+        listIndexValue.Add(outValue.ToString());
+      }
+      else
+      {
+        int result;
+        if (int.TryParse(indexValue, out result))
+        {
+          listIndexValue.Add(result.ToString());
+        }
+        else
+        {
+          string str = string.Format("{0}:" + LanguageServices.Current.GetTextValue("CellPlan_Msg_FormatError"), (object) mibLeaf.childNameCh);
+          LogManager.Log.Error(str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1545, nameof (CheckInputIndex));
+          int num = (int) CustomMessageBox.Show(str);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    private bool CheckInputValue(
+      MibLeafInfo mibLeaf,
+      DataSetPara para,
+      string strMibVal,
+      bool isIpv4 = true)
+    {
+      if (SnmpMibUtil.CheckMibValueByMibLeaf(mibLeaf, strMibVal))
+        return true;
+      string str = string.Format("{0}:" + LanguageServices.Current.GetTextValue("CellPlan_Msg_FormatError"), (object) mibLeaf.childNameCh);
+      LogManager.Log.Error(str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 1572, nameof (CheckInputValue));
+      int num = (int) CustomMessageBox.Show(str);
+      return false;
+    }
+
+    private bool MutiSelectInfoProcess(
+      Dictionary<string, string> oidToValue,
+      Dictionary<string, string> oidToenName)
+    {
+      bool flag = true;
+      if (this.m_MibTable.indexNum > 0 && this.m_listSelectItems.Count > 0)
+      {
+        Dictionary<string, string> oidToValue1 = new Dictionary<string, string>();
+        Dictionary<string, string> oidToenName1 = new Dictionary<string, string>();
+        int isModifyNum = 1;
+        foreach (DyDataGrid_MIBModel listSelectItem in this.m_listSelectItems)
+        {
+          oidToValue1.Clear();
+          oidToenName1.Clear();
+          string key1 = listSelectItem.Properties.Keys.ToList<string>().Find((Predicate<string>) (p => p.Equals("indexlist")));
+          if (!string.IsNullOrWhiteSpace(key1))
+          {
+            string indexs = (listSelectItem.Properties[key1] as DataGrid_Cell_MIB).Indexs;
+            foreach (KeyValuePair<string, string> keyValuePair in oidToValue)
+            {
+              string indexValueByGrade = MibStringHelper.GetIndexValueByGrade(keyValuePair.Key, this.m_MibTable.indexNum);
+              string str = keyValuePair.Key.Substring(0, keyValuePair.Key.Length - indexValueByGrade.Length);
+              if (!indexs.Equals(indexValueByGrade))
+              {
+                string key2 = str + indexs;
+                if (!oidToValue1.ContainsKey(key2))
+                  oidToValue1.Add(key2, keyValuePair.Value);
+                if (!oidToenName1.ContainsKey(key2) && oidToenName.ContainsKey(keyValuePair.Key))
+                  oidToenName1.Add(key2, oidToenName[keyValuePair.Key]);
+              }
+              else
+                break;
+            }
+            if (this.m_MainDataGrid.IsOnLine)
+              flag = oidToValue1.Count == 0 ? this.OnLineMutiIPProcess(oidToValue, oidToenName, indexs, UICmdOperatorType.Modify) : this.OnLineMutiIPProcess(oidToValue1, oidToenName1, indexs, UICmdOperatorType.Modify);
+            else if (oidToValue1.Count != 0)
+              this.CfgFileSelectModify(oidToValue1, oidToenName1, indexs, isModifyNum);
+            else
+              this.CfgFileSelectModify(oidToValue, oidToenName, indexs, isModifyNum);
+            ++isModifyNum;
+          }
+        }
+        if (this.m_listSelectItems.Count > 1)
+          flag = true;
+      }
+      else if (this.m_MibTable.indexNum == 0)
+      {
+        if (this.m_MainDataGrid.IsOnLine)
+          flag = this.OnLineMutiIPProcess(oidToValue, oidToenName, ".0", UICmdOperatorType.Modify);
+        else
+          this.CfgFileSelectModify(oidToValue, oidToenName, ".0");
+      }
+      else
+      {
+        string indexValueByGrade = MibStringHelper.GetIndexValueByGrade(oidToValue.FirstOrDefault<KeyValuePair<string, string>>().Key, this.m_MibTable.indexNum);
+        if (this.m_MainDataGrid.IsOnLine)
+          flag = this.OnLineMutiIPProcess(oidToValue, oidToenName, indexValueByGrade, UICmdOperatorType.Modify);
+        else
+          this.CfgFileSelectModify(oidToValue, oidToenName, indexValueByGrade);
+      }
+      return flag;
+    }
+
+    private void CfgFileSelectModify(
+      Dictionary<string, string> oidToValue,
+      Dictionary<string, string> oidToenName,
+      string index,
+      int isModifyNum = 0)
+    {
+      if (this.m_MainDataGrid.IsOnLine || oidToenName.Count == 0)
+        return;
+      Dictionary<string, string> moreNodeNameAndVal = new Dictionary<string, string>();
+      foreach (KeyValuePair<string, string> keyValuePair in oidToenName)
+      {
+        if (oidToValue.ContainsKey(keyValuePair.Key))
+        {
+          MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(keyValuePair.Value, this.m_MainDataGrid.m_gnbIp);
+          string str = oidToValue[keyValuePair.Key];
+          if (mibNodeInfoByName != null && (mibNodeInfoByName.ASNType.Equals("Unsigned32Array", StringComparison.OrdinalIgnoreCase) || mibNodeInfoByName.ASNType.Equals("Integer32Array", StringComparison.OrdinalIgnoreCase)))
+            str = str.Replace("{", "").Replace("}", "");
+          if (!moreNodeNameAndVal.ContainsKey(keyValuePair.Value))
+            moreNodeNameAndVal.Add(keyValuePair.Value, str);
+        }
+      }
+      foreach (MainDataGridParaTreeModel gridParaTreeModel in this.TreeView.GetCheckedItems().ToList<MainDataGridParaTreeModel>())
+      {
+        string err = "";
+        int num1 = CfgLogicMid.GetInstance().SetTableSingleInstMoreNodesVal(gridParaTreeModel.Name, this.m_MibTable.nameMib, index, moreNodeNameAndVal, out err) ? 1 : 0;
+        if (num1 != 0 && gridParaTreeModel.Name.Equals(this.m_MainDataGrid.cfgUUID))
+          this.m_MainDataGrid.CfgUpdateData(oidToValue, index, UICmdOperatorType.Modify, isModifyNum);
+        if (num1 == 0)
+        {
+          int num2 = (int) CustomMessageBox.Show(gridParaTreeModel.Name + " " + err);
+          break;
+        }
+      }
+    }
+
+    private void CfgFileAdd(
+      Dictionary<string, string> oidToValue,
+      Dictionary<string, string> oidToenName,
+      string strIndex)
+    {
+      string[] strArray = strIndex.Trim('.').Split('.');
+      int index = 0;
+      foreach (MibLeafInfo child in this.m_MibTable.childList)
+      {
+        if ("True".Equals(child.IsIndex))
+        {
+          string key = SnmpToDatabase.GetMibPrefix() + child.childOid + strIndex;
+          oidToValue[key] = strArray[index];
+          oidToenName[key] = child.childNameMib;
+          ++index;
+        }
+        if (index >= strArray.Length)
+          break;
+      }
+      bool isDyTable = this.m_MibTable.tableContent > 0;
+      foreach (MainDataGridParaTreeModel gridParaTreeModel in this.TreeView.GetCheckedItems().ToList<MainDataGridParaTreeModel>())
+      {
+        string err;
+        int num1 = CfgLogicMid.GetInstance().AddCfgTableShow(oidToValue, oidToenName, gridParaTreeModel.Name, this.m_instUUID, strIndex, this.m_MibTable, this.m_MainDataGrid.m_gnbIp, out err, isDyTable) ? 1 : 0;
+        if (num1 != 0 && gridParaTreeModel.Name.Equals(this.m_MainDataGrid.cfgUUID))
+          this.m_MainDataGrid.CfgUpdateData(oidToValue, strIndex, UICmdOperatorType.Add);
+        if (num1 == 0)
+        {
+          int num2 = (int) CustomMessageBox.Show(gridParaTreeModel.Name + " " + err);
+        }
+      }
+    }
+
+    private void CheckAll_Checked(object sender, RoutedEventArgs e)
+    {
+      foreach (DataSetPara dataSetPara in (Collection<DataSetPara>) this.ParaListValue)
+        dataSetPara.IsSelected = true;
+      this.RefreshCheckBox();
+    }
+
+    private void CheckAll_Unchecked(object sender, RoutedEventArgs e)
+    {
+      if (this.m_operType == UICmdOperatorType.Add)
+      {
+        foreach (DataSetPara dataSetPara in (Collection<DataSetPara>) this.ParaListValue)
+        {
+          MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(dataSetPara.MibNameEN, this.m_MainDataGrid.m_gnbIp);
+          if (mibNodeInfoByName == null || !mibNodeInfoByName.IsIndex.Equals("True"))
+            dataSetPara.IsSelected = false;
+        }
+      }
+      else
+      {
+        foreach (DataSetPara dataSetPara in (Collection<DataSetPara>) this.ParaListValue)
+          dataSetPara.IsSelected = false;
+      }
+      this.RefreshCheckBox();
+    }
+
+    private void DataGrid_ShowingEditor(object sender, ShowingEditorEventArgs e)
+    {
+      if (!(e.Row is DataSetPara row) || !(e.Column.FieldName.ToString() == "IsSelected") || this.m_operType != UICmdOperatorType.Add)
+        return;
+      MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(row.MibNameEN, this.m_MainDataGrid.m_gnbIp);
+      if (mibNodeInfoByName == null || !mibNodeInfoByName.IsIndex.Equals("True"))
+        return;
+      int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("BaseInfo_Msg_AddCannotCancelSelect"));
+      e.Cancel = true;
+    }
+
+    private void tableView_CellValueChanging(object sender, CellValueChangedEventArgs e)
+    {
+      if (!(e.Column.FieldName.ToString() == "IsSelected"))
+        return;
+      (e.Row as DataSetPara).IsSelected = (bool) e.Value;
+      if (this.ParaListValue.All<DataSetPara>((Func<DataSetPara, bool>) (p => p.IsSelected)))
+        this.IsSelectAll = new bool?(true);
+      else if (this.ParaListValue.All<DataSetPara>((Func<DataSetPara, bool>) (p => !p.IsSelected)))
+        this.IsSelectAll = new bool?(false);
+      else
+        this.IsSelectAll = new bool?();
+    }
+
+    private void RefreshCheckBox()
+    {
+      if (this.ParaListValue == null || this.ParaListValue.Count == 0 || this.ParaListValue.All<DataSetPara>((Func<DataSetPara, bool>) (p => !p.IsSelected)))
+        this.IsSelectAll = new bool?(false);
+      else if (this.ParaListValue.All<DataSetPara>((Func<DataSetPara, bool>) (p => p.IsSelected)))
+        this.IsSelectAll = new bool?(true);
+      else
+        this.IsSelectAll = new bool?();
+    }
+
+    public bool? IsSelectAll
+    {
+      get => this.isSelectAll;
+      set
+      {
+        this.isSelectAll = value;
+        this.RaisePropertyChanged(nameof (IsSelectAll));
+      }
+    }
+
+    public ObservableCollection<DataSetPara> ParaListValue
+    {
+      get => this.m_listPara;
+      set
+      {
+        this.m_listPara = value;
+        this.RaisePropertyChanged(nameof (ParaListValue));
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void RaisePropertyChanged(string strPropertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(strPropertyName));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/maindatagridparaset.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    internal Delegate _CreateDelegate(Type delegateType, string handler) => Delegate.CreateDelegate(delegateType, (object) this, handler);
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.Self = (MainDataGridParaSet) target;
+          break;
+        case 2:
+          this.treeBorder = (Border) target;
+          break;
+        case 3:
+          this.paraTree = (MainDataGridParaTreeSet) target;
+          break;
+        case 4:
+          this.dataGrid = (GridControl) target;
+          break;
+        case 6:
+          this.tableView = (TableView) target;
+          this.tableView.CellValueChanging += new CellValueChangedEventHandler(this.tableView_CellValueChanging);
+          break;
+        case 7:
+          this.ParaDescription = (TextBox) target;
+          break;
+        case 8:
+          this.BtnOK = (Button) target;
+          this.BtnOK.Click += new RoutedEventHandler(this.BtnOK_Click);
+          break;
+        case 9:
+          this.BtnCancle = (Button) target;
+          this.BtnCancle.Click += new RoutedEventHandler(this.BtnCancle_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IStyleConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId != 5)
+        return;
+      ((CheckEdit) target).Checked += new RoutedEventHandler(this.CheckAll_Checked);
+      ((CheckEdit) target).Unchecked += new RoutedEventHandler(this.CheckAll_Unchecked);
+    }
+  }
+}

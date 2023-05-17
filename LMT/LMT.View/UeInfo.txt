@@ -1,0 +1,1090 @@
+using CommonUtility;
+using LMT.ViewModel;
+using MsgQueue;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Forms;
+using System.Windows.Markup;
+using UEData;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class UeInfo : System.Windows.Controls.UserControl, IComponentConnector
+  {
+    private UeInfoModel UeModel;
+    private bool is5G = true;
+    private string strBSIp;
+    private byte nType = byte.MaxValue;
+    public DataSet Dt;
+    internal System.Windows.Controls.TabControl UeInfotab;
+    internal TabItem UE;
+    internal System.Windows.Controls.Label label;
+    internal System.Windows.Controls.TextBox Selecttb;
+    internal System.Windows.Controls.ComboBox comboBox;
+    internal System.Windows.Controls.DataGrid dataGrid0;
+    internal System.Windows.Controls.DataGrid dataGrid1;
+    internal System.Windows.Controls.DataGrid dataGrid;
+    internal TabItem UEip;
+    internal System.Windows.Controls.RadioButton cellRadioButton;
+    internal System.Windows.Controls.TextBox CellIndex;
+    internal System.Windows.Controls.Label UeIndexTest;
+    internal System.Windows.Controls.TextBox UeIndex;
+    internal System.Windows.Controls.DataGrid DataGrid_Cell;
+    internal System.Windows.Controls.DataGrid DataGrid_Ue;
+    internal TabItem Measf;
+    internal System.Windows.Controls.TextBox eNBIndex;
+    internal System.Windows.Controls.TextBox nLocalCellId;
+    internal System.Windows.Controls.DataGrid DataGrid_Meas;
+    internal System.Windows.Controls.DataGrid DataGrid_Meas_5G;
+    internal System.Windows.Controls.DataGrid DataGrid_Gap;
+    internal TabItem Rea;
+    internal System.Windows.Controls.Label label_CellIndex;
+    internal System.Windows.Controls.TextBox textBox_CellIndex;
+    internal System.Windows.Controls.Label label_UeIndex;
+    internal System.Windows.Controls.TextBox textBox_UeIndex;
+    internal System.Windows.Controls.Label label_eNB;
+    internal System.Windows.Controls.TextBox textBox_eNBUeIndex;
+    internal System.Windows.Controls.Button Button_Release;
+    private bool _contentLoaded;
+
+    public UeInfo() => this.InitializeComponent();
+
+    private void Export_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.dataGrid.ItemsSource == null || this.dataGrid0.ItemsSource == null || this.dataGrid1.ItemsSource == null)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm1"));
+      }
+      else
+      {
+        SaveFileDialog saveFileDialog = new SaveFileDialog();
+        saveFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+        saveFileDialog.FileName = "Ueinfo" + DateTime.Now.ToString("yyyyMMddhhmmss");
+        saveFileDialog.AddExtension = true;
+        saveFileDialog.DefaultExt = "xls";
+        if (saveFileDialog.ShowDialog() != DialogResult.OK)
+          return;
+        if (CommExcelHelper.DataTableToExcel(saveFileDialog.FileName, this.GetListTable()) != -1)
+        {
+          if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm2"), CustomMessageBoxButton.OKCancel) != CustomMessageBoxResult.OK)
+            return;
+          Process.Start(saveFileDialog.FileName);
+        }
+        else
+        {
+          int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm3"));
+        }
+      }
+    }
+
+    private void Query_Click(object sender, RoutedEventArgs e)
+    {
+      GlobalData.IsSelcetUEdata = false;
+      GlobalData.CellUeInfo.Clear();
+      GlobalData.strUeInfo.Clear();
+      GlobalData.strPduInfo.Clear();
+      this.UeModel = this.DataContext as UeInfoModel;
+      SubscribeHelper.CancelSubscribe(this.UeModel.strBSIp + "ue_ver_msg", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 88, nameof (Query_Click));
+      SubscribeHelper.AddSubscribe(this.UeModel.strBSIp + "ue_ver_msg", new HandlerSubscribeMsg(this.SetUeComBox), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 89, nameof (Query_Click));
+      try
+      {
+        this.is5G = CSEnbHelper.GetStationFrameType(this.UeModel.strBSIp) == EnbTypeEnum.ENB_EMB6116;
+        UEOperation.GetInstance(this.UeModel.strBSIp).QueryUeinfo(this.dataGrid0, this.dataGrid1, this.dataGrid);
+        new Task((Action) (() =>
+        {
+          Thread.Sleep(3000);
+          if (GlobalData.IsSelcetUEdata)
+            return;
+          ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_143") + this.UeModel.strBSIp, this.UeModel.strBSIp);
+        })).Start();
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 114, nameof (Query_Click));
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm4"));
+      }
+    }
+
+    private void UeSearch(object sender, RoutedEventArgs e)
+    {
+      try
+      {
+        this.UeModel = this.DataContext as UeInfoModel;
+        if (!("" != this.comboBox.Text) && !(this.Selecttb.Text != ""))
+          return;
+        this.DIMSelect(this.comboBox.Items.IndexOf((object) this.comboBox.Text), this.UeModel.strBSIp, this.Selecttb.Text.Trim());
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("模糊检索异常：{0}", (object) ex.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 135, nameof (UeSearch));
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm5"), LanguageServices.Current.GetTextValue("UE_Select"));
+      }
+    }
+
+    private void DIMSelect(int nIndex, string strIp, string value)
+    {
+      if (!GlobalData.SData.ContainsKey(strIp))
+      {
+        this.dataGrid.ItemsSource = (IEnumerable) null;
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm1"));
+        LogManager.Log.Error("未查询到数据.请检查是否查询到UE数据.", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 152, nameof (DIMSelect));
+      }
+      else
+      {
+        DataTable dataTable1 = GlobalData.SData[strIp];
+        DataTable dataTable2 = dataTable1.Clone();
+        if (dataTable1.Columns[nIndex].DataType == typeof (string))
+        {
+          foreach (DataRow dataRow in dataTable1.Select(string.Format("{0} like '%{1}%'", (object) dataTable1.Columns[nIndex].ColumnName, (object) value)))
+            dataTable2.Rows.Add(dataRow.ItemArray);
+        }
+        else if (dataTable1.Columns[nIndex].DataType == typeof (ushort))
+        {
+          foreach (DataRow dataRow in dataTable1.Select(string.Format("{0} = '{1}'", (object) dataTable1.Columns[nIndex].ColumnName, (object) value)))
+            dataTable2.Rows.Add(dataRow.ItemArray);
+        }
+        else
+        {
+          foreach (DataRow row in (InternalDataCollectionBase) dataTable1.Rows)
+          {
+            if (this.GetTreeValue((ObservableCollection<ChildrenUeInfo>) row[nIndex]).Contains(value))
+              dataTable2.Rows.Add(row.ItemArray);
+          }
+        }
+        this.dataGrid.DataContext = (object) dataTable2;
+      }
+    }
+
+    private List<DataTable> GetListTable() => new List<DataTable>()
+    {
+      this.InitDatable((DataTable) this.dataGrid.DataContext, this.dataGrid.Columns),
+      this.InitDatable((DataTable) this.dataGrid0.DataContext, this.dataGrid0.Columns),
+      this.InitDatable((DataTable) this.dataGrid1.DataContext, this.dataGrid1.Columns)
+    };
+
+    private DataTable InitDatable(DataTable Dt, ObservableCollection<DataGridColumn> cols)
+    {
+      DataTable dataTable = new DataTable();
+      dataTable.TableName = Dt.TableName;
+      foreach (DataGridColumn col in (Collection<DataGridColumn>) cols)
+        dataTable.Columns.Add(col.Header.ToString(), typeof (string));
+      for (int index = 0; index < Dt.Rows.Count; ++index)
+      {
+        DataRow row = dataTable.NewRow();
+        for (int columnIndex = 0; columnIndex < Dt.Columns.Count; ++columnIndex)
+          row[columnIndex] = !(Dt.Rows[index][columnIndex] is ObservableCollection<ChildrenUeInfo>) ? Dt.Rows[index][columnIndex] : (object) this.GetTreeValue(Dt.Rows[index][columnIndex] as ObservableCollection<ChildrenUeInfo>);
+        dataTable.Rows.Add(row);
+      }
+      return dataTable;
+    }
+
+    private void SetUeComBox(SubscribeMsg msg) => this.comboBox.Dispatcher.Invoke((Action) (() =>
+    {
+      if (this.comboBox.Items.Count == 0)
+        return;
+      this.comboBox.Items.Clear();
+      foreach (DataGridColumn column in (Collection<DataGridColumn>) this.dataGrid.Columns)
+        this.comboBox.Items.Add(column.Header);
+    }));
+
+    private void UeBusiness_Query(object sender, RoutedEventArgs e)
+    {
+      GlobalData.IsSelcetUEIPdata = false;
+      this.UeModel = this.DataContext as UeInfoModel;
+      this.strBSIp = this.UeModel.strBSIp;
+      SubscribeHelper.CancelSubscribe(this.UeModel.strBSIp + "ueip_celltype_msg", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 260, nameof (UeBusiness_Query));
+      SubscribeHelper.AddSubscribe(this.UeModel.strBSIp + "ueip_celltype_msg", new HandlerSubscribeMsg(this.SetUeIpDatagrid), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 261, nameof (UeBusiness_Query));
+      string str1 = "";
+      if (this.CellIndex.Text.Trim() == "")
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm6"));
+      }
+      else
+      {
+        string str2;
+        try
+        {
+          if (Convert.ToInt32(this.CellIndex.Text.Trim()) < 0 || Convert.ToInt32(this.CellIndex.Text.Trim()) > 35)
+          {
+            int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm7"));
+            if (!this.CellIndex.Focus())
+              return;
+            this.CellIndex.SelectAll();
+            return;
+          }
+          str2 = this.CellIndex.Text.Trim();
+        }
+        catch (Exception ex)
+        {
+          int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm8"));
+          if (!this.CellIndex.Focus())
+            return;
+          this.CellIndex.SelectAll();
+          return;
+        }
+        if (!this.UeIndex.IsReadOnly)
+        {
+          if (this.UeIndex.Text.Trim() == "")
+          {
+            int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm35"), LanguageServices.Current.GetTextValue("UE_ueipselect"));
+            return;
+          }
+          try
+          {
+            if (Convert.ToInt32(this.UeIndex.Text.Trim()) < 0 || Convert.ToInt32(this.UeIndex.Text.Trim()) > 1200)
+            {
+              int num5 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm9"), LanguageServices.Current.GetTextValue("UE_ueipselect"));
+              if (!this.UeIndex.Focus())
+                return;
+              this.UeIndex.SelectAll();
+              return;
+            }
+            str1 = this.UeIndex.Text.Trim();
+          }
+          catch (Exception ex)
+          {
+            int num6 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm10"), LanguageServices.Current.GetTextValue("UE_ueipselect"));
+            if (!this.UeIndex.Focus())
+              return;
+            this.UeIndex.SelectAll();
+            return;
+          }
+        }
+        try
+        {
+          UEOperation instance = UEOperation.GetInstance(this.UeModel.strBSIp);
+          GlobalData.strUeIpCellInfos[this.UeModel.strBSIp].Clear();
+          GlobalData.strUeIpInfos[this.UeModel.strBSIp].Clear();
+          string csCellIndex = str2;
+          string csUEIndex = str1;
+          if (!instance.QueryIpinfo(csCellIndex, csUEIndex))
+          {
+            LogManager.Log.Error("UE业务面查询失败!", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 328, nameof (UeBusiness_Query));
+            int num7 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm11"));
+          }
+          else
+            new Task((Action) (() =>
+            {
+              Thread.Sleep(3000);
+              if (GlobalData.IsSelcetUEIPdata)
+                return;
+              ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_143") + this.UeModel.strBSIp, this.UeModel.strBSIp);
+            })).Start();
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 344, nameof (UeBusiness_Query));
+        }
+      }
+    }
+
+    private void UeBusiness_Put(object sender, RoutedEventArgs e)
+    {
+      if (this.strBSIp == null)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm17"));
+      }
+      else if (GlobalData.strUeIpCellInfos[this.strBSIp].Count == 0 || GlobalData.strUeIpInfos[this.strBSIp].Count == 0)
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm17"));
+      }
+      else
+      {
+        SaveFileDialog saveFileDialog = new SaveFileDialog();
+        saveFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+        saveFileDialog.FileName = "UeIpInfo" + DateTime.Now.ToString("yyyyMMddhhmmss");
+        saveFileDialog.DefaultExt = "xls";
+        saveFileDialog.AddExtension = true;
+        if (saveFileDialog.ShowDialog() != DialogResult.OK)
+          return;
+        if (CommExcelHelper.DataTableToExcel(saveFileDialog.FileName, this.GetUeIpTable()) != -1)
+        {
+          if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm18"), CustomMessageBoxButton.OKCancel) != CustomMessageBoxResult.OK)
+            return;
+          Process.Start(saveFileDialog.FileName);
+        }
+        else
+        {
+          int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm19"));
+        }
+      }
+    }
+
+    private void SetUeIpDatagrid(SubscribeMsg msg)
+    {
+      this.nType = msg.Data[0];
+      this.Dispatcher.Invoke((Action) (() => this.SetColumns(this.nType)));
+    }
+
+    private void SetColumns(byte nType)
+    {
+      switch (nType)
+      {
+        case 0:
+          for (int index = 0; index < this.DataGrid_Ue.Columns.Count; ++index)
+          {
+            if (index < 16)
+            {
+              if (index == 0)
+                this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+              else
+                this.DataGrid_Ue.Columns[index].Visibility = Visibility.Visible;
+            }
+            else
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+          }
+          for (int index = 5; index < this.DataGrid_Cell.Columns.Count; ++index)
+            this.DataGrid_Cell.Columns[index].Visibility = Visibility.Visible;
+          break;
+        case 1:
+          for (int index = 0; index < this.DataGrid_Ue.Columns.Count; ++index)
+          {
+            if (index == 1 || index == 2 || index == 5 || index == 7 || index > 21)
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Visible;
+            else
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+          }
+          for (int index = 5; index < this.DataGrid_Cell.Columns.Count; ++index)
+            this.DataGrid_Cell.Columns[index].Visibility = Visibility.Hidden;
+          break;
+        case 4:
+          for (int index = 0; index < this.DataGrid_Ue.Columns.Count; ++index)
+          {
+            if (index < 16)
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Visible;
+            else
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+          }
+          for (int index = 9; index < this.DataGrid_Cell.Columns.Count; ++index)
+            this.DataGrid_Cell.Columns[index].Visibility = Visibility.Hidden;
+          break;
+        case 11:
+        case 12:
+        case 14:
+          if (nType == (byte) 12 || nType == (byte) 14)
+          {
+            for (int index = 0; index < this.DataGrid_Ue.Columns.Count; ++index)
+            {
+              if (index < 26)
+              {
+                if (index == 18 || index == 19)
+                  this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+                else
+                  this.DataGrid_Ue.Columns[index].Visibility = Visibility.Visible;
+              }
+              else
+                this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+            }
+          }
+          else
+          {
+            for (int index = 0; index < this.DataGrid_Ue.Columns.Count; ++index)
+            {
+              if (index < 26)
+              {
+                if (index == 20)
+                  this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+                else
+                  this.DataGrid_Ue.Columns[index].Visibility = Visibility.Visible;
+              }
+              else
+                this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+            }
+          }
+          for (int index = 5; index < this.DataGrid_Cell.Columns.Count; ++index)
+            this.DataGrid_Cell.Columns[index].Visibility = Visibility.Visible;
+          break;
+        default:
+          for (int index = 0; index < this.DataGrid_Ue.Columns.Count; ++index)
+          {
+            if (index < 22)
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Visible;
+            else
+              this.DataGrid_Ue.Columns[index].Visibility = Visibility.Hidden;
+          }
+          for (int index = 5; index < this.DataGrid_Cell.Columns.Count; ++index)
+            this.DataGrid_Cell.Columns[index].Visibility = Visibility.Visible;
+          break;
+      }
+      if (nType == (byte) 14)
+      {
+        for (int index = 11; index < this.DataGrid_Cell.Columns.Count; ++index)
+          this.DataGrid_Cell.Columns[index].Visibility = Visibility.Visible;
+      }
+      else
+      {
+        for (int index = 11; index < this.DataGrid_Cell.Columns.Count; ++index)
+          this.DataGrid_Cell.Columns[index].Visibility = Visibility.Hidden;
+      }
+    }
+
+    private List<DataTable> GetUeIpTable()
+    {
+      List<DataTable> ueIpTable = new List<DataTable>();
+      DataTable dataTable1 = new DataTable(LanguageServices.Current.GetTextValue("UE_cellInfo"));
+      DataTable dataTable2 = new DataTable(LanguageServices.Current.GetTextValue("UE_celluserInfo"));
+      foreach (DataGridColumn column in (Collection<DataGridColumn>) this.DataGrid_Cell.Columns)
+      {
+        if (column.Visibility == Visibility.Visible)
+          dataTable1.Columns.Add(column.Header.ToString(), System.Type.GetType("System.String"));
+      }
+      foreach (DataGridColumn column in (Collection<DataGridColumn>) this.DataGrid_Ue.Columns)
+      {
+        if (column.Visibility == Visibility.Visible)
+          dataTable2.Columns.Add(column.Header.ToString(), System.Type.GetType("System.String"));
+      }
+      for (int index = 0; index < GlobalData.strUeIpCellInfos[this.strBSIp].Count; ++index)
+      {
+        DataRow row = dataTable1.NewRow();
+        row[0] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].BbuCellIndex;
+        row[1] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].CellIndexEnb;
+        row[2] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].SlotId;
+        row[3] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].ProcId;
+        row[4] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].ValidNofUeInEnb;
+        if (this.nType != (byte) 1)
+        {
+          row[5] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].UlSpsActiveUeNum;
+          row[6] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].DlSpsActiveUeNum;
+          row[7] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].nAmrNBNum;
+          row[8] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].AmrWBNum;
+          if (this.nType == (byte) 11 || this.nType == (byte) 12 || this.nType == (byte) 14)
+          {
+            row[9] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].PrbUl;
+            row[10] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].PrbDl;
+            if (this.nType == (byte) 14)
+            {
+              row[11] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].MaxPrbOccupyRatioUl;
+              row[12] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].MinPrbOccupyRatioUl;
+              row[13] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].DedicatedPrbOccupyRatioUl;
+              row[14] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].QosPrbOccupyRatioUl;
+              row[15] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].MaxPrbOccupyRatioDl;
+              row[16] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].MinPrbOccupyRatioDl;
+              row[17] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].DedicatedPrbOccupyRatioDl;
+              row[18] = (object) GlobalData.strUeIpCellInfos[this.strBSIp][index].QosPrbOccupyRatioDl;
+            }
+          }
+        }
+        dataTable1.Rows.Add(row);
+      }
+      for (int index = 0; index < GlobalData.strUeIpInfos[this.strBSIp].Count; ++index)
+      {
+        DataRow row = dataTable2.NewRow();
+        if (this.nType == (byte) 0)
+        {
+          row[0] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIndexCell;
+          row[1] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIpInfo;
+          row[2] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].HlMacUeLocation;
+          row[3] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacUeLocation;
+          row[4] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacTA;
+          row[5] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacTmMode;
+          row[6] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeCapability;
+          row[7] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].FlowType;
+          row[8] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlSpsActiveFlag;
+          row[9] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlSpsActiveFlag;
+          row[10] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].CaActiveFlag;
+          row[11] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].ScellCellIndexEnb;
+          row[12] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].ScellUeIndex;
+          row[13] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UIRruInfo;
+          row[14] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DIRruInfo;
+        }
+        else if (this.nType == (byte) 1)
+        {
+          row[0] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIndexCell;
+          row[1] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIpInfo;
+          row[2] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacTA;
+          row[3] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeCapability;
+          row[4] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeUlMcl;
+          row[5] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeDlMcl;
+          row[6] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlSinr;
+          row[7] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlSinr;
+        }
+        else
+        {
+          row[0] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIndexEnb;
+          row[1] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIndexCell;
+          row[2] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeIpInfo;
+          row[3] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].HlMacUeLocation;
+          row[4] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacUeLocation;
+          row[5] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacTA;
+          row[6] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].MacTmMode;
+          row[7] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UeCapability;
+          row[8] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].FlowType;
+          row[9] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlSpsActiveFlag;
+          row[10] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlSpsActiveFlag;
+          row[11] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].CaActiveFlag;
+          row[12] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].ScellCellIndexEnb;
+          row[13] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].ScellUeIndex;
+          row[14] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UIRruInfo;
+          row[15] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DIRruInfo;
+          if (this.nType != (byte) 4)
+          {
+            if (this.nType == (byte) 11)
+            {
+              row[16] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlTeid;
+              row[17] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlTeId;
+              row[18] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlBwpid;
+              row[19] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].Bwpid;
+              row[20] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].Beam;
+              row[21] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlMcsTable;
+              row[22] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlMcsTable;
+              row[23] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].PDCP;
+              row[24] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].RLC;
+            }
+            else if (this.nType == (byte) 12 || this.nType == (byte) 14)
+            {
+              row[16] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlTeid;
+              row[17] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlTeId;
+              row[18] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].Bwpid;
+              row[19] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].Beam;
+              row[20] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlMcsTable;
+              row[21] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlMcsTable;
+              row[22] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].PDCP;
+              row[23] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].RLC;
+            }
+            else
+            {
+              row[16] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlTeid;
+              row[17] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlTeId;
+              row[18] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].Bwpid;
+              row[19] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].Beam;
+              row[20] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].DlMcsTable;
+              row[21] = (object) GlobalData.strUeIpInfos[this.strBSIp][index].UlMcsTable;
+            }
+          }
+        }
+        dataTable2.Rows.Add(row);
+      }
+      ueIpTable.Add(dataTable1);
+      ueIpTable.Add(dataTable2);
+      return ueIpTable;
+    }
+
+    private void Mcf_Click(object sender, RoutedEventArgs e)
+    {
+      GlobalData.IsSelcetUEMeasdata = false;
+      this.UeModel = this.DataContext as UeInfoModel;
+      this.strBSIp = this.UeModel.strBSIp;
+      this.is5G = CSEnbHelper.GetStationFrameType(this.strBSIp) == EnbTypeEnum.ENB_EMB6116;
+      if (this.is5G)
+      {
+        this.DataGrid_Meas_5G.Visibility = Visibility.Visible;
+        this.DataGrid_Meas.Visibility = Visibility.Hidden;
+        this.DataGrid_Gap.Visibility = Visibility.Visible;
+      }
+      else
+      {
+        this.DataGrid_Meas_5G.Visibility = Visibility.Hidden;
+        this.DataGrid_Meas.Visibility = Visibility.Visible;
+        this.DataGrid_Gap.Visibility = Visibility.Hidden;
+      }
+      if (!GlobalData.strUeMeasInfos.ContainsKey(this.UeModel.strBSIp))
+        GlobalData.strUeMeasInfos.Add(this.UeModel.strBSIp, new ObservableCollection<UeMeasCfInfo>());
+      else
+        GlobalData.strUeMeasInfos[this.UeModel.strBSIp].Clear();
+      if (!GlobalData.strUeMeasGapInfos.ContainsKey(this.UeModel.strBSIp))
+        GlobalData.strUeMeasGapInfos.Add(this.UeModel.strBSIp, new ObservableCollection<UeMeasGap>());
+      else
+        GlobalData.strUeMeasGapInfos[this.UeModel.strBSIp].Clear();
+      if (this.eNBIndex.Text.Trim() == string.Empty)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm20"), LanguageServices.Current.GetTextValue("UE_measselect"));
+      }
+      else if (this.nLocalCellId.Text.Trim() == string.Empty)
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm21"), LanguageServices.Current.GetTextValue("UE_measselect"));
+      }
+      else
+      {
+        ushort uint16;
+        try
+        {
+          if (65534 < Convert.ToInt32(this.eNBIndex.Text.Trim()) || Convert.ToInt32(this.eNBIndex.Text.Trim()) < 0)
+          {
+            int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm22"), LanguageServices.Current.GetTextValue("UE_measselect"));
+            if (!this.eNBIndex.Focus())
+              return;
+            this.eNBIndex.SelectAll();
+            return;
+          }
+          uint16 = Convert.ToUInt16(this.eNBIndex.Text.Trim());
+        }
+        catch (Exception ex)
+        {
+          int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm23"), LanguageServices.Current.GetTextValue("UE_measselect"));
+          if (!this.eNBIndex.Focus())
+            return;
+          this.eNBIndex.SelectAll();
+          return;
+        }
+        byte cellId;
+        try
+        {
+          if ((int) byte.MaxValue < Convert.ToInt32(this.nLocalCellId.Text.Trim()) || Convert.ToInt32(this.nLocalCellId.Text.Trim()) < 0)
+          {
+            int num5 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm24"), LanguageServices.Current.GetTextValue("UE_measselect"));
+            if (!this.nLocalCellId.Focus())
+              return;
+            this.nLocalCellId.SelectAll();
+            return;
+          }
+          cellId = Convert.ToByte(this.nLocalCellId.Text.Trim());
+        }
+        catch (Exception ex)
+        {
+          int num6 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm25"), LanguageServices.Current.GetTextValue("UE_measselect"));
+          if (!this.eNBIndex.Focus())
+            return;
+          this.eNBIndex.SelectAll();
+          return;
+        }
+        try
+        {
+          if (!UEOperation.GetInstance(this.UeModel.strBSIp).QueryMcfinfo(uint16, cellId))
+          {
+            int num7 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm26"));
+          }
+          else
+            new Task((Action) (() =>
+            {
+              Thread.Sleep(3000);
+              if (GlobalData.IsSelcetUEMeasdata)
+                return;
+              ShowLogHelper.Show(LanguageServices.Current.GetTextValue("BaseInfo_Log_143") + this.UeModel.strBSIp, this.UeModel.strBSIp);
+            })).Start();
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.Error(ex.Message.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 827, nameof (Mcf_Click));
+        }
+      }
+    }
+
+    private void Mcf_Export(object sender, RoutedEventArgs e)
+    {
+      if (this.strBSIp == null)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm27"));
+      }
+      else if (GlobalData.strUeMeasInfos[this.strBSIp].Count == 0)
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm27"));
+      }
+      else if (this.is5G && GlobalData.strUeMeasGapInfos[this.strBSIp].Count == 0)
+      {
+        int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm27"));
+      }
+      else
+      {
+        SaveFileDialog saveFileDialog = new SaveFileDialog();
+        saveFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+        saveFileDialog.FileName = "UeMeasInfo" + DateTime.Now.ToString("yyyyMMddhhmmss");
+        saveFileDialog.AddExtension = true;
+        saveFileDialog.DefaultExt = "xls";
+        if (saveFileDialog.ShowDialog() != DialogResult.OK)
+          return;
+        if (CommExcelHelper.DataTableToExcel(saveFileDialog.FileName, this.Get5GMcfTable()) != -1)
+        {
+          if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm28"), CustomMessageBoxButton.OKCancel) != CustomMessageBoxResult.OK)
+            return;
+          Process.Start(saveFileDialog.FileName);
+        }
+        else
+        {
+          int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm29"));
+        }
+      }
+    }
+
+    private DataTable GetMcfTable()
+    {
+      DataTable mcfTable = new DataTable("UE测量表");
+      foreach (DataGridColumn column in (Collection<DataGridColumn>) this.DataGrid_Meas.Columns)
+        mcfTable.Columns.Add(column.Header.ToString());
+      for (int index = 0; index < GlobalData.strUeMeasInfos[this.strBSIp].Count; ++index)
+      {
+        DataRow row = mcfTable.NewRow();
+        row[0] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasId;
+        row[1] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasObjectId;
+        row[2] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].CarrierFreq;
+        row[3] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasObjectChoice;
+        row[4] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportConfigId;
+        row[5] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportCfgChoice;
+        row[6] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportConfig;
+        row[7] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasPurpose;
+        row[8] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].AlgorithmType;
+        mcfTable.Rows.Add(row);
+      }
+      return mcfTable;
+    }
+
+    private List<DataTable> Get5GMcfTable()
+    {
+      List<DataTable> dataTableList = new List<DataTable>();
+      DataTable dataTable1 = new DataTable(LanguageServices.Current.GetTextValue("UE_meatab"));
+      DataTable dataTable2 = new DataTable(LanguageServices.Current.GetTextValue("UE_gaptab"));
+      try
+      {
+        if (this.is5G)
+        {
+          foreach (DataGridColumn column in (Collection<DataGridColumn>) this.DataGrid_Meas_5G.Columns)
+            dataTable1.Columns.Add(column.Header.ToString());
+          foreach (DataGridColumn column in (Collection<DataGridColumn>) this.DataGrid_Gap.Columns)
+            dataTable2.Columns.Add(column.Header.ToString());
+          for (int index = 0; index < GlobalData.strUeMeasInfos[this.strBSIp].Count; ++index)
+          {
+            DataRow row = dataTable1.NewRow();
+            row[0] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasId;
+            row[1] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasObjectId;
+            row[2] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportConfigId;
+            row[3] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].RATChoice;
+            row[4] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].CarrierFreq;
+            row[5] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].FreqBandNR;
+            row[6] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportCfgChoice;
+            row[7] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportConfigType;
+            row[8] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportRS;
+            row[9] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasPurpose;
+            row[10] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].SmtcPeriod;
+            row[11] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].SmtcOffset;
+            row[12] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].SmtcDuration;
+            row[13] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].Bitmap;
+            dataTable1.Rows.Add(row);
+          }
+          for (int index = 0; index < GlobalData.strUeMeasGapInfos[this.strBSIp].Count; ++index)
+          {
+            DataRow row = dataTable2.NewRow();
+            row[0] = (object) GlobalData.strUeMeasGapInfos[this.strBSIp][index].GapType;
+            row[1] = (object) GlobalData.strUeMeasGapInfos[this.strBSIp][index].GapOffset;
+            row[2] = (object) GlobalData.strUeMeasGapInfos[this.strBSIp][index].mgl;
+            row[3] = (object) GlobalData.strUeMeasGapInfos[this.strBSIp][index].mgrp;
+            row[4] = (object) GlobalData.strUeMeasGapInfos[this.strBSIp][index].mgta;
+            dataTable2.Rows.Add(row);
+          }
+          dataTableList.Add(dataTable1);
+          dataTableList.Add(dataTable2);
+        }
+        else
+        {
+          foreach (DataGridColumn column in (Collection<DataGridColumn>) this.DataGrid_Meas.Columns)
+            dataTable1.Columns.Add(column.Header.ToString());
+          for (int index = 0; index < GlobalData.strUeMeasInfos[this.strBSIp].Count; ++index)
+          {
+            DataRow row = dataTable1.NewRow();
+            row[0] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasId;
+            row[1] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasObjectId;
+            row[2] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].CarrierFreq;
+            row[3] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasObjectChoice;
+            row[4] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportConfigId;
+            row[5] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportCfgChoice;
+            row[6] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].ReportConfig;
+            row[7] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].MeasPurpose;
+            row[8] = (object) GlobalData.strUeMeasInfos[this.strBSIp][index].AlgorithmType;
+            dataTable1.Rows.Add(row);
+          }
+          dataTableList.Add(dataTable1);
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("导出5G测量数据异常：{0}", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 978, nameof (Get5GMcfTable));
+        return dataTableList;
+      }
+      return dataTableList;
+    }
+
+    private void Release_Click(object sender, RoutedEventArgs e)
+    {
+      this.UeModel = this.DataContext as UeInfoModel;
+      Regex regex = new Regex("^\\d+$");
+      if (this.textBox_CellIndex.Text.Trim() == string.Empty)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm36"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+      else if (!regex.Match(this.textBox_CellIndex.Text.Trim()).Success)
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm12"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+      else if (this.textBox_UeIndex.Text.Trim() == string.Empty)
+      {
+        int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm30"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+      else if (!regex.Match(this.textBox_UeIndex.Text.Trim()).Success)
+      {
+        int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm13"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+      else if (Convert.ToInt32(this.textBox_UeIndex.Text) > (int) ushort.MaxValue)
+      {
+        int num5 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm31"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+      else if (Convert.ToInt32(this.textBox_CellIndex.Text) > (int) byte.MaxValue)
+      {
+        int num6 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm14"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+      else
+      {
+        if (this.textBox_eNBUeIndex.IsEnabled)
+        {
+          if (this.textBox_eNBUeIndex.Text.Trim() == string.Empty)
+          {
+            int num7 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm32"), LanguageServices.Current.GetTextValue("UE_rea"));
+            return;
+          }
+          if (!regex.Match(this.textBox_eNBUeIndex.Text.Trim()).Success)
+          {
+            int num8 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm15"), LanguageServices.Current.GetTextValue("UE_rea"));
+            return;
+          }
+          using (UEOperation ueOperation = new UEOperation(this.UeModel.strBSIp))
+          {
+            if (!ueOperation.RealseUe(Convert.ToByte(this.textBox_CellIndex.Text), Convert.ToUInt16(this.textBox_UeIndex.Text), (uint) Convert.ToUInt16(this.textBox_eNBUeIndex.Text)))
+            {
+              int num9 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm33"), LanguageServices.Current.GetTextValue("UE_rea"));
+              LogManager.Log.Error(string.Format("小区ID:{0},用户索引:{1},用户基站内索引{2}", (object) this.textBox_CellIndex.Text, (object) this.textBox_UeIndex.Text, (object) this.textBox_eNBUeIndex.Text), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 1049, nameof (Release_Click));
+              return;
+            }
+          }
+        }
+        using (UEOperation ueOperation = new UEOperation(this.UeModel.strBSIp))
+        {
+          if (!ueOperation.RealseUe(Convert.ToByte(this.textBox_CellIndex.Text), Convert.ToUInt16(this.textBox_UeIndex.Text)))
+          {
+            int num10 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm33"), LanguageServices.Current.GetTextValue("UE_rea"));
+            LogManager.Log.Error(string.Format("小区ID:{0},用户索引:{1}", (object) this.textBox_CellIndex.Text, (object) this.textBox_UeIndex.Text), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UeInfo.xaml.cs", 1059, nameof (Release_Click));
+            return;
+          }
+        }
+        int num11 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("UE_alarm34"), LanguageServices.Current.GetTextValue("UE_rea"));
+      }
+    }
+
+    private void MenuItem_Click(object sender, RoutedEventArgs e)
+    {
+      EditColumns editColumns = new EditColumns(this.dataGrid.Columns);
+      editColumns.ShowDialog();
+      if (!editColumns.IsOK)
+        return;
+      for (int index = 0; index < this.dataGrid.Columns.Count; ++index)
+        this.dataGrid.Columns[index].Visibility = Visibility.Visible;
+      for (int index1 = 0; index1 < editColumns.HiddenHeader1.Count; ++index1)
+      {
+        for (int index2 = 0; index2 < this.dataGrid.Columns.Count; ++index2)
+        {
+          if (editColumns.HiddenHeader1[index1].DisplayIndex == this.dataGrid.Columns[index2].DisplayIndex)
+            this.dataGrid.Columns[index2].Visibility = Visibility.Hidden;
+        }
+      }
+    }
+
+    private void CellQuery_Checked(object sender, RoutedEventArgs e)
+    {
+      if (this.UeIndex == null)
+        return;
+      this.UeIndex.IsReadOnly = true;
+      this.UeIndexTest.IsEnabled = false;
+      this.UeIndex.Text = string.Empty;
+    }
+
+    private void UeQuery_Checked(object sender, RoutedEventArgs e)
+    {
+      this.UeIndex.IsReadOnly = false;
+      this.UeIndexTest.IsEnabled = true;
+    }
+
+    private void UeTab_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+      if (((sender as System.Windows.Controls.TabControl).SelectedItem as TabItem).Name == "UE")
+      {
+        if (this.comboBox.Items.Count != 0)
+          return;
+        foreach (DataGridColumn column in (Collection<DataGridColumn>) this.dataGrid.Columns)
+          this.comboBox.Items.Add(column.Header);
+      }
+      else
+      {
+        if (((sender as System.Windows.Controls.TabControl).SelectedItem as TabItem).Name == "UEip" || ((sender as System.Windows.Controls.TabControl).SelectedItem as TabItem).Name == "Measf")
+          return;
+        if (GlobalData.bSupportBigCap)
+        {
+          this.textBox_eNBUeIndex.IsEnabled = true;
+        }
+        else
+        {
+          this.textBox_eNBUeIndex.IsEnabled = false;
+          this.label_eNB.IsEnabled = false;
+        }
+      }
+    }
+
+    private string GetTreeValue(ObservableCollection<ChildrenUeInfo> child)
+    {
+      string treeValue = "";
+      foreach (ChildrenUeInfo strTree in (Collection<ChildrenUeInfo>) child)
+        treeValue = treeValue + this.TreeToString(strTree) + "\r\n";
+      return treeValue;
+    }
+
+    private string TreeToString(ChildrenUeInfo strTree)
+    {
+      string str = "" + strTree.UeInfoChildren;
+      if (strTree.Children.Count != 0)
+      {
+        foreach (ChildrenUeInfo child in strTree.Children)
+          str = str + this.TreeToString(child) + " ";
+      }
+      return str;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/view/ueinfo.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.UeInfotab = (System.Windows.Controls.TabControl) target;
+          this.UeInfotab.SelectionChanged += new SelectionChangedEventHandler(this.UeTab_SelectionChanged);
+          break;
+        case 2:
+          this.UE = (TabItem) target;
+          break;
+        case 3:
+          this.label = (System.Windows.Controls.Label) target;
+          break;
+        case 4:
+          this.Selecttb = (System.Windows.Controls.TextBox) target;
+          break;
+        case 5:
+          this.comboBox = (System.Windows.Controls.ComboBox) target;
+          break;
+        case 6:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.UeSearch);
+          break;
+        case 7:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.Query_Click);
+          break;
+        case 8:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.Export_Click);
+          break;
+        case 9:
+          this.dataGrid0 = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 10:
+          this.dataGrid1 = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 11:
+          this.dataGrid = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 12:
+          ((System.Windows.Controls.MenuItem) target).Click += new RoutedEventHandler(this.MenuItem_Click);
+          break;
+        case 13:
+          this.UEip = (TabItem) target;
+          break;
+        case 14:
+          this.cellRadioButton = (System.Windows.Controls.RadioButton) target;
+          this.cellRadioButton.Checked += new RoutedEventHandler(this.CellQuery_Checked);
+          break;
+        case 15:
+          ((ToggleButton) target).Checked += new RoutedEventHandler(this.UeQuery_Checked);
+          break;
+        case 16:
+          this.CellIndex = (System.Windows.Controls.TextBox) target;
+          break;
+        case 17:
+          this.UeIndexTest = (System.Windows.Controls.Label) target;
+          break;
+        case 18:
+          this.UeIndex = (System.Windows.Controls.TextBox) target;
+          break;
+        case 19:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.UeBusiness_Query);
+          break;
+        case 20:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.UeBusiness_Put);
+          break;
+        case 21:
+          this.DataGrid_Cell = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 22:
+          this.DataGrid_Ue = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 23:
+          this.Measf = (TabItem) target;
+          break;
+        case 24:
+          this.eNBIndex = (System.Windows.Controls.TextBox) target;
+          break;
+        case 25:
+          this.nLocalCellId = (System.Windows.Controls.TextBox) target;
+          break;
+        case 26:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.Mcf_Click);
+          break;
+        case 27:
+          ((System.Windows.Controls.Primitives.ButtonBase) target).Click += new RoutedEventHandler(this.Mcf_Export);
+          break;
+        case 28:
+          this.DataGrid_Meas = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 29:
+          this.DataGrid_Meas_5G = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 30:
+          this.DataGrid_Gap = (System.Windows.Controls.DataGrid) target;
+          break;
+        case 31:
+          this.Rea = (TabItem) target;
+          break;
+        case 32:
+          this.label_CellIndex = (System.Windows.Controls.Label) target;
+          break;
+        case 33:
+          this.textBox_CellIndex = (System.Windows.Controls.TextBox) target;
+          break;
+        case 34:
+          this.label_UeIndex = (System.Windows.Controls.Label) target;
+          break;
+        case 35:
+          this.textBox_UeIndex = (System.Windows.Controls.TextBox) target;
+          break;
+        case 36:
+          this.label_eNB = (System.Windows.Controls.Label) target;
+          break;
+        case 37:
+          this.textBox_eNBUeIndex = (System.Windows.Controls.TextBox) target;
+          break;
+        case 38:
+          this.Button_Release = (System.Windows.Controls.Button) target;
+          this.Button_Release.Click += new RoutedEventHandler(this.Release_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

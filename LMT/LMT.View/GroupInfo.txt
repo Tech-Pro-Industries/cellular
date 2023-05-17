@@ -1,0 +1,15 @@
+namespace LMT.View
+{
+  public class GroupInfo
+  {
+    public int ID { get; set; }
+
+    public string Name { get; set; }
+
+    public string Desc { get; set; }
+
+    public string Rights { get; set; }
+
+    public string Status { get; set; }
+  }
+}

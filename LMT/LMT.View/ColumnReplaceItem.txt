@@ -1,0 +1,65 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Linq.Expressions;
+
+namespace LMT.View
+{
+  public class ColumnReplaceItem : ViewModelBase
+  {
+    private string _tblEntry;
+    private string _tblEntryCh;
+    private string _originColNameCh;
+    private string _colMibName;
+    private string _latestColNameCh;
+
+    public string TblEntry
+    {
+      get => this._tblEntry;
+      set
+      {
+        this._tblEntry = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntry));
+      }
+    }
+
+    public string TblEntryCh
+    {
+      get => this._tblEntryCh;
+      set
+      {
+        this._tblEntryCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntryCh));
+      }
+    }
+
+    public string OriginColNameCh
+    {
+      get => this._originColNameCh;
+      set
+      {
+        this._originColNameCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.OriginColNameCh));
+      }
+    }
+
+    public string ColMibName
+    {
+      get => this._colMibName;
+      set
+      {
+        this._colMibName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColMibName));
+      }
+    }
+
+    public string LatestColNameCh
+    {
+      get => this._latestColNameCh;
+      set
+      {
+        this._latestColNameCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.LatestColNameCh));
+      }
+    }
+  }
+}

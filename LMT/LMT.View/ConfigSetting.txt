@@ -1,0 +1,104 @@
+using CommonUtility;
+using LMT.ViewModel;
+using Newtonsoft.Json;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class ConfigSetting : CustomWindow, IComponentConnector
+  {
+    private JsonConfigModel js = new JsonConfigModel();
+    private ObservableCollection<ConfigModel> itreeList = new ObservableCollection<ConfigModel>();
+    internal TreeView TreeView;
+    internal ScrollViewer sw;
+    internal Button Apply;
+    internal Button Cancle;
+    private bool _contentLoaded;
+
+    public ConfigSetting()
+    {
+      this.InitializeComponent();
+      this.js.DisplayContent = "AppConfig";
+      this.ItreeList.Add((ConfigModel) this.js);
+    }
+
+    public ObservableCollection<ConfigModel> ItreeList
+    {
+      get => this.itreeList;
+      set
+      {
+        this.itreeList = value;
+        this.NotifyPropertyChange(nameof (ItreeList));
+      }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    protected void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void Apply_Click(object sender, RoutedEventArgs e)
+    {
+      string str = FilePathHelper.GetAppPath() + "config/AppConfig.json";
+      AppConfig appConfig = JsonHelper.SerializeJsonToObject<AppConfig>(FileRdWrHelper.GetFileContent(str), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigSetting.xaml.cs", 69, nameof (Apply_Click));
+      appConfig.FtpName = this.js.FtpFullPath;
+      appConfig.IsUseSnmpAgent = this.js.IsUseSnmpAgent;
+      appConfig.IsUseSnmpV3 = this.js.IsUseSnmpV3;
+      FileRdWrHelper.OverWriteFileContents(str, JsonHelper.SerializeObjectToString((object) appConfig, Formatting.Indented));
+      int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_AppCFG_ModifySuccessfully"));
+      this.Close();
+    }
+
+    private void Cancle_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/configsetting.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.TreeView = (TreeView) target;
+          break;
+        case 2:
+          this.sw = (ScrollViewer) target;
+          break;
+        case 3:
+          this.Apply = (Button) target;
+          this.Apply.Click += new RoutedEventHandler(this.Apply_Click);
+          break;
+        case 4:
+          this.Cancle = (Button) target;
+          this.Cancle.Click += new RoutedEventHandler(this.Cancle_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

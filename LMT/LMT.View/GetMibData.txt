@@ -1,0 +1,53 @@
+using LinkPath;
+using LmtbSnmp;
+using LogManager;
+using MIBDataParser;
+using System.Collections.Generic;
+
+namespace LMT.View
+{
+  internal class GetMibData
+  {
+    private string gnbip_;
+    private List<string> mibnamelist_;
+
+    public GetMibData(string gnbip, List<string> mibnamelist)
+    {
+      this.gnbip_ = gnbip;
+      this.mibnamelist_ = mibnamelist;
+    }
+
+    public bool GetMibDataDict(
+      out Dictionary<string, List<Dictionary<string, string>>> mibdatadict)
+    {
+      mibdatadict = new Dictionary<string, List<Dictionary<string, string>>>();
+      foreach (string key in this.mibnamelist_)
+      {
+        Dictionary<string, MibLeafInfo> reData = new Dictionary<string, MibLeafInfo>()
+        {
+          {
+            key,
+            (MibLeafInfo) null
+          }
+        };
+        if (!Database.GetInstance().getDataByEnglishName(reData, this.gnbip_, out string _))
+        {
+          Log.Error(string.Format("启动流程图无法获取数据库中{0}的oid", (object) key), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FlowChartView.xaml.cs", 302, nameof (GetMibDataDict));
+          return false;
+        }
+        ILmtbSnmp snmpInstance = DTLinkPathMgr.GetSnmpInstance(this.gnbip_);
+        List<string> stringList = new List<string>()
+        {
+          SnmpToDatabase.GetMibPrefix() + reData[key].childOid
+        };
+        string gnbip = this.gnbip_;
+        List<string> oidList = stringList;
+        List<Dictionary<string, string>> dictionaryList;
+        ref List<Dictionary<string, string>> local = ref dictionaryList;
+        snmpInstance.SnmpGetNextLoop(gnbip, oidList, out local);
+        mibdatadict.Add(key, dictionaryList);
+      }
+      return true;
+    }
+  }
+}

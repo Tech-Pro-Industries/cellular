@@ -1,0 +1,7 @@
+namespace LMT.View
+{
+  public class MODULE
+  {
+    public string name { get; set; }
+  }
+}

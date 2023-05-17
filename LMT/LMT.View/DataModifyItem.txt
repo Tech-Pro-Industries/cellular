@@ -1,0 +1,87 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Linq.Expressions;
+
+namespace LMT.View
+{
+  public class DataModifyItem : ViewModelBase
+  {
+    private string _tblEntry;
+    private string _tblEntryCh;
+    private string _colMibName;
+    private string _colNameCh;
+    private string _index;
+    private string _value;
+    private string _newValue;
+
+    public string TblEntry
+    {
+      get => this._tblEntry;
+      set
+      {
+        this._tblEntry = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntry));
+      }
+    }
+
+    public string TblEntryCh
+    {
+      get => this._tblEntryCh;
+      set
+      {
+        this._tblEntryCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntryCh));
+      }
+    }
+
+    public string ColMibName
+    {
+      get => this._colMibName;
+      set
+      {
+        this._colMibName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColMibName));
+      }
+    }
+
+    public string ColNameCh
+    {
+      get => this._colNameCh;
+      set
+      {
+        this._colNameCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColNameCh));
+      }
+    }
+
+    public string Index
+    {
+      get => this._index;
+      set
+      {
+        this._index = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.Index));
+      }
+    }
+
+    public string Value
+    {
+      get => this._value;
+      set
+      {
+        this._value = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.Value));
+      }
+    }
+
+    public string NewValue
+    {
+      get => this._newValue;
+      set
+      {
+        this._newValue = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.NewValue));
+      }
+    }
+  }
+}

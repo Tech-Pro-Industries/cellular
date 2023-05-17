@@ -1,0 +1,85 @@
+using LMT.Component.ViewModel;
+using MIBDataParser;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class BasicInfoParaSetWin : CustomWindow, IComponentConnector
+  {
+    internal MainDataGridParaSet viewParaSet;
+    private bool _contentLoaded;
+
+    public BasicInfoParaSetWin(MainDataGrid dataGrid)
+    {
+      this.InitializeComponent();
+      this.viewParaSet.paraSetWin = (Window) this;
+      this.viewParaSet.m_MainDataGrid = dataGrid;
+    }
+
+    public void InitParaInfo(
+      CmdMibInfo mibInfo,
+      MibTableInfo table,
+      UICmdOperatorType operType,
+      bool isMultiAdd = false,
+      bool isOnline = true,
+      List<DyDataGrid_MIBModel> ListModel = null,
+      List<CmdMibInfo> listMibInfo = null,
+      bool isMultiQuery = false)
+    {
+      switch (operType)
+      {
+        case UICmdOperatorType.Query:
+          this.viewParaSet.InitQueryParaSetGrid(mibInfo, table, operType, isMultiQuery);
+          break;
+        case UICmdOperatorType.Add:
+          this.viewParaSet.InitAddDataGridInfo(mibInfo, ListModel, table, operType, isMultiAdd);
+          break;
+        case UICmdOperatorType.Modify:
+          if (isOnline)
+          {
+            this.viewParaSet.InitModifyParaSetGrid(mibInfo, ListModel, table, operType, isOnline);
+            break;
+          }
+          this.viewParaSet.InitCfgModifyParaSetGrid(listMibInfo, ListModel, table, operType, isOnline);
+          break;
+        case UICmdOperatorType.Other:
+          if (ListModel == null || ListModel.Count == 0)
+          {
+            this.viewParaSet.InitAddDataGridInfo(mibInfo, ListModel, table, operType, isMultiAdd);
+            break;
+          }
+          this.viewParaSet.InitModifyParaSetGrid(mibInfo, ListModel, table, operType, isOnline);
+          break;
+      }
+      this.Title = this.viewParaSet.Title;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/basicinfoparasetwin.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId == 1)
+        this.viewParaSet = (MainDataGridParaSet) target;
+      else
+        this._contentLoaded = true;
+    }
+  }
+}

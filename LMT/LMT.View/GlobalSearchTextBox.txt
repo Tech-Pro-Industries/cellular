@@ -1,0 +1,45 @@
+using System.Windows.Controls;
+using System.Windows.Input;
+using UICore.Controls.Metro;
+
+namespace LMT.View
+{
+  internal class GlobalSearchTextBox : MetroTextBox
+  {
+    public I_SCMT_BelongUserControl Target_element;
+    private bool bFlag = true;
+
+    protected override void OnTextChanged(TextChangedEventArgs e)
+    {
+      if (!this.bFlag)
+        return;
+      base.OnTextChanged(e);
+      I_SCMT_BelongUserControl targetElement = this.Target_element;
+      if (targetElement == null)
+        return;
+      targetElement.UpdateBelongControl((object) this, new SearchButtonEventArgs()
+      {
+        SearchContent = e.OriginalSource is TextBox originalSource ? originalSource.Text : (string) null,
+        SearchUndoAction = e.UndoAction,
+        SearchTextChange = e.Changes
+      });
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+      base.OnKeyDown(e);
+      if (e.Key == Key.Tab)
+        this.bFlag = !this.bFlag;
+      if (this.bFlag || e.Key != Key.Return)
+        return;
+      I_SCMT_BelongUserControl targetElement = this.Target_element;
+      if (targetElement == null)
+        return;
+      targetElement.UpdateBelongControl((object) this, new SearchButtonEventArgs()
+      {
+        SearchContent = e.OriginalSource is TextBox originalSource ? originalSource.Text : (string) null,
+        SearchUndoAction = UndoAction.Create
+      });
+    }
+  }
+}

@@ -1,0 +1,325 @@
+using CommonUtility;
+using MsgQueue;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class Login : Window, IComponentConnector
+  {
+    private bool _isLogined;
+    private bool _isLogOut;
+    private List<string> _userNames;
+    private string strEndTime = string.Empty;
+    internal Grid gridForLogo;
+    internal Label ToolNameAbb;
+    internal Label ToolName;
+    internal ComboBox tbUserName;
+    internal PasswordBox pbPassword;
+    internal CheckBox ckRemember;
+    internal Button tbLogin;
+    internal Button tbRegister;
+    internal Button tbExit;
+    internal Label CompanyNameCh;
+    private bool _contentLoaded;
+
+    public Login()
+    {
+      this.InitializeComponent();
+      this.ToolNameAbb.Content = (object) AppConfigHelper.GetAppSettingValue<string>("LMT", nameof (ToolNameAbb));
+      this.ToolName.Content = (object) AppConfigHelper.GetAppSettingValue<string>("Local Maintain Tool", nameof (ToolName));
+      this.CompanyNameCh.Content = (object) ("©2019 Copyright " + (!LanguageServices.Current.IsEnLanguage ? AppConfigHelper.GetAppSettingValue<string>("大唐移动通讯设备有限公司", nameof (CompanyNameCh)) : AppConfigHelper.GetAppSettingValue<string>("Datang Mobile", "CompanyName")));
+      this._isLogined = false;
+      this._isLogOut = false;
+      this._userNames = new List<string>();
+    }
+
+    public Login(bool isLougOut)
+    {
+      this.InitializeComponent();
+      this.ToolNameAbb.Content = (object) AppConfigHelper.GetAppSettingValue<string>("LMT", nameof (ToolNameAbb));
+      this.ToolName.Content = (object) AppConfigHelper.GetAppSettingValue<string>("Local Maintain Tool", nameof (ToolName));
+      this.CompanyNameCh.Content = (object) ("©2019 CopyRight " + (!LanguageServices.Current.IsEnLanguage ? AppConfigHelper.GetAppSettingValue<string>("大唐移动通讯设备有限公司", nameof (CompanyNameCh)) : AppConfigHelper.GetAppSettingValue<string>("Datang Mobile", "CompanyName")));
+      this._isLogined = false;
+      this._isLogOut = isLougOut;
+      this._userNames = new List<string>();
+    }
+
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+      UserInformation.CheckUserDb();
+      this._userNames = UserInformation.GetUserName();
+      this.tbUserName.ItemsSource = (IEnumerable) this._userNames;
+      Dictionary<string, string> userNameAndTime = UserInformation.GetUserNameAndTime();
+      if (userNameAndTime == null)
+        return;
+      List<DateTime> time = new List<DateTime>();
+      foreach (string str in userNameAndTime.Values.ToList<string>())
+      {
+        if (!string.IsNullOrEmpty(str))
+        {
+          try
+          {
+            time.Add(Convert.ToDateTime(str.ToString()));
+          }
+          catch (Exception ex)
+          {
+            LogManager.Log.Error(string.Format("登陆时间格式异常：{0}", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\Login.xaml.cs", 113, nameof (Window_Loaded));
+          }
+        }
+      }
+      if (time.Count == 0 || userNameAndTime.Count == 0)
+        return;
+      KeyValuePair<string, string> keyValuePair = userNameAndTime.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (x => x.Value == time.Max<DateTime>().ToString()));
+      this.tbUserName.SelectedIndex = this._userNames.IndexOf(keyValuePair.Key.ToString());
+      string password = UserInformation.GetPassword(keyValuePair.Key.ToString());
+      if (!string.IsNullOrEmpty(password))
+      {
+        this.pbPassword.Password = password;
+        this.ckRemember.IsChecked = new bool?(true);
+      }
+      else
+      {
+        this.pbPassword.Password = "";
+        this.ckRemember.IsChecked = new bool?(false);
+      }
+    }
+
+    private void tbLogin_Click(object sender, RoutedEventArgs e)
+    {
+      string str = this.tbUserName.Text.Trim();
+      string password = this.pbPassword.Password.Trim();
+      bool? isChecked = this.ckRemember.IsChecked;
+      bool flag = true;
+      bool isRemeber = isChecked.GetValueOrDefault() == flag && isChecked.HasValue;
+      if (string.IsNullOrEmpty(str))
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_InputName"));
+      }
+      else if (!this._userNames.Contains(str))
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_UserNotExist"));
+      }
+      else
+      {
+        string lockstatus = UserInformation.GetUser(str).Lockstatus;
+        if (lockstatus == "锁定" || lockstatus == "Lock")
+        {
+          int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_UserLocked"));
+        }
+        else if (string.IsNullOrEmpty(password))
+        {
+          int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_InputPassword"));
+        }
+        else if (!UserInformation.Loading(str, password, isRemeber))
+        {
+          int num5 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_LoginFailed"));
+        }
+        else
+        {
+          if (bool.Parse(Singleton<UserInfo>.GetInstance().status))
+            Singleton<LockTimer>.GetInstance().TimerStart(Singleton<UserInfo>.GetInstance().time);
+          this._isLogined = true;
+          if (this._isLogOut)
+          {
+            this.Close();
+            PublishHelper.PublishMsg("Index_Logout", str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\Login.xaml.cs", 184, nameof (tbLogin_Click));
+          }
+          else
+          {
+            MainWindow mainWindow = new MainWindow(this.strEndTime);
+            mainWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            mainWindow.WindowState = WindowState.Maximized;
+            this.Close();
+            mainWindow.ShowDialog();
+          }
+        }
+      }
+    }
+
+    private void RegisterClosed(object sender, EventArgs e)
+    {
+      this._userNames.Clear();
+      this._userNames = UserInformation.GetUserName();
+      this.tbUserName.ItemsSource = (IEnumerable) this._userNames;
+      Dictionary<string, string> userNameAndTime = UserInformation.GetUserNameAndTime();
+      if (userNameAndTime == null || userNameAndTime.Count == 0)
+        return;
+      List<DateTime> time = userNameAndTime.Values.ToList<string>().ConvertAll<DateTime>((Converter<string, DateTime>) (x => Convert.ToDateTime(x)));
+      KeyValuePair<string, string> keyValuePair = userNameAndTime.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (x => x.Value == time.Max<DateTime>().ToString()));
+      this.tbUserName.SelectedIndex = this._userNames.IndexOf(keyValuePair.Key.ToString());
+      string password = UserInformation.GetPassword(keyValuePair.Key.ToString());
+      if (!string.IsNullOrEmpty(password))
+      {
+        this.pbPassword.Password = password;
+        this.ckRemember.IsChecked = new bool?(true);
+      }
+      else
+      {
+        this.pbPassword.Password = "";
+        this.ckRemember.IsChecked = new bool?(false);
+      }
+    }
+
+    private void Window_Closing(object sender, CancelEventArgs e)
+    {
+      if (this._isLogined)
+        return;
+      Application.Current.Shutdown();
+    }
+
+    private void tbUserName_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+      if (this.tbUserName.SelectedItem != null)
+      {
+        string password = UserInformation.GetPassword(this.tbUserName.SelectedItem.ToString());
+        if (!string.IsNullOrEmpty(password))
+        {
+          this.pbPassword.Password = password;
+          this.ckRemember.IsChecked = new bool?(true);
+        }
+        else
+        {
+          this.pbPassword.Password = "";
+          this.ckRemember.IsChecked = new bool?(false);
+        }
+      }
+      else
+      {
+        this.pbPassword.Password = "";
+        this.ckRemember.IsChecked = new bool?(false);
+      }
+    }
+
+    private void tbRegister_Click(object sender, RoutedEventArgs e)
+    {
+      Register register = new Register();
+      register.Closed += new EventHandler(this.RegisterClosed);
+      register.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      register.ShowDialog();
+    }
+
+    private void tbExit_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => this.DragMove();
+
+    private bool VerifyLicense()
+    {
+      using (Process process = new Process())
+      {
+        process.StartInfo.FileName = FilePathHelper.GetAppPath() + "tools\\LmtLicense\\LMTVerifyLicense.exe";
+        process.StartInfo.CreateNoWindow = true;
+        process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.RedirectStandardInput = true;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.UseShellExecute = false;
+        try
+        {
+          process.Start();
+        }
+        catch (Exception ex)
+        {
+          int num = (int) CustomMessageBox.Show("License Check Process start failure");
+          return false;
+        }
+        process.StandardInput.WriteLine("exit");
+        process.StandardInput.AutoFlush = true;
+        this.strEndTime = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        process.Close();
+      }
+      this.strEndTime = this.strEndTime.Trim('\n');
+      this.strEndTime = this.strEndTime.Trim('\r');
+      if (this.strEndTime.Length < 8)
+        return false;
+      ImageBrush imageBrush = new ImageBrush();
+      try
+      {
+        string uriString = FilePathHelper.GetAppPath() + "tools\\LmtLicense\\logo.png";
+        Image image = new Image();
+        imageBrush.ImageSource = (ImageSource) new BitmapImage(new Uri(uriString));
+        this.gridForLogo.Background = (Brush) imageBrush;
+      }
+      catch (Exception ex)
+      {
+      }
+      return true;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/login.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((Window) target).Closing += new CancelEventHandler(this.Window_Closing);
+          ((FrameworkElement) target).Loaded += new RoutedEventHandler(this.Window_Loaded);
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.Window_MouseLeftButtonDown);
+          break;
+        case 2:
+          this.gridForLogo = (Grid) target;
+          break;
+        case 3:
+          this.ToolNameAbb = (Label) target;
+          break;
+        case 4:
+          this.ToolName = (Label) target;
+          break;
+        case 5:
+          this.tbUserName = (ComboBox) target;
+          this.tbUserName.SelectionChanged += new SelectionChangedEventHandler(this.tbUserName_SelectionChanged);
+          break;
+        case 6:
+          this.pbPassword = (PasswordBox) target;
+          break;
+        case 7:
+          this.ckRemember = (CheckBox) target;
+          break;
+        case 8:
+          this.tbLogin = (Button) target;
+          this.tbLogin.Click += new RoutedEventHandler(this.tbLogin_Click);
+          break;
+        case 9:
+          this.tbRegister = (Button) target;
+          this.tbRegister.Click += new RoutedEventHandler(this.tbRegister_Click);
+          break;
+        case 10:
+          this.tbExit = (Button) target;
+          this.tbExit.Click += new RoutedEventHandler(this.tbExit_Click);
+          break;
+        case 11:
+          this.CompanyNameCh = (Label) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}
+

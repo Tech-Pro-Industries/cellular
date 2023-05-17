@@ -1,0 +1,28 @@
+using DevExpress.Xpf.Grid;
+using LmtbSnmp;
+using LogManager;
+using System;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace LMT.View
+{
+  public class MultiEditorsTemplateSelector : DataTemplateSelector
+  {
+    public override DataTemplate SelectTemplate(object item, DependencyObject container)
+    {
+      try
+      {
+        GridCellData gridCellData = (GridCellData) item;
+        GridControl grid = ((GridViewBase) gridCellData.View).Grid;
+        DataSetPara row = gridCellData.Row as DataSetPara;
+        return row.ParaType == DataGrid_CellDataType.DateTime ? (DataTemplate) grid.Resources[(object) "DatetimeTemplate"] : (DataTemplate) grid.Resources[(object) ("Template" + (object) row.ID)];
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGridParaSet.xaml.cs", 2308, nameof (SelectTemplate));
+        return (DataTemplate) null;
+      }
+    }
+  }
+}

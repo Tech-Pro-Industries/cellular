@@ -1,0 +1,145 @@
+using CommonUtility;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using System.Windows.Media.Effects;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class LockSetting : CustomWindow, IComponentConnector
+  {
+    private bool status;
+    private int time;
+    internal CheckBox cbStart;
+    internal Label waitTip;
+    internal DropShadowEffect effect;
+    internal TextBox tbMinute;
+    internal Label min;
+    internal Button btSet;
+    internal Button btCancel;
+    private bool _contentLoaded;
+
+    public LockSetting()
+    {
+      this.InitializeComponent();
+      string appSettingValue = AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb");
+      this.Title = string.Format("{0} {1}", (object) appSettingValue, (object) LanguageServices.Current.GetTextValue("Index_LockSetting_LockSetting"));
+      this.cbStart.Content = (object) string.Format("{0}{1}", (object) appSettingValue, (object) LanguageServices.Current.GetTextValue("Index_LockSetting_Start"));
+      this.waitTip.Content = (object) string.Format("{0}", (object) LanguageServices.Current.GetTextValue("Index_LockSetting_WaitTime"));
+      this.min.Content = (object) string.Format("{0}(1-100)", (object) LanguageServices.Current.GetTextValue("Common_Min"));
+      this.status = bool.Parse(Singleton<UserInfo>.GetInstance().status);
+      this.time = Singleton<UserInfo>.GetInstance().time;
+      this.tbMinute.Text = this.time.ToString();
+      if (this.status)
+      {
+        this.cbStart.IsChecked = new bool?(true);
+        this.tbMinute.IsEnabled = true;
+      }
+      else
+        this.tbMinute.IsEnabled = false;
+    }
+
+    private void cbStart_Checked(object sender, RoutedEventArgs e)
+    {
+      this.status = true;
+      this.tbMinute.IsEnabled = true;
+    }
+
+    private void cbStart_Unchecked(object sender, RoutedEventArgs e)
+    {
+      this.status = false;
+      this.tbMinute.IsEnabled = false;
+    }
+
+    private void btSet_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.status)
+      {
+        if (!new Regex("^\\d+$").IsMatch(this.tbMinute.Text.ToString()))
+        {
+          this.effect.Opacity = 1.0;
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_LockSetting_Range"), messageBoxImage: CustomMessageBoxIcon.Error);
+          return;
+        }
+        int int32 = Convert.ToInt32(this.tbMinute.Text.ToString());
+        if (int32 < 1 || int32 > 100)
+        {
+          this.effect.Opacity = 1.0;
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_LockSetting_Range"), messageBoxImage: CustomMessageBoxIcon.Error);
+          return;
+        }
+        this.time = int32;
+      }
+      if (!UserInformation.UpdataLockInfo(Singleton<UserInfo>.GetInstance().ID, this.time, this.status))
+        return;
+      int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_LockSetting_Success"));
+      if (this.status)
+        Singleton<LockTimer>.GetInstance().TimerRestart(Singleton<UserInfo>.GetInstance().time);
+      else
+        Singleton<LockTimer>.GetInstance().TimerStop();
+      this.Close();
+    }
+
+    private void btCancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void tbMinute_TextChanged(object sender, TextChangedEventArgs e)
+    {
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/locksetting.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.cbStart = (CheckBox) target;
+          this.cbStart.Checked += new RoutedEventHandler(this.cbStart_Checked);
+          this.cbStart.Unchecked += new RoutedEventHandler(this.cbStart_Unchecked);
+          break;
+        case 2:
+          this.waitTip = (Label) target;
+          break;
+        case 3:
+          this.effect = (DropShadowEffect) target;
+          break;
+        case 4:
+          this.tbMinute = (TextBox) target;
+          this.tbMinute.TextChanged += new TextChangedEventHandler(this.tbMinute_TextChanged);
+          break;
+        case 5:
+          this.min = (Label) target;
+          break;
+        case 6:
+          this.btSet = (Button) target;
+          this.btSet.Click += new RoutedEventHandler(this.btSet_Click);
+          break;
+        case 7:
+          this.btCancel = (Button) target;
+          this.btCancel.Click += new RoutedEventHandler(this.btCancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

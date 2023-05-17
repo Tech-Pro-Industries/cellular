@@ -1,0 +1,17 @@
+using System;
+
+namespace LMT.View
+{
+  [Serializable]
+  public struct CfgOperMode
+  {
+    public eCfgOperMode m_CfgOperMode;
+    public bool m_IsUpdate;
+
+    public CfgOperMode(eCfgOperMode mode, bool update)
+    {
+      this.m_CfgOperMode = mode;
+      this.m_IsUpdate = update;
+    }
+  }
+}

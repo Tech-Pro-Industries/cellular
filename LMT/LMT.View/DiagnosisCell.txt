@@ -1,0 +1,367 @@
+using CommonUtility;
+using DataBaseUtil;
+using LMT.Utils;
+using LmtbSnmp;
+using MIBDataParser;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Text;
+using System.Threading;
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Markup;
+using System.Windows.Threading;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class DiagnosisCell : CustomWindow, IComponentConnector
+  {
+    private static string strCon = string.Format("Data Source={0};Version=3;", (object) (FilePathHelper.GetLocalDbPath() + "SCMTUSER.db"));
+    private string strIP;
+    private Dictionary<string, Dictionary<string, string>> strValue1 = new Dictionary<string, Dictionary<string, string>>();
+    private Dictionary<string, Dictionary<string, string>> strValue2 = new Dictionary<string, Dictionary<string, string>>();
+    private string ullotOid = "";
+    private string rssOid = "";
+    private string rssuserOid = "";
+    private bool bRun;
+    private short bCount;
+    private List<DataTable> Db = new List<DataTable>();
+    private DataTable dt1;
+    private DataTable dt2;
+    internal System.Windows.Controls.Label Lb_time;
+    internal System.Windows.Controls.TextBox Tb_time;
+    internal System.Windows.Controls.Button Btn_Start;
+    internal System.Windows.Controls.Button Btn_Over;
+    internal System.Windows.Controls.Button Btn_Put;
+    internal System.Windows.Controls.Button Btn_Del;
+    private bool _contentLoaded;
+
+    public DiagnosisCell(string ip)
+    {
+      this.InitializeComponent();
+      DiagnosisCell.CheckUserDb();
+      this.strIP = ip;
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+      e.Cancel = true;
+      this.Hide();
+    }
+
+    private void Btn_Put_Click(object sender, RoutedEventArgs e)
+    {
+      this.dt1 = this.GetData("select * from CellUlIotTb", "Nr小区上行底噪表");
+      this.dt2 = this.GetData("select * from CellUlAnteRSSINoUserTb", "NR小区上行功率表");
+      if (this.dt1 == null)
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder10"));
+      }
+      else if (this.dt2 == null)
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder12"));
+      }
+      this.Db.Clear();
+      this.Db.Add(this.dt1);
+      this.Db.Add(this.dt2);
+      SaveFileDialog saveFileDialog = new SaveFileDialog();
+      saveFileDialog.FileName = "CellUlIot" + DateTime.Now.ToString("yyyyMMddhhmmss");
+      saveFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xls)|*.xls|Excel File(*.xlsx)|*.xlsx|All File(*.*)|*.*" : "Excel文件(*.xls)|*.xls|Excel文件(*.xlsx)|*.xlsx|所有文件(*.*)|*.*";
+      if (saveFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+      {
+        try
+        {
+          if (TimeHelper.Timer != null)
+            TimeHelper.Timer.Stop();
+          if (CommExcelHelper.DataTableToExcel(saveFileDialog.FileName, this.Db) != -1)
+          {
+            if (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder9"), CustomMessageBoxButton.OKCancel) == CustomMessageBoxResult.OK)
+              Process.Start(saveFileDialog.FileName);
+          }
+          else
+          {
+            int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder8"));
+          }
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.Error(ex.Message.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 107, nameof (Btn_Put_Click));
+          int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder7"));
+        }
+      }
+      if (!this.bRun || TimeHelper.Timer == null)
+        return;
+      TimeHelper.Timer.Start();
+    }
+
+    private void Btn_Over_Click(object sender, RoutedEventArgs e)
+    {
+      this.StopTimer();
+      this.bRun = false;
+    }
+
+    private void StopTimer()
+    {
+      try
+      {
+        if (TimeHelper.Timer == null || !TimeHelper.Timer.IsEnabled)
+          return;
+        TimeHelper.Timer.Stop();
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("结束定时器异常：{0}", (object) ex.Message.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 142, nameof (StopTimer));
+      }
+    }
+
+    private void Btn_Start_Click(object sender, RoutedEventArgs e)
+    {
+      int result;
+      if (!int.TryParse(this.Tb_time.Text.Trim(), out result))
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder6"));
+      }
+      else if (result <= 0)
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder5"));
+      }
+      else if (Database.GetInstance().GetMibDataByTableName("nrCellUlAnteRSSIEntry", this.strIP) == null)
+      {
+        int num3 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder4"));
+      }
+      else if (Database.GetInstance().GetMibDataByTableName("nrCellUlIotEntry", this.strIP) == null)
+      {
+        int num4 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder3"));
+      }
+      else
+      {
+        this.GetOid();
+        if (TimeHelper.Timer == null)
+        {
+          TimeHelper.Timer = new DispatcherTimer();
+          TimeHelper.Timer.Tick += new EventHandler(this.Timer_Tick);
+        }
+        TimeHelper.Timer.Interval = new TimeSpan(0, 0, result);
+        TimeHelper.Timer.Start();
+        this.OnClosing(new CancelEventArgs());
+        this.bRun = true;
+      }
+    }
+
+    private void Timer_Tick(object sender, EventArgs e)
+    {
+      LogManager.Log.Debug(string.Format("小区上行底噪循环查询:{0}", (object) DateTime.Now.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 193, nameof (Timer_Tick));
+      ThreadPool.QueueUserWorkItem((WaitCallback) (a => this.SelectAndWrite()));
+      ++this.bCount;
+      if (this.bCount != (short) 1440)
+        return;
+      this.StopTimer();
+      this.bRun = false;
+      this.bCount = (short) 0;
+      int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder2"));
+    }
+
+    private void SelectAndWrite()
+    {
+      try
+      {
+        this.strValue1.Clear();
+        this.strValue2.Clear();
+        string strSql = "";
+        this.strValue1 = DataGridUtils.GetTableLineInfo("nrCellUlIotEntry", true, this.strIP, (string) null);
+        if (this.strValue1 == null)
+        {
+          TimeHelper.Timer.Stop();
+          int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder1"));
+        }
+        else
+        {
+          foreach (KeyValuePair<string, Dictionary<string, string>> keyValuePair1 in this.strValue1)
+          {
+            string str = "";
+            foreach (KeyValuePair<string, string> keyValuePair2 in keyValuePair1.Value)
+            {
+              if (keyValuePair2.Key.Contains(this.ullotOid))
+              {
+                str = keyValuePair2.Value;
+                break;
+              }
+            }
+            strSql += string.Format("insert into CellUlIotTb(索引,小区上行干扰测量值) values('{0}','{1}');", (object) keyValuePair1.Key, (object) str);
+          }
+          this.strValue2 = DataGridUtils.GetTableLineInfo("nrCellUlAnteRSSIEntry", true, this.strIP, (string) null);
+          if (this.strValue2 == null)
+          {
+            TimeHelper.Timer.Stop();
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_reminder11"));
+          }
+          else
+          {
+            foreach (KeyValuePair<string, Dictionary<string, string>> keyValuePair3 in this.strValue2)
+            {
+              string str1 = "";
+              string str2 = "";
+              foreach (KeyValuePair<string, string> keyValuePair4 in keyValuePair3.Value)
+              {
+                if (keyValuePair4.Key.Contains(this.rssOid))
+                  str1 = keyValuePair4.Value;
+                else if (keyValuePair4.Key.Contains(this.rssuserOid))
+                  str2 = keyValuePair4.Value;
+              }
+              strSql += string.Format("insert into CellUlAnteRSSINoUserTb(索引,小区上行通道总功率测量值,小区无用户通道总功率测量值) values('{0}','{1}','{2}');", (object) keyValuePair3.Key, (object) str1, (object) str2);
+            }
+            if (this.strValue1.Count == 0 && this.strValue2.Count == 0 || UserInformation.SaveData(strSql))
+              return;
+            LogManager.Log.Error(string.Format("小区上行底噪循环查询结果入库失败,当前时间{0}", (object) DateTime.Now.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 264, nameof (SelectAndWrite));
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("循环查询小区上行底噪失败，异常信息：{0}", (object) ex.Message.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 269, nameof (SelectAndWrite));
+      }
+    }
+
+    private void GetOid()
+    {
+      this.rssOid = SnmpToDatabase.GetMibNodeInfoByName("nrCellUlAnteRSSIValue", this.strIP).childOid;
+      this.rssuserOid = SnmpToDatabase.GetMibNodeInfoByName("nrCellUlAnteRSSINoUsrValue", this.strIP).childOid;
+      this.ullotOid = SnmpToDatabase.GetMibNodeInfoByName("nrCellUlIotValue", this.strIP).childOid;
+    }
+
+    public static bool CheckUserDb()
+    {
+      try
+      {
+        if (!SQLiteHelper.IsTableExists(DiagnosisCell.strCon, "CellUlIotTb"))
+          DiagnosisCell.CreateCellUlIotTable();
+        if (!SQLiteHelper.IsTableExists(DiagnosisCell.strCon, "CellUlAnteRSSINoUserTb"))
+          DiagnosisCell.CreateCellUlAnteRSSINoUserTable();
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.Message.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 299, nameof (CheckUserDb));
+        return false;
+      }
+      return true;
+    }
+
+    private static void CreateCellUlIotTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS CellUlIotTb");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("ID INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", 索引 VARCHAR(50)");
+      stringBuilder.Append(", 小区上行干扰测量值 VARCHAR(100)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(DiagnosisCell.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 321, nameof (CreateCellUlIotTable));
+      }
+    }
+
+    private static void CreateCellUlAnteRSSINoUserTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS CellUlAnteRSSINoUserTb");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("ID INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", 索引 VARCHAR(50)");
+      stringBuilder.Append(", 小区上行通道总功率测量值 VARCHAR(100)");
+      stringBuilder.Append(", 小区无用户通道总功率测量值 VARCHAR(100)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(DiagnosisCell.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 341, nameof (CreateCellUlAnteRSSINoUserTable));
+      }
+    }
+
+    private DataTable GetData(string strSql, string Tbname)
+    {
+      DataTable data = (DataTable) null;
+      try
+      {
+        data = SQLiteHelper.ExecuteDataSet(DiagnosisCell.strCon, strSql).Tables[0];
+        data.TableName = Tbname;
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(ex.Message.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 355, nameof (GetData));
+      }
+      return data;
+    }
+
+    private void Btn_Del_Click(object sender, RoutedEventArgs e)
+    {
+      if (!UserInformation.SaveData("delete from CellUlIotTb;delete from CellUlAnteRSSINoUserTb"))
+      {
+        LogManager.Log.Error(string.Format("小区上行底噪循环查询结果清除失败,当前时间{0}", (object) DateTime.Now.ToString()), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\DiagnosisCell.xaml.cs", 365, nameof (Btn_Del_Click));
+        int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_CUkBN_Tip1"));
+      }
+      else
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_CUkBN_Tip"));
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/view/diagnosiscell.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.Lb_time = (System.Windows.Controls.Label) target;
+          break;
+        case 2:
+          this.Tb_time = (System.Windows.Controls.TextBox) target;
+          break;
+        case 3:
+          this.Btn_Start = (System.Windows.Controls.Button) target;
+          this.Btn_Start.Click += new RoutedEventHandler(this.Btn_Start_Click);
+          break;
+        case 4:
+          this.Btn_Over = (System.Windows.Controls.Button) target;
+          this.Btn_Over.Click += new RoutedEventHandler(this.Btn_Over_Click);
+          break;
+        case 5:
+          this.Btn_Put = (System.Windows.Controls.Button) target;
+          this.Btn_Put.Click += new RoutedEventHandler(this.Btn_Put_Click);
+          break;
+        case 6:
+          this.Btn_Del = (System.Windows.Controls.Button) target;
+          this.Btn_Del.Click += new RoutedEventHandler(this.Btn_Del_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

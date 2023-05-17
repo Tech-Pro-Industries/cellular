@@ -1,0 +1,138 @@
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class Register : CustomWindow, IComponentConnector
+  {
+    internal TextBox tbUserName;
+    internal PasswordBox pbPassword;
+    internal PasswordBox pbSurePasswork;
+    internal CheckBox ckUseSimplePwd;
+    internal Button btRegister;
+    internal Button btCancel;
+    private bool _contentLoaded;
+
+    public Register() => this.InitializeComponent();
+
+    private void ShowErrorMsg(string strMsg)
+    {
+      int num = (int) CustomMessageBox.Show(strMsg, messageBoxImage: CustomMessageBoxIcon.Error, title: LanguageServices.Current.GetTextValue("Index_Login_Register"));
+    }
+
+    private void btRegister_Click(object sender, RoutedEventArgs e)
+    {
+      if (string.IsNullOrEmpty(this.tbUserName.Text))
+        this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Login_InputName"));
+      else if (((IEnumerable<char>) this.tbUserName.Text.Trim().ToCharArray()).Where<char>(new Func<char, bool>(this.CheckChar)).Any<char>())
+        this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Register_CheckName") + " & | =");
+      else if (this.tbUserName.Text.Trim().Length < 2)
+        this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Register_NameLength"));
+      else if (string.IsNullOrEmpty(this.pbPassword.Password))
+      {
+        this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Register_EmptyPwd"));
+      }
+      else
+      {
+        bool? isChecked = this.ckUseSimplePwd.IsChecked;
+        bool flag = false;
+        if ((isChecked.GetValueOrDefault() == flag ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+        {
+          if (this.pbPassword.Password.Length < 6)
+          {
+            this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Register_PwdLength"));
+            return;
+          }
+          if (!this.CheckChar(this.pbPassword.Password))
+          {
+            this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Register_PwdContains"));
+            return;
+          }
+        }
+        if (((IEnumerable<char>) this.pbPassword.Password.Trim().ToCharArray()).Where<char>(new Func<char, bool>(this.CheckChar)).Any<char>())
+          this.ShowErrorMsg(LanguageServices.Current.GetTextValue("UM_palarm7"));
+        else if (this.pbPassword.Password.Trim() == this.pbSurePasswork.Password.Trim())
+        {
+          string strError = "";
+          if (UserInformation.SaveUserInfo(this.tbUserName.Text.Trim(), this.pbPassword.Password.Trim(), ref strError))
+          {
+            int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Register_Succeess"), LanguageServices.Current.GetTextValue("Index_Login_Register"));
+            this.Close();
+          }
+          else
+            this.ShowErrorMsg(strError);
+        }
+        else
+          this.ShowErrorMsg(LanguageServices.Current.GetTextValue("Index_Register_PwdInconsistent"));
+      }
+    }
+
+    private void btCancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private bool CheckChar(char c)
+    {
+      char[] chArray = new char[4]{ '|', '&', '=', ' ' };
+      foreach (char ch in chArray)
+      {
+        if ((int) c == (int) ch)
+          return true;
+      }
+      return false;
+    }
+
+    private bool CheckChar(string password) => new Regex("[A-Za-z]").Match(password).Success && new Regex("[0-9]").Match(password).Success && new Regex("[^A-Za-z0-9]").Match(password).Success;
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/register.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.tbUserName = (TextBox) target;
+          break;
+        case 2:
+          this.pbPassword = (PasswordBox) target;
+          break;
+        case 3:
+          this.pbSurePasswork = (PasswordBox) target;
+          break;
+        case 4:
+          this.ckUseSimplePwd = (CheckBox) target;
+          break;
+        case 5:
+          this.btRegister = (Button) target;
+          this.btRegister.Click += new RoutedEventHandler(this.btRegister_Click);
+          break;
+        case 6:
+          this.btCancel = (Button) target;
+          this.btCancel.Click += new RoutedEventHandler(this.btCancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

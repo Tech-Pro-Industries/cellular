@@ -1,0 +1,20 @@
+using System;
+using System.Globalization;
+using System.Windows.Data;
+
+namespace LMT.View
+{
+  public class Int32ToStringConverter : IValueConverter
+  {
+    object IValueConverter.Convert(object obj, Type type, object parameter, CultureInfo culture) => obj == null ? (object) null : (object) obj.ToString();
+
+    object IValueConverter.ConvertBack(
+      object obj,
+      Type type,
+      object parameter,
+      CultureInfo culture)
+    {
+      return (object) int.Parse((string) obj);
+    }
+  }
+}

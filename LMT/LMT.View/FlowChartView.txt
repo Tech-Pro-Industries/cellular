@@ -1,0 +1,314 @@
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class FlowChartView : CustomWindow, IComponentConnector
+  {
+    private string IP;
+    internal Viewbox myview;
+    internal Canvas FlowChart_5216;
+    internal Rectangle Start;
+    internal TextBlock tbStart;
+    internal Rectangle RequireStartInfo;
+    internal TextBlock tbRequireStartInfo;
+    internal Rectangle OMLinkStartup;
+    internal TextBlock tbOMLinkStartup;
+    internal Rectangle SoftwareSync;
+    internal TextBlock tbSoftwareSync;
+    internal Rectangle ClockResStatus;
+    internal TextBlock tbClockResStatus;
+    internal Rectangle TransResStatus;
+    internal TextBlock tbTransResStatus;
+    internal Rectangle RRUResStatus;
+    internal TextBlock tbRRUResStatus;
+    internal Rectangle BaseResStatus;
+    internal TextBlock tbBaseResStatus;
+    internal Rectangle LocalCellStartup;
+    internal TextBlock tbLocalCellStartup;
+    internal Rectangle CellSetup;
+    internal TextBlock tbCellSetup;
+    internal Line line5303;
+    internal Line line5305;
+    internal Line line5307;
+    internal Line line5309;
+    internal Line line5319;
+    internal Line line5321;
+    internal Line line5323;
+    internal Line line5324;
+    internal Line line5311;
+    internal Line line5337;
+    internal Line line5339;
+    internal Line line5341;
+    internal Line line5343;
+    internal Line line5335;
+    internal Line line5344;
+    internal Line line5345;
+    internal Rectangle rect5345;
+    internal TextBlock text5347;
+    internal Rectangle rect5349;
+    internal TextBlock text5351;
+    internal Rectangle rect5353;
+    internal TextBlock text5355;
+    internal Rectangle rect5357;
+    internal TextBlock text5359;
+    internal Button Reload;
+    internal TextBlock ShowDetails;
+    private bool _contentLoaded;
+
+    public FlowChartView(string ip)
+    {
+      this.InitializeComponent();
+      this.Title = LanguageServices.Current.GetTextValue("Toolbox_StartFlowChart") + "(" + ip + "）";
+      this.IP = ip;
+      this.GetNodeColor();
+    }
+
+    private void GetNodeColor()
+    {
+      Dictionary<string, FlowChartInfo> flowChartMsg = new GetFlowChart(this.IP).GetFlowChartMsg();
+      string str1 = (string) null;
+      foreach (KeyValuePair<string, FlowChartInfo> keyValuePair in flowChartMsg)
+      {
+        object name1 = this.FindName(keyValuePair.Key);
+        object name2 = this.FindName("tb" + keyValuePair.Key.ToString());
+        if (name2 != null)
+        {
+          ((TextBlock) name2).Text = keyValuePair.Value.name.ToString();
+          string str2;
+          switch (keyValuePair.Value.state)
+          {
+            case "success":
+              str2 = "#FF1FC571";
+              break;
+            case "fail":
+              str2 = "#FFFF6656";
+              break;
+            case "next":
+              str2 = "#FFEFAD4D";
+              break;
+            case "unknown":
+              str2 = "#FFDFE0E2";
+              break;
+            default:
+              str2 = "#FFDFE0E2";
+              break;
+          }
+          if (name1 != null)
+          {
+            ((Shape) name1).Fill = (Brush) new SolidColorBrush((Color) ColorConverter.ConvertFromString(str2));
+            if (keyValuePair.Value.state == "fail" && keyValuePair.Value.msglist.Count > 0)
+            {
+              str1 = str1 + keyValuePair.Value.name.ToString() + "：\n";
+              for (int index = 0; index < keyValuePair.Value.msglist.Count; ++index)
+              {
+                if (!keyValuePair.Value.msglist[index].isvaliad)
+                  str1 = str1 + "    " + keyValuePair.Value.msglist[index].msg + "\n";
+              }
+            }
+            if (keyValuePair.Value.msglist.Count > 0)
+            {
+              System.Windows.Controls.ToolTip toolTip = new System.Windows.Controls.ToolTip();
+              TextBlock textBlock = new TextBlock();
+              string str3 = (string) null;
+              for (int index = 0; index < keyValuePair.Value.msglist.Count; ++index)
+                str3 = str3 + keyValuePair.Value.msglist[index].msg + "\n";
+              if (str3 != null)
+              {
+                string str4 = str3.Substring(0, str3.Length - 1);
+                textBlock.Text = str4;
+                textBlock.TextAlignment = TextAlignment.Left;
+                toolTip.Content = (object) textBlock;
+                toolTip.MaxHeight = 200.0;
+                (name1 as Rectangle).ToolTip = (object) toolTip;
+                (name2 as TextBlock).ToolTip = (object) toolTip;
+              }
+            }
+          }
+        }
+      }
+      this.ShowDetails.Text = str1;
+    }
+
+    private void Reload_Click(object sender, RoutedEventArgs e) => this.GetNodeColor();
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/flowchartview.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.myview = (Viewbox) target;
+          break;
+        case 2:
+          this.FlowChart_5216 = (Canvas) target;
+          break;
+        case 3:
+          this.Start = (Rectangle) target;
+          break;
+        case 4:
+          this.tbStart = (TextBlock) target;
+          break;
+        case 5:
+          this.RequireStartInfo = (Rectangle) target;
+          break;
+        case 6:
+          this.tbRequireStartInfo = (TextBlock) target;
+          break;
+        case 7:
+          this.OMLinkStartup = (Rectangle) target;
+          break;
+        case 8:
+          this.tbOMLinkStartup = (TextBlock) target;
+          break;
+        case 9:
+          this.SoftwareSync = (Rectangle) target;
+          break;
+        case 10:
+          this.tbSoftwareSync = (TextBlock) target;
+          break;
+        case 11:
+          this.ClockResStatus = (Rectangle) target;
+          break;
+        case 12:
+          this.tbClockResStatus = (TextBlock) target;
+          break;
+        case 13:
+          this.TransResStatus = (Rectangle) target;
+          break;
+        case 14:
+          this.tbTransResStatus = (TextBlock) target;
+          break;
+        case 15:
+          this.RRUResStatus = (Rectangle) target;
+          break;
+        case 16:
+          this.tbRRUResStatus = (TextBlock) target;
+          break;
+        case 17:
+          this.BaseResStatus = (Rectangle) target;
+          break;
+        case 18:
+          this.tbBaseResStatus = (TextBlock) target;
+          break;
+        case 19:
+          this.LocalCellStartup = (Rectangle) target;
+          break;
+        case 20:
+          this.tbLocalCellStartup = (TextBlock) target;
+          break;
+        case 21:
+          this.CellSetup = (Rectangle) target;
+          break;
+        case 22:
+          this.tbCellSetup = (TextBlock) target;
+          break;
+        case 23:
+          this.line5303 = (Line) target;
+          break;
+        case 24:
+          this.line5305 = (Line) target;
+          break;
+        case 25:
+          this.line5307 = (Line) target;
+          break;
+        case 26:
+          this.line5309 = (Line) target;
+          break;
+        case 27:
+          this.line5319 = (Line) target;
+          break;
+        case 28:
+          this.line5321 = (Line) target;
+          break;
+        case 29:
+          this.line5323 = (Line) target;
+          break;
+        case 30:
+          this.line5324 = (Line) target;
+          break;
+        case 31:
+          this.line5311 = (Line) target;
+          break;
+        case 32:
+          this.line5337 = (Line) target;
+          break;
+        case 33:
+          this.line5339 = (Line) target;
+          break;
+        case 34:
+          this.line5341 = (Line) target;
+          break;
+        case 35:
+          this.line5343 = (Line) target;
+          break;
+        case 36:
+          this.line5335 = (Line) target;
+          break;
+        case 37:
+          this.line5344 = (Line) target;
+          break;
+        case 38:
+          this.line5345 = (Line) target;
+          break;
+        case 39:
+          this.rect5345 = (Rectangle) target;
+          break;
+        case 40:
+          this.text5347 = (TextBlock) target;
+          break;
+        case 41:
+          this.rect5349 = (Rectangle) target;
+          break;
+        case 42:
+          this.text5351 = (TextBlock) target;
+          break;
+        case 43:
+          this.rect5353 = (Rectangle) target;
+          break;
+        case 44:
+          this.text5355 = (TextBlock) target;
+          break;
+        case 45:
+          this.rect5357 = (Rectangle) target;
+          break;
+        case 46:
+          this.text5359 = (TextBlock) target;
+          break;
+        case 47:
+          this.Reload = (Button) target;
+          this.Reload.Click += new RoutedEventHandler(this.Reload_Click);
+          break;
+        case 48:
+          this.ShowDetails = (TextBlock) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}
+

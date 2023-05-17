@@ -1,0 +1,115 @@
+using AlarmManage.View;
+using AlarmManage.ViewModel;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class AlarmManageView : UserControl, IComponentConnector
+  {
+    internal TabControl Alarmtab;
+    internal TabItem ActiveAlarmItem;
+    internal AlarmActive activeAlarmCon;
+    internal TabItem HistoryAlarmItem;
+    internal AlarmHistory historyAlarm;
+    internal TabItem AlarmLogItem;
+    internal AlarmLog AlarmLogView;
+    internal TabItem OnlineEventItem;
+    internal EventOnline OnlineEventView;
+    internal TabItem EventItem;
+    internal AlarmManage.View.EventLog EventView;
+    private bool _contentLoaded;
+
+    public AlarmManageView() => this.InitializeComponent();
+
+    private void Alarmtab_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+      if (!(e.Source is TabControl))
+        return;
+      if (((sender as TabControl).SelectedItem as TabItem).Name == "ActiveAlarmItem")
+        (this.activeAlarmCon.DataContext as AlarmActiveVM).ReloadData();
+      if (((sender as TabControl).SelectedItem as TabItem).Name == "HistoryAlarmItem")
+        (this.historyAlarm.DataContext as AlarmHistoryVM).ReloadData();
+      if (((sender as TabControl).SelectedItem as TabItem).Name == "EventItem")
+        (this.EventView.DataContext as EventLogVM).ReloadData();
+      if (((sender as TabControl).SelectedItem as TabItem).Name == "OnlineEventItem")
+        (this.OnlineEventView.DataContext as EventOnlineVM).ReloadData();
+      if (!(((sender as TabControl).SelectedItem as TabItem).Name == "AlarmLogItem"))
+        return;
+      (this.AlarmLogView.DataContext as AlarmLogVM).ReloadData();
+    }
+
+    private void MetroImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      AlarmColorSetting alarmColorSetting = new AlarmColorSetting();
+      alarmColorSetting.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      alarmColorSetting.ShowDialog();
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/alarmmanageview.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.Alarmtab = (TabControl) target;
+          this.Alarmtab.SelectionChanged += new SelectionChangedEventHandler(this.Alarmtab_SelectionChanged);
+          break;
+        case 2:
+          this.ActiveAlarmItem = (TabItem) target;
+          break;
+        case 3:
+          this.activeAlarmCon = (AlarmActive) target;
+          break;
+        case 4:
+          this.HistoryAlarmItem = (TabItem) target;
+          break;
+        case 5:
+          this.historyAlarm = (AlarmHistory) target;
+          break;
+        case 6:
+          this.AlarmLogItem = (TabItem) target;
+          break;
+        case 7:
+          this.AlarmLogView = (AlarmLog) target;
+          break;
+        case 8:
+          this.OnlineEventItem = (TabItem) target;
+          break;
+        case 9:
+          this.OnlineEventView = (EventOnline) target;
+          break;
+        case 10:
+          this.EventItem = (TabItem) target;
+          break;
+        case 11:
+          this.EventView = (AlarmManage.View.EventLog) target;
+          break;
+        case 12:
+          ((UIElement) target).MouseLeftButtonDown += new MouseButtonEventHandler(this.MetroImage_MouseLeftButtonDown);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

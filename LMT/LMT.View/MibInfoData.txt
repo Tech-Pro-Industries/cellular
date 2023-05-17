@@ -1,0 +1,9 @@
+namespace LMT.View
+{
+  internal struct MibinfoData
+  {
+    public string value;
+    public string color;
+    public string description;
+  }
+}

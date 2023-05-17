@@ -1,0 +1,948 @@
+using BidCfgParser;
+using CommonUtility;
+using LMT.Component.ViewModel;
+using MIBDataParser;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class FakeSetting : CustomWindow, IComponentConnector
+  {
+    private MibColumnModify _mibColumnModify;
+    private MibDataModify _mibDataModify;
+    private ObservableCollection<ColumnHideItem> _columnHideItems;
+    private ObservableCollection<ColumnReplaceItem> _columnReplaceItems;
+    private ObservableCollection<ColumnAddItem> _columnAddItems;
+    private ObservableCollection<DataModifyItem> _dataHideItems;
+    private ObservableCollection<DataModifyItem> _dataReplaceItems;
+    private ObservableCollection<DataCopyItem> _dataCopyItems;
+    private Dictionary<int, string> _dicOldValueOperator;
+    private Dictionary<int, string> _dicNewValueOperator;
+    private readonly DyDataGrid_MIBModel _mibModel;
+    private MibTableInfo _mibTableInfo;
+    private Dictionary<string, string> _columnNameDic;
+    internal TabItem mibColumnModify;
+    internal TextBox TbColHideTblEntryCh;
+    internal ComboBox CbColHideColName;
+    internal Button BtColHide;
+    internal DataGrid dgColumnHide;
+    internal MenuItem DeleteColHide;
+    internal TextBox TbColModifyTblEntryCh;
+    internal ComboBox CbColModifyColName;
+    internal TextBox TbColModifyColLNameCh;
+    internal Button BtColModify;
+    internal DataGrid dgColumnReplace;
+    internal MenuItem DeleteColReplace;
+    internal TextBox TbColAddTblEntryCh;
+    internal TextBox TbColAddOid;
+    internal TextBox TbColAddColMibName;
+    internal TextBox TbColAddColNameCh;
+    internal Button BtColAdd;
+    internal DataGrid dgColumnAdd;
+    internal MenuItem DeleteColAdd;
+    internal TabItem mibDataModify;
+    internal TextBox TbDataHideTblEntryCh;
+    internal ComboBox CbDataHideColMibName;
+    internal TextBox TbDataHideIndex;
+    internal TextBox TbDataHideValue;
+    internal TextBox TbDataHideNewValue;
+    internal Button BtDataHide;
+    internal DataGrid dgDataHide;
+    internal MenuItem DeleteDataHide;
+    internal TextBox TbDataModifyTblEntryCh;
+    internal ComboBox CbDataModifyColMibName;
+    internal TextBox TbDataModifyIndex;
+    internal ComboBox OldValueCondition;
+    internal TextBox TbDataModifyValue;
+    internal ComboBox NewValueCondition;
+    internal TextBox TbDataModifyNewValue;
+    internal Button BtDataModify;
+    internal DataGrid dgDataReplace;
+    internal MenuItem DeleteDataReplace;
+    internal TextBox TbDataCopyTblEntryCh;
+    internal ComboBox CbDataCopyColMibName;
+    internal TextBox TbDataCopySIndex;
+    internal TextBox TbDataCopyDIndex;
+    internal Button BtDataCopy;
+    internal DataGrid dgDataCopy;
+    internal MenuItem DeleteDataCopy;
+    internal Button BtApply;
+    internal Button BtOriginal;
+    internal Button BtCancel;
+    private bool _contentLoaded;
+
+    public FakeSetting(DyDataGrid_MIBModel columnModel)
+    {
+      this.InitializeComponent();
+      if (columnModel == null)
+      {
+        LogManager.Log.Error("伪装数据配置：初始化传入的Mib表信息为空！", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 51, ".ctor");
+        this.Close();
+      }
+      else
+      {
+        this._mibModel = columnModel;
+        this._mibTableInfo = columnModel.TableProperty as MibTableInfo;
+        this._columnNameDic = this._mibModel.ColName_Property;
+      }
+    }
+
+    private void CustomWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+      Singleton<BidHelper>.GetInstance().GetConfigByTableName(this._mibTableInfo.nameMib, out this._mibColumnModify, out this._mibDataModify);
+      this.InitAll();
+      this.TbColHideTblEntryCh.Text = this._mibTableInfo.nameCh;
+      this.TbColModifyTblEntryCh.Text = this._mibTableInfo.nameCh;
+      this.TbColAddTblEntryCh.Text = this._mibTableInfo.nameCh;
+      this.TbDataHideTblEntryCh.Text = this._mibTableInfo.nameCh;
+      this.TbDataModifyTblEntryCh.Text = this._mibTableInfo.nameCh;
+      this.TbDataCopyTblEntryCh.Text = this._mibTableInfo.nameCh;
+      this.CbColHideColName.ItemsSource = (IEnumerable) this._columnNameDic;
+      this.CbColModifyColName.ItemsSource = (IEnumerable) this._columnNameDic;
+      this.CbDataHideColMibName.ItemsSource = (IEnumerable) this._columnNameDic;
+      this.CbDataModifyColMibName.ItemsSource = (IEnumerable) this._columnNameDic;
+      this.CbDataCopyColMibName.ItemsSource = (IEnumerable) this._columnNameDic;
+    }
+
+    private void BtColHide_Click(object sender, RoutedEventArgs e)
+    {
+      object selectedItem = this.CbColHideColName.SelectedItem;
+      if (selectedItem == null)
+      {
+        int num1 = (int) CustomMessageBox.Show("列名不能为空！");
+      }
+      else if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+      {
+        LogManager.Log.Error("伪装数据配置：（添加Mib属性隐藏项）数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 110, nameof (BtColHide_Click));
+        int num2 = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+      }
+      else
+        this._columnHideItems.Add(new ColumnHideItem()
+        {
+          TblEntry = this._mibTableInfo.nameMib,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = keyValuePair.Value,
+          ColNameCh = keyValuePair.Key
+        });
+    }
+
+    private void BtColModify_Click(object sender, RoutedEventArgs e)
+    {
+      object selectedItem = this.CbColModifyColName.SelectedItem;
+      if (selectedItem == null)
+      {
+        int num1 = (int) CustomMessageBox.Show("列名不能为空！");
+      }
+      else if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+      {
+        LogManager.Log.Error("伪装数据配置：（添加Mib属性替换项）数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 141, nameof (BtColModify_Click));
+        int num2 = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+      }
+      else
+      {
+        string str = this.TbColModifyColLNameCh.Text.Trim();
+        if (string.IsNullOrEmpty(str))
+        {
+          int num3 = (int) CustomMessageBox.Show("新列名不能为空！");
+        }
+        else
+          this._columnReplaceItems.Add(new ColumnReplaceItem()
+          {
+            TblEntry = this._mibTableInfo.nameMib,
+            TblEntryCh = this._mibTableInfo.nameCh,
+            ColMibName = keyValuePair.Value,
+            OriginColNameCh = keyValuePair.Key,
+            LatestColNameCh = str
+          });
+      }
+    }
+
+    private void BtColAdd_Click(object sender, RoutedEventArgs e)
+    {
+      string str1 = this.TbColAddColMibName.Text.Trim();
+      if (string.IsNullOrEmpty(str1))
+      {
+        int num1 = (int) CustomMessageBox.Show("列英文名不能为空！");
+      }
+      else
+      {
+        string str2 = this.TbColAddOid.Text.Trim();
+        if (string.IsNullOrEmpty(str2))
+        {
+          int num2 = (int) CustomMessageBox.Show("OID不能为空！");
+        }
+        else
+        {
+          string str3 = this.TbColAddColNameCh.Text.Trim();
+          if (string.IsNullOrEmpty(str3))
+          {
+            int num3 = (int) CustomMessageBox.Show("列中文名不能为空！");
+          }
+          else
+            this._columnAddItems.Add(new ColumnAddItem()
+            {
+              TblEntry = this._mibTableInfo.nameMib,
+              TblEntryCh = this._mibTableInfo.nameCh,
+              ColMibName = str1,
+              OId = str2,
+              ColNameCh = str3
+            });
+        }
+      }
+    }
+
+    private void BtDataHide_Click(object sender, RoutedEventArgs e)
+    {
+      object selectedItem = this.CbDataHideColMibName.SelectedItem;
+      if (selectedItem == null)
+      {
+        int num1 = (int) CustomMessageBox.Show("列名不能为空！");
+      }
+      else if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+      {
+        LogManager.Log.Error("伪装数据配置：（添加Mib数据隐藏项）数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 219, nameof (BtDataHide_Click));
+        int num2 = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+      }
+      else
+      {
+        string str = this.TbDataHideNewValue.Text.Trim();
+        if (string.IsNullOrEmpty(str))
+        {
+          int num3 = (int) CustomMessageBox.Show("新值不能为空！");
+        }
+        else
+          this._dataHideItems.Add(new DataModifyItem()
+          {
+            TblEntry = this._mibTableInfo.nameMib,
+            TblEntryCh = this._mibTableInfo.nameCh,
+            ColMibName = keyValuePair.Value,
+            ColNameCh = keyValuePair.Key,
+            Index = this.TbDataHideIndex.Text.Trim(),
+            Value = this.TbDataHideValue.Text.Trim(),
+            NewValue = str
+          });
+      }
+    }
+
+    private void BtDataModify_Click(object sender, RoutedEventArgs e)
+    {
+      object selectedItem = this.CbDataModifyColMibName.SelectedItem;
+      if (selectedItem == null)
+      {
+        int num1 = (int) CustomMessageBox.Show("列名不能为空！");
+      }
+      else if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+      {
+        LogManager.Log.Error("伪装数据配置：（添加Mib数据替换项）数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 261, nameof (BtDataModify_Click));
+        int num2 = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+      }
+      else
+      {
+        string str1 = this.TbDataModifyNewValue.Text.Trim();
+        string str2 = this.TbDataModifyValue.Text.Trim();
+        string strIndex = this.TbDataModifyIndex.Text.Trim();
+        if (!string.IsNullOrEmpty(strIndex) && !strIndex.StartsWith("."))
+        {
+          int num3 = (int) CustomMessageBox.Show("索引必须以.字符开始，多个索引用,分隔");
+        }
+        else
+        {
+          List<string> list = this.SplitIndexToList(strIndex);
+          foreach (DataModifyItem dataReplaceItem in (Collection<DataModifyItem>) this._dataReplaceItems)
+          {
+            if (!(dataReplaceItem.TblEntry != this._mibTableInfo.nameMib) && !(dataReplaceItem.ColMibName != keyValuePair.Value))
+            {
+              if (list == null || list.Count == 0)
+              {
+                int num4 = (int) CustomMessageBox.Show("已经存在相同的列配置信息，此次新增配置索引为空，匹配的范围更大。请先删除已有的相同配置后重试");
+                return;
+              }
+              List<string> existIdxList = this.SplitIndexToList(dataReplaceItem.Index);
+              if (existIdxList == null || existIdxList.Count == 0)
+              {
+                int num5 = (int) CustomMessageBox.Show("已经存在相同的列配置信息，且匹配所有的实例索引，匹配的范围更大。请先删除已有的相同配置后重试");
+                return;
+              }
+              using (IEnumerator<string> enumerator = list.Where<string>((Func<string, bool>) (newIdx => existIdxList.Contains(newIdx))).GetEnumerator())
+              {
+                if (enumerator.MoveNext())
+                {
+                  int num6 = (int) CustomMessageBox.Show(string.Format("已经存在相同列且相同索引（{0}）的配置，请修改后重试", (object) enumerator.Current));
+                  return;
+                }
+              }
+            }
+          }
+          string str3 = str2;
+          if (this.OldValueCondition.IsEnabled && this.OldValueCondition.SelectedIndex != 0)
+            str3 = this._dicOldValueOperator[this.OldValueCondition.SelectedIndex] + str2;
+          string str4 = str1;
+          if (this.NewValueCondition.IsEnabled && this.NewValueCondition.SelectedIndex != 0)
+            str4 = "旧值" + this._dicNewValueOperator[this.NewValueCondition.SelectedIndex] + str1;
+          this._dataReplaceItems.Add(new DataModifyItem()
+          {
+            TblEntry = this._mibTableInfo.nameMib,
+            TblEntryCh = this._mibTableInfo.nameCh,
+            ColMibName = keyValuePair.Value,
+            ColNameCh = keyValuePair.Key,
+            Index = strIndex,
+            Value = str3,
+            NewValue = str4
+          });
+        }
+      }
+    }
+
+    private void BtDataCopy_Click(object sender, RoutedEventArgs e)
+    {
+      string str1 = "";
+      string str2 = "";
+      object selectedItem = this.CbDataModifyColMibName.SelectedItem;
+      if (selectedItem != null)
+      {
+        if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+        {
+          LogManager.Log.Error("伪装数据配置：（添加Mib数据复制项）数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 354, nameof (BtDataCopy_Click));
+          int num = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+          return;
+        }
+        str1 = keyValuePair.Value;
+        str2 = keyValuePair.Key;
+      }
+      string str3 = this.TbDataCopySIndex.Text.Trim();
+      if (string.IsNullOrEmpty(str3))
+      {
+        int num1 = (int) CustomMessageBox.Show("源索引不能为空！");
+      }
+      else
+      {
+        string str4 = this.TbDataCopyDIndex.Text.Trim();
+        if (string.IsNullOrEmpty(str4))
+        {
+          int num2 = (int) CustomMessageBox.Show("目标索引不能为空！");
+        }
+        else
+          this._dataCopyItems.Add(new DataCopyItem()
+          {
+            TblEntry = this._mibTableInfo.nameMib,
+            TblEntryCh = this._mibTableInfo.nameCh,
+            ColMibName = str1,
+            ColNameCh = str2,
+            SourceIndex = str3,
+            DestIndex = str4
+          });
+      }
+    }
+
+    private void BtApply_Click(object sender, RoutedEventArgs e)
+    {
+      MibColumnModify columnCfg = this.ConvertColumnModify();
+      MibDataModify mibDataCfg = this.ConvertDataModify();
+      if (!Singleton<BidHelper>.GetInstance().SaveConfigByTableName(this._mibTableInfo.nameMib, columnCfg, mibDataCfg))
+      {
+        int num = (int) CustomMessageBox.Show("保存失败！", messageBoxImage: CustomMessageBoxIcon.Error);
+      }
+      else
+        this.Close();
+    }
+
+    private void BtOriginal_Click(object sender, RoutedEventArgs e) => this.InitAll();
+
+    private void BtCancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void DeleteColHide_Click(object sender, RoutedEventArgs e)
+    {
+      List<ColumnHideItem> columnHideItemList = new List<ColumnHideItem>();
+      foreach (object selectedItem in (IEnumerable) this.dgColumnHide.SelectedItems)
+        columnHideItemList.Add(selectedItem as ColumnHideItem);
+      foreach (ColumnHideItem columnHideItem in columnHideItemList)
+        this._columnHideItems.Remove(columnHideItem);
+    }
+
+    private void DeleteColReplace_Click(object sender, RoutedEventArgs e)
+    {
+      List<ColumnReplaceItem> columnReplaceItemList = new List<ColumnReplaceItem>();
+      foreach (object selectedItem in (IEnumerable) this.dgColumnReplace.SelectedItems)
+        columnReplaceItemList.Add(selectedItem as ColumnReplaceItem);
+      foreach (ColumnReplaceItem columnReplaceItem in columnReplaceItemList)
+        this._columnReplaceItems.Remove(columnReplaceItem);
+    }
+
+    private void DeleteColAdd_Click(object sender, RoutedEventArgs e)
+    {
+      List<ColumnAddItem> columnAddItemList = new List<ColumnAddItem>();
+      foreach (object selectedItem in (IEnumerable) this.dgColumnAdd.SelectedItems)
+        columnAddItemList.Add(selectedItem as ColumnAddItem);
+      foreach (ColumnAddItem columnAddItem in columnAddItemList)
+        this._columnAddItems.Remove(columnAddItem);
+    }
+
+    private void DeleteDataHide_Click(object sender, RoutedEventArgs e)
+    {
+      List<DataModifyItem> dataModifyItemList = new List<DataModifyItem>();
+      foreach (object selectedItem in (IEnumerable) this.dgDataHide.SelectedItems)
+        dataModifyItemList.Add(selectedItem as DataModifyItem);
+      foreach (DataModifyItem dataModifyItem in dataModifyItemList)
+        this._dataHideItems.Remove(dataModifyItem);
+    }
+
+    private void DeleteDataReplace_Click(object sender, RoutedEventArgs e)
+    {
+      List<DataModifyItem> dataModifyItemList = new List<DataModifyItem>();
+      foreach (object selectedItem in (IEnumerable) this.dgDataReplace.SelectedItems)
+        dataModifyItemList.Add(selectedItem as DataModifyItem);
+      foreach (DataModifyItem dataModifyItem in dataModifyItemList)
+        this._dataReplaceItems.Remove(dataModifyItem);
+    }
+
+    private void DeleteDataCopy_Click(object sender, RoutedEventArgs e)
+    {
+      List<DataCopyItem> dataCopyItemList = new List<DataCopyItem>();
+      foreach (object selectedItem in (IEnumerable) this.dgDataCopy.SelectedItems)
+        dataCopyItemList.Add(selectedItem as DataCopyItem);
+      foreach (DataCopyItem dataCopyItem in dataCopyItemList)
+        this._dataCopyItems.Remove(dataCopyItem);
+    }
+
+    private void InitAll()
+    {
+      this.dgColumnHide.ItemsSource = (IEnumerable) (this._columnHideItems = this.InitHideCol());
+      this.dgColumnReplace.ItemsSource = (IEnumerable) (this._columnReplaceItems = this.InitModifyCol());
+      this.dgColumnAdd.ItemsSource = (IEnumerable) (this._columnAddItems = this.InitAddCol());
+      this.dgDataHide.ItemsSource = (IEnumerable) (this._dataHideItems = this.InitHideData());
+      this.dgDataReplace.ItemsSource = (IEnumerable) (this._dataReplaceItems = this.InitModifyData());
+      this.dgDataCopy.ItemsSource = (IEnumerable) (this._dataCopyItems = this.InitCopyData());
+      int num1 = 0;
+      this._dicOldValueOperator = new Dictionary<int, string>();
+      Dictionary<int, string> oldValueOperator1 = this._dicOldValueOperator;
+      int key1 = num1;
+      int num2 = key1 + 1;
+      oldValueOperator1[key1] = "==";
+      Dictionary<int, string> oldValueOperator2 = this._dicOldValueOperator;
+      int key2 = num2;
+      int num3 = key2 + 1;
+      oldValueOperator2[key2] = "!=";
+      Dictionary<int, string> oldValueOperator3 = this._dicOldValueOperator;
+      int key3 = num3;
+      int num4 = key3 + 1;
+      oldValueOperator3[key3] = "<";
+      Dictionary<int, string> oldValueOperator4 = this._dicOldValueOperator;
+      int key4 = num4;
+      int num5 = key4 + 1;
+      oldValueOperator4[key4] = ">";
+      this.OldValueCondition.ItemsSource = (IEnumerable) this._dicOldValueOperator;
+      this.OldValueCondition.SelectedIndex = 0;
+      int num6 = 0;
+      this._dicNewValueOperator = new Dictionary<int, string>();
+      Dictionary<int, string> newValueOperator1 = this._dicNewValueOperator;
+      int key5 = num6;
+      int num7 = key5 + 1;
+      newValueOperator1[key5] = "=";
+      Dictionary<int, string> newValueOperator2 = this._dicNewValueOperator;
+      int key6 = num7;
+      int num8 = key6 + 1;
+      newValueOperator2[key6] = "+";
+      Dictionary<int, string> newValueOperator3 = this._dicNewValueOperator;
+      int key7 = num8;
+      int num9 = key7 + 1;
+      newValueOperator3[key7] = "-";
+      Dictionary<int, string> newValueOperator4 = this._dicNewValueOperator;
+      int key8 = num9;
+      int num10 = key8 + 1;
+      newValueOperator4[key8] = "*";
+      Dictionary<int, string> newValueOperator5 = this._dicNewValueOperator;
+      int key9 = num10;
+      num5 = key9 + 1;
+      newValueOperator5[key9] = "/";
+      this.NewValueCondition.ItemsSource = (IEnumerable) this._dicNewValueOperator;
+      this.NewValueCondition.SelectedIndex = 0;
+    }
+
+    private ObservableCollection<ColumnHideItem> InitHideCol()
+    {
+      ObservableCollection<ColumnHideItem> observableCollection = new ObservableCollection<ColumnHideItem>();
+      List<ColumnHideCfg> hide = this._mibColumnModify?.hide;
+      if (hide == null)
+        return observableCollection;
+      foreach (ColumnHideCfg columnHideCfg in hide)
+      {
+        ColumnHideCfg item = columnHideCfg;
+        if (item.tblEntry != this._mibTableInfo.nameMib)
+        {
+          LogManager.Log.Error("伪装数据配置：（Mib属性-隐藏）获取的数据不属于该Mib表", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 571, nameof (InitHideCol));
+          return new ObservableCollection<ColumnHideItem>();
+        }
+        observableCollection.Add(new ColumnHideItem()
+        {
+          TblEntry = item.tblEntry,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = item.colMibName,
+          ColNameCh = this._columnNameDic.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (x => x.Value == item.colMibName)).Key
+        });
+      }
+      return observableCollection;
+    }
+
+    private ObservableCollection<ColumnReplaceItem> InitModifyCol()
+    {
+      ObservableCollection<ColumnReplaceItem> observableCollection = new ObservableCollection<ColumnReplaceItem>();
+      List<ColumnModifyCfg> replace = this._mibColumnModify?.replace;
+      if (replace == null)
+        return observableCollection;
+      foreach (ColumnModifyCfg columnModifyCfg in replace)
+      {
+        if (columnModifyCfg.tblEntry != this._mibTableInfo.nameMib)
+        {
+          LogManager.Log.Error("伪装数据配置：（Mib属性-替换）获取的数据不属于该Mib表", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 597, nameof (InitModifyCol));
+          return new ObservableCollection<ColumnReplaceItem>();
+        }
+        observableCollection.Add(new ColumnReplaceItem()
+        {
+          TblEntry = columnModifyCfg.tblEntry,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = columnModifyCfg.colMibName,
+          OriginColNameCh = columnModifyCfg.originColNameCh,
+          LatestColNameCh = columnModifyCfg.latestColNameCh
+        });
+      }
+      return observableCollection;
+    }
+
+    private ObservableCollection<ColumnAddItem> InitAddCol()
+    {
+      ObservableCollection<ColumnAddItem> observableCollection = new ObservableCollection<ColumnAddItem>();
+      List<ColumnAddCfg> add = this._mibColumnModify?.add;
+      if (add == null)
+        return observableCollection;
+      foreach (ColumnAddCfg columnAddCfg in add)
+      {
+        if (columnAddCfg.tblEntry != this._mibTableInfo.nameMib)
+        {
+          LogManager.Log.Error("伪装数据配置：（Mib属性-新增）获取的数据不属于该Mib表", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 625, nameof (InitAddCol));
+          return new ObservableCollection<ColumnAddItem>();
+        }
+        observableCollection.Add(new ColumnAddItem()
+        {
+          TblEntry = columnAddCfg.tblEntry,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = columnAddCfg.colMibName,
+          OId = columnAddCfg.oid,
+          ColNameCh = columnAddCfg.colNameCh
+        });
+      }
+      return observableCollection;
+    }
+
+    private ObservableCollection<DataModifyItem> InitHideData()
+    {
+      ObservableCollection<DataModifyItem> observableCollection = new ObservableCollection<DataModifyItem>();
+      List<MibDataCfg> hide = this._mibDataModify?.hide;
+      if (hide == null)
+        return observableCollection;
+      foreach (MibDataCfg mibDataCfg in hide.Where<MibDataCfg>((Func<MibDataCfg, bool>) (item => item != null)))
+      {
+        MibDataCfg item = mibDataCfg;
+        if (item.tblEntry != this._mibTableInfo.nameMib)
+        {
+          LogManager.Log.Error("伪装数据配置：（Mib数据-隐藏）获取的数据不属于该Mib表", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 654, nameof (InitHideData));
+          return new ObservableCollection<DataModifyItem>();
+        }
+        observableCollection.Add(new DataModifyItem()
+        {
+          TblEntry = item.tblEntry,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = item.colMibName,
+          ColNameCh = this._columnNameDic.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (x => x.Value == item.colMibName)).Key,
+          Index = this.FormatIndexList(item.condition?.index),
+          Value = item.condition == null ? string.Empty : item.condition.value,
+          NewValue = item.condition == null ? string.Empty : item.condition.newValue
+        });
+      }
+      return observableCollection;
+    }
+
+    private ObservableCollection<DataModifyItem> InitModifyData()
+    {
+      ObservableCollection<DataModifyItem> observableCollection = new ObservableCollection<DataModifyItem>();
+      List<MibDataCfg> replace = this._mibDataModify?.replace;
+      if (replace == null)
+        return observableCollection;
+      foreach (MibDataCfg mibDataCfg in replace.Where<MibDataCfg>((Func<MibDataCfg, bool>) (item => item != null)))
+      {
+        MibDataCfg item = mibDataCfg;
+        if (item.tblEntry != this._mibTableInfo.nameMib)
+        {
+          LogManager.Log.Error("伪装数据配置：（Mib数据-替换）获取的数据不属于该Mib表", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 685, nameof (InitModifyData));
+          return new ObservableCollection<DataModifyItem>();
+        }
+        observableCollection.Add(new DataModifyItem()
+        {
+          TblEntry = item.tblEntry,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = item.colMibName,
+          ColNameCh = this._columnNameDic.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (x => x.Value == item.colMibName)).Key,
+          Index = this.FormatIndexList(item.condition?.index),
+          Value = item.condition == null ? string.Empty : item.condition.value,
+          NewValue = item.condition == null ? string.Empty : item.condition.newValue
+        });
+      }
+      return observableCollection;
+    }
+
+    private string FormatIndexList(List<string> idxList)
+    {
+      if (idxList == null || idxList.Count == 0)
+        return string.Empty;
+      StringBuilder stringBuilder = new StringBuilder();
+      foreach (string idx in idxList)
+        stringBuilder.Append(string.Format("{0},", (object) idx));
+      return stringBuilder.ToString().Trim(',');
+    }
+
+    private ObservableCollection<DataCopyItem> InitCopyData()
+    {
+      ObservableCollection<DataCopyItem> observableCollection = new ObservableCollection<DataCopyItem>();
+      List<CopyCfg> copy = this._mibDataModify?.copy;
+      if (copy == null)
+        return observableCollection;
+      foreach (CopyCfg copyCfg in copy.Where<CopyCfg>((Func<CopyCfg, bool>) (item => item != null)))
+      {
+        CopyCfg item = copyCfg;
+        if (item.tblEntry != this._mibTableInfo.nameMib)
+        {
+          LogManager.Log.Error("伪装数据配置：（Mib数据-复制）获取的数据不属于该Mib表", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSetting.xaml.cs", 731, nameof (InitCopyData));
+          return new ObservableCollection<DataCopyItem>();
+        }
+        string str1 = this.FormatIndexList(item.condition?.sindex);
+        string str2 = this.FormatIndexList(item.condition?.dindex);
+        observableCollection.Add(new DataCopyItem()
+        {
+          TblEntry = item.tblEntry,
+          TblEntryCh = this._mibTableInfo.nameCh,
+          ColMibName = item.colMibName,
+          ColNameCh = this._columnNameDic.FirstOrDefault<KeyValuePair<string, string>>((Func<KeyValuePair<string, string>, bool>) (x => x.Value == item.colMibName)).Key,
+          SourceIndex = str1,
+          DestIndex = str2
+        });
+      }
+      return observableCollection;
+    }
+
+    private MibColumnModify ConvertColumnModify()
+    {
+      if (this._columnHideItems.Count == 0 && this._columnReplaceItems.Count == 0 && this._columnAddItems.Count == 0)
+        return (MibColumnModify) null;
+      MibColumnModify mibColumnModify = new MibColumnModify();
+      foreach (ColumnHideItem columnHideItem in (Collection<ColumnHideItem>) this._columnHideItems)
+        mibColumnModify.hide.Add(new ColumnHideCfg()
+        {
+          tblEntry = columnHideItem.TblEntry,
+          colMibName = columnHideItem.ColMibName
+        });
+      foreach (ColumnReplaceItem columnReplaceItem in (Collection<ColumnReplaceItem>) this._columnReplaceItems)
+        mibColumnModify.replace.Add(new ColumnModifyCfg()
+        {
+          tblEntry = columnReplaceItem.TblEntry,
+          colMibName = columnReplaceItem.ColMibName,
+          originColNameCh = columnReplaceItem.OriginColNameCh,
+          latestColNameCh = columnReplaceItem.LatestColNameCh
+        });
+      foreach (ColumnAddItem columnAddItem in (Collection<ColumnAddItem>) this._columnAddItems)
+        mibColumnModify.add.Add(new ColumnAddCfg()
+        {
+          tblEntry = columnAddItem.TblEntry,
+          colMibName = columnAddItem.ColMibName,
+          oid = columnAddItem.OId,
+          colNameCh = columnAddItem.ColNameCh
+        });
+      return mibColumnModify;
+    }
+
+    private List<string> SplitIndexToList(string strIndex)
+    {
+      if (string.IsNullOrEmpty(strIndex.Trim(' ')))
+        return (List<string>) null;
+      strIndex = strIndex.Replace(" ", "");
+      List<string> list = ((IEnumerable<string>) strIndex.Split(',')).ToList<string>();
+      list.RemoveAll((Predicate<string>) (idx => string.IsNullOrEmpty(idx) || !idx.StartsWith(".")));
+      return list.Distinct<string>().ToList<string>();
+    }
+
+    private MibDataModify ConvertDataModify()
+    {
+      if (this._dataHideItems.Count == 0 && this._dataReplaceItems.Count == 0 && this._dataCopyItems.Count == 0)
+        return (MibDataModify) null;
+      MibDataModify mibDataModify = new MibDataModify();
+      foreach (DataModifyItem dataHideItem in (Collection<DataModifyItem>) this._dataHideItems)
+      {
+        MibDataCfg mibDataCfg = new MibDataCfg()
+        {
+          tblEntry = dataHideItem.TblEntry,
+          colMibName = dataHideItem.ColMibName,
+          condition = new BidCfgParser.Condition()
+          {
+            value = dataHideItem.Value,
+            newValue = dataHideItem.NewValue,
+            index = new List<string>()
+          }
+        };
+        List<string> list = this.SplitIndexToList(dataHideItem.Index);
+        if (list != null && list.Count != 0)
+          mibDataCfg.condition.index.AddRange((IEnumerable<string>) list);
+        mibDataModify.hide.Add(mibDataCfg);
+      }
+      foreach (DataModifyItem dataReplaceItem in (Collection<DataModifyItem>) this._dataReplaceItems)
+      {
+        MibDataCfg mibDataCfg = new MibDataCfg()
+        {
+          tblEntry = dataReplaceItem.TblEntry,
+          colMibName = dataReplaceItem.ColMibName,
+          condition = new BidCfgParser.Condition()
+          {
+            value = dataReplaceItem.Value,
+            newValue = dataReplaceItem.NewValue,
+            index = new List<string>()
+          }
+        };
+        List<string> list = this.SplitIndexToList(dataReplaceItem.Index);
+        if (list != null && list.Count != 0)
+          mibDataCfg.condition.index.AddRange((IEnumerable<string>) list);
+        mibDataModify.replace.Add(mibDataCfg);
+      }
+      foreach (DataCopyItem dataCopyItem in (Collection<DataCopyItem>) this._dataCopyItems)
+      {
+        CopyCfg copyCfg = new CopyCfg()
+        {
+          tblEntry = dataCopyItem.TblEntry,
+          colMibName = dataCopyItem.ColMibName,
+          condition = new CopyCondition()
+          {
+            sindex = new List<string>(),
+            dindex = new List<string>()
+          }
+        };
+        List<string> list1 = this.SplitIndexToList(dataCopyItem.SourceIndex);
+        if (list1 != null && list1.Count != 0)
+          copyCfg.condition.sindex.AddRange((IEnumerable<string>) list1);
+        List<string> list2 = this.SplitIndexToList(dataCopyItem.DestIndex);
+        if (list2 != null && list2.Count != 0)
+          copyCfg.condition.dindex.AddRange((IEnumerable<string>) list2);
+        mibDataModify.copy.Add(copyCfg);
+      }
+      return mibDataModify;
+    }
+
+    private void CbDataModifyColMibName_OnSelectionChanged(
+      object sender,
+      SelectionChangedEventArgs e)
+    {
+      if (!(sender is ComboBox comboBox))
+        return;
+      KeyValuePair<string, string> selectedItem = (KeyValuePair<string, string>) comboBox.SelectedItem;
+      bool flag = false;
+      MibLeafInfo mibLeafInfo = this._mibTableInfo.childList.Find((Predicate<MibLeafInfo>) (cmi => cmi.childNameMib == selectedItem.Value));
+      if (mibLeafInfo != null)
+        flag = mibLeafInfo.IsDigitValueType();
+      this.OldValueCondition.IsEnabled = flag;
+      this.NewValueCondition.IsEnabled = flag;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/fakesetting.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((FrameworkElement) target).Loaded += new RoutedEventHandler(this.CustomWindow_Loaded);
+          break;
+        case 2:
+          this.mibColumnModify = (TabItem) target;
+          break;
+        case 3:
+          this.TbColHideTblEntryCh = (TextBox) target;
+          break;
+        case 4:
+          this.CbColHideColName = (ComboBox) target;
+          break;
+        case 5:
+          this.BtColHide = (Button) target;
+          this.BtColHide.Click += new RoutedEventHandler(this.BtColHide_Click);
+          break;
+        case 6:
+          this.dgColumnHide = (DataGrid) target;
+          break;
+        case 7:
+          this.DeleteColHide = (MenuItem) target;
+          this.DeleteColHide.Click += new RoutedEventHandler(this.DeleteColHide_Click);
+          break;
+        case 8:
+          this.TbColModifyTblEntryCh = (TextBox) target;
+          break;
+        case 9:
+          this.CbColModifyColName = (ComboBox) target;
+          break;
+        case 10:
+          this.TbColModifyColLNameCh = (TextBox) target;
+          break;
+        case 11:
+          this.BtColModify = (Button) target;
+          this.BtColModify.Click += new RoutedEventHandler(this.BtColModify_Click);
+          break;
+        case 12:
+          this.dgColumnReplace = (DataGrid) target;
+          break;
+        case 13:
+          this.DeleteColReplace = (MenuItem) target;
+          this.DeleteColReplace.Click += new RoutedEventHandler(this.DeleteColReplace_Click);
+          break;
+        case 14:
+          this.TbColAddTblEntryCh = (TextBox) target;
+          break;
+        case 15:
+          this.TbColAddOid = (TextBox) target;
+          break;
+        case 16:
+          this.TbColAddColMibName = (TextBox) target;
+          break;
+        case 17:
+          this.TbColAddColNameCh = (TextBox) target;
+          break;
+        case 18:
+          this.BtColAdd = (Button) target;
+          this.BtColAdd.Click += new RoutedEventHandler(this.BtColAdd_Click);
+          break;
+        case 19:
+          this.dgColumnAdd = (DataGrid) target;
+          break;
+        case 20:
+          this.DeleteColAdd = (MenuItem) target;
+          this.DeleteColAdd.Click += new RoutedEventHandler(this.DeleteColAdd_Click);
+          break;
+        case 21:
+          this.mibDataModify = (TabItem) target;
+          break;
+        case 22:
+          this.TbDataHideTblEntryCh = (TextBox) target;
+          break;
+        case 23:
+          this.CbDataHideColMibName = (ComboBox) target;
+          break;
+        case 24:
+          this.TbDataHideIndex = (TextBox) target;
+          break;
+        case 25:
+          this.TbDataHideValue = (TextBox) target;
+          break;
+        case 26:
+          this.TbDataHideNewValue = (TextBox) target;
+          break;
+        case 27:
+          this.BtDataHide = (Button) target;
+          this.BtDataHide.Click += new RoutedEventHandler(this.BtDataHide_Click);
+          break;
+        case 28:
+          this.dgDataHide = (DataGrid) target;
+          break;
+        case 29:
+          this.DeleteDataHide = (MenuItem) target;
+          this.DeleteDataHide.Click += new RoutedEventHandler(this.DeleteDataHide_Click);
+          break;
+        case 30:
+          this.TbDataModifyTblEntryCh = (TextBox) target;
+          break;
+        case 31:
+          this.CbDataModifyColMibName = (ComboBox) target;
+          this.CbDataModifyColMibName.SelectionChanged += new SelectionChangedEventHandler(this.CbDataModifyColMibName_OnSelectionChanged);
+          break;
+        case 32:
+          this.TbDataModifyIndex = (TextBox) target;
+          break;
+        case 33:
+          this.OldValueCondition = (ComboBox) target;
+          break;
+        case 34:
+          this.TbDataModifyValue = (TextBox) target;
+          break;
+        case 35:
+          this.NewValueCondition = (ComboBox) target;
+          break;
+        case 36:
+          this.TbDataModifyNewValue = (TextBox) target;
+          break;
+        case 37:
+          this.BtDataModify = (Button) target;
+          this.BtDataModify.Click += new RoutedEventHandler(this.BtDataModify_Click);
+          break;
+        case 38:
+          this.dgDataReplace = (DataGrid) target;
+          break;
+        case 39:
+          this.DeleteDataReplace = (MenuItem) target;
+          this.DeleteDataReplace.Click += new RoutedEventHandler(this.DeleteDataReplace_Click);
+          break;
+        case 40:
+          this.TbDataCopyTblEntryCh = (TextBox) target;
+          break;
+        case 41:
+          this.CbDataCopyColMibName = (ComboBox) target;
+          break;
+        case 42:
+          this.TbDataCopySIndex = (TextBox) target;
+          break;
+        case 43:
+          this.TbDataCopyDIndex = (TextBox) target;
+          break;
+        case 44:
+          this.BtDataCopy = (Button) target;
+          this.BtDataCopy.Click += new RoutedEventHandler(this.BtDataCopy_Click);
+          break;
+        case 45:
+          this.dgDataCopy = (DataGrid) target;
+          break;
+        case 46:
+          this.DeleteDataCopy = (MenuItem) target;
+          this.DeleteDataCopy.Click += new RoutedEventHandler(this.DeleteDataCopy_Click);
+          break;
+        case 47:
+          this.BtApply = (Button) target;
+          this.BtApply.Click += new RoutedEventHandler(this.BtApply_Click);
+          break;
+        case 48:
+          this.BtOriginal = (Button) target;
+          this.BtOriginal.Click += new RoutedEventHandler(this.BtOriginal_Click);
+          break;
+        case 49:
+          this.BtCancel = (Button) target;
+          this.BtCancel.Click += new RoutedEventHandler(this.BtCancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

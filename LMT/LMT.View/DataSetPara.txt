@@ -1,0 +1,124 @@
+using LmtbSnmp;
+using System.Collections.Generic;
+using System.ComponentModel;
+
+namespace LMT.View
+{
+  public class DataSetPara : INotifyPropertyChanged
+  {
+    private bool isSelected;
+    private int id;
+    private string oid;
+    private string paraName;
+    private string paraValue;
+    private string paraRange;
+    private string paraUnit;
+    private DataGrid_CellDataType paraType;
+    private string mibNameEN;
+    private string mibDesc;
+    private Dictionary<int, string> dicComboxList = new Dictionary<int, string>();
+
+    public bool IsSelected
+    {
+      get => this.isSelected;
+      set
+      {
+        this.isSelected = value;
+        this.RaisePropertyChanged(nameof (IsSelected));
+      }
+    }
+
+    public string OID
+    {
+      get => this.oid;
+      set => this.oid = value;
+    }
+
+    public string ParaValue
+    {
+      get => this.paraValue;
+      set
+      {
+        this.paraValue = value;
+        this.RaisePropertyChanged(nameof (ParaValue));
+      }
+    }
+
+    public string ParaName
+    {
+      get => this.paraName;
+      set
+      {
+        this.paraName = value;
+        this.RaisePropertyChanged(nameof (ParaName));
+      }
+    }
+
+    public string ParaRange
+    {
+      get => this.paraRange;
+      set
+      {
+        this.paraRange = value;
+        this.RaisePropertyChanged(nameof (ParaRange));
+      }
+    }
+
+    public string ParaUnit
+    {
+      get => this.paraUnit;
+      set
+      {
+        this.paraUnit = value;
+        this.RaisePropertyChanged(nameof (ParaUnit));
+      }
+    }
+
+    public DataGrid_CellDataType ParaType
+    {
+      get => this.paraType;
+      set
+      {
+        this.paraType = value;
+        this.RaisePropertyChanged(nameof (ParaType));
+      }
+    }
+
+    public Dictionary<int, string> DicList
+    {
+      get => this.dicComboxList;
+      set
+      {
+        this.dicComboxList = value;
+        this.RaisePropertyChanged(nameof (DicList));
+      }
+    }
+
+    public int ID
+    {
+      get => this.id;
+      set => this.id = value;
+    }
+
+    public string MibNameEN
+    {
+      get => this.mibNameEN;
+      set => this.mibNameEN = value;
+    }
+
+    public string MibDesc
+    {
+      get => this.mibDesc;
+      set => this.mibDesc = value;
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void RaisePropertyChanged(string strPropertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(strPropertyName));
+    }
+  }
+}

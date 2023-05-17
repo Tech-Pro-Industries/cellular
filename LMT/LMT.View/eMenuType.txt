@@ -1,0 +1,16 @@
+namespace LMT.View
+{
+  public enum eMenuType
+  {
+    Add,
+    mutiAdd,
+    Delete,
+    AllDelete,
+    Modify,
+    Query,
+    mutiQuery,
+    Import,
+    Export,
+    Fake,
+  }
+}

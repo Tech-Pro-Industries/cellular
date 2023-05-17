@@ -1,0 +1,42 @@
+using DevExpress.Xpf.Grid;
+using LMT.Component.ViewModel;
+using LogManager;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace LMT.View
+{
+  public class MibMultiEditorsTemplateSelector : DataTemplateSelector
+  {
+    public override DataTemplate SelectTemplate(object item, DependencyObject container)
+    {
+      try
+      {
+        GridCellData gridCellData = (GridCellData) item;
+        GridControl grid = ((GridViewBase) gridCellData.View).Grid;
+        Dictionary<string, object> properties = (gridCellData.Row as DyDataGrid_MIBModel).Properties;
+        if (properties == null)
+          return (DataTemplate) null;
+        string[] split = gridCellData.Column.FieldName.Split('.');
+        if (split.Length < 4)
+        {
+          Log.Error("MibMultiEditorsTemplateSelector split failed", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGrid.xaml.cs", 4912, nameof (SelectTemplate));
+          return (DataTemplate) null;
+        }
+        KeyValuePair<string, object> keyValuePair = properties.First<KeyValuePair<string, object>>((Func<KeyValuePair<string, object>, bool>) (p => split[2].Equals(p.Key)));
+        if (keyValuePair.Value == null)
+          return (DataTemplate) null;
+        LMT.GridCell gridCell = (LMT.GridCell) keyValuePair.Value;
+        return (DataTemplate) grid.Resources[(object) ("Template" + gridCell.Id)];
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\MainDataGrid.xaml.cs", 4928, nameof (SelectTemplate));
+        return (DataTemplate) null;
+      }
+    }
+  }
+}

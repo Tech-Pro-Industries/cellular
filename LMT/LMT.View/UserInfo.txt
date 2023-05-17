@@ -1,0 +1,17 @@
+namespace LMT.View
+{
+  public class USERInfo
+  {
+    public int ID { get; set; }
+
+    public string User { get; set; }
+
+    public string UserDesc { get; set; }
+
+    public string Roles { get; set; }
+
+    public string Groups { get; set; }
+
+    public string Lockstatus { get; set; }
+  }
+}

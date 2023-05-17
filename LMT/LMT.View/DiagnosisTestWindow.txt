@@ -1,0 +1,103 @@
+using SCMTResources.CustomControls;
+using SiDiagnosis.ViewModel;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class DiagnosisTestWindow : CustomWindow, IComponentConnector
+  {
+    private string ip;
+    private SiDiagnosisViewModel sdVM;
+    public DiagnosisTestWindow.SetFlag setFlag;
+    internal TextBox showResult;
+    internal TextBox tbxCommand;
+    private bool _contentLoaded;
+
+    public DiagnosisTestWindow(string enbIp)
+    {
+      this.ip = enbIp;
+      this.InitializeComponent();
+      this.sdVM = new SiDiagnosisViewModel(this.ip);
+      this.sdVM.setContent += new SiDiagnosisViewModel.SetContent(this.SetContent);
+      this.DataContext = (object) this.sdVM;
+    }
+
+    private void tbxCommand_KeyDown(object sender, KeyEventArgs e)
+    {
+      if (e.Key == Key.Back && e.Key == Key.Return || !(sender is TextBox textBox))
+        return;
+      int selectionStart = textBox.SelectionStart;
+      string text = textBox.Text;
+      string lineText = textBox.GetLineText(textBox.LineCount - 1);
+      if (lineText.IndexOf("shell>") != 0)
+        return;
+      string str = lineText.Substring("shell>".Length);
+      int num = textBox.Text.Length - str.Length;
+      if (selectionStart >= num)
+        return;
+      e.Handled = true;
+    }
+
+    private void SetContent(string str)
+    {
+      this.showResult.Focus();
+      this.showResult.ScrollToEnd();
+      this.showResult.Text += str;
+      this.showResult.ScrollToEnd();
+    }
+
+    private void CommandBinding_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+    }
+
+    private void CommandBinding_CanExecute(object sender, CanExecuteRoutedEventArgs e) => e.Handled = true;
+
+    private void CustomWindow_Closed(object sender, EventArgs e) => this.setFlag(0);
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/diagnosistestwindow.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((Window) target).Closed += new EventHandler(this.CustomWindow_Closed);
+          break;
+        case 2:
+          this.showResult = (TextBox) target;
+          break;
+        case 3:
+          this.tbxCommand = (TextBox) target;
+          this.tbxCommand.KeyDown += new KeyEventHandler(this.tbxCommand_KeyDown);
+          break;
+        case 4:
+          ((CommandBinding) target).Executed += new ExecutedRoutedEventHandler(this.CommandBinding_Executed);
+          ((CommandBinding) target).CanExecute += new CanExecuteRoutedEventHandler(this.CommandBinding_CanExecute);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    public delegate void SetFlag(int flag);
+  }
+}

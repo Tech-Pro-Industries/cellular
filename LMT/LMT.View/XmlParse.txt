@@ -1,0 +1,138 @@
+using CommonUtility;
+using LinkPath;
+using LmtbSnmp;
+using LogManager;
+using MIBDataParser;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Xml;
+
+namespace LMT.View
+{
+  internal class XmlParse
+  {
+    private List<XmlData> xmldatalist_;
+    private string gnbip_;
+    private string filepath_;
+
+    public XmlParse(string gnbip)
+    {
+      this.xmldatalist_ = new List<XmlData>();
+      this.gnbip_ = gnbip;
+      if (EnbTypeEnum.ENB_EMB5116 == CSEnbHelper.GetStationFrameType(gnbip))
+        this.filepath_ = FilePathHelper.GetAppPath() + ConfigFileHelper.enbFlowChartXml;
+      else
+        this.filepath_ = FilePathHelper.GetAppPath() + ConfigFileHelper.gnbFlowChartXml;
+    }
+
+    private void Init()
+    {
+      Dictionary<string, MibLeafInfo> reData = new Dictionary<string, MibLeafInfo>()
+      {
+        {
+          "selfStartupAlgorithmSwitch",
+          (MibLeafInfo) null
+        }
+      };
+      if (!Database.GetInstance().getDataByEnglishName(reData, this.gnbip_, out string _))
+      {
+        Log.Error("无法获取数据库中selfStartupAlgorithmSwitch的oid", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FlowChartView.xaml.cs", 175, nameof (Init));
+      }
+      else
+      {
+        ILmtbSnmp snmpInstance = DTLinkPathMgr.GetSnmpInstance(this.gnbip_);
+        List<string> oidList = new List<string>()
+        {
+          SnmpToDatabase.GetMibPrefix() + reData["selfStartupAlgorithmSwitch"].childOid
+        };
+        Dictionary<string, string> results = new Dictionary<string, string>();
+        if (snmpInstance.SnmpGetSync(this.gnbip_, oidList, out results, 1000L) == 0)
+        {
+          string str = !("0" == results.Values.First<string>()) ? "open" : "close";
+          XmlDocument xmlDocument = new XmlDocument();
+          try
+          {
+            if (!FilePathHelper.FileExists(this.filepath_))
+            {
+              Log.Error(string.Format("启动流程图配置文件{0}不存在.", (object) this.filepath_), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FlowChartView.xaml.cs", 197, nameof (Init));
+            }
+            else
+            {
+              xmlDocument.Load(this.filepath_);
+              XmlNodeList xmlNodeList1 = xmlDocument.SelectNodes("root/module");
+              if (xmlNodeList1 == null)
+                return;
+              foreach (XmlNode xmlNode1 in xmlNodeList1)
+              {
+                if (xmlNode1.Attributes != null && !(str != xmlNode1.Attributes["selfstartup"].Value))
+                {
+                  XmlNodeList xmlNodeList2 = xmlNode1.SelectNodes("block");
+                  if (xmlNodeList2 != null)
+                  {
+                    foreach (XmlNode xmlNode2 in xmlNodeList2)
+                    {
+                      List<MibData> mibDataList = new List<MibData>();
+                      XmlNodeList xmlNodeList3 = xmlNode2.SelectNodes("mib");
+                      if (xmlNodeList3 != null)
+                      {
+                        foreach (XmlNode xmlNode3 in xmlNodeList3)
+                        {
+                          List<MibinfoData> mibinfoDataList = new List<MibinfoData>();
+                          XmlNodeList xmlNodeList4 = xmlNode3.SelectNodes("mibinfo");
+                          if (xmlNodeList4 != null)
+                          {
+                            foreach (XmlNode xmlNode4 in xmlNodeList4)
+                            {
+                              if (xmlNode4.Attributes != null)
+                              {
+                                MibinfoData mibinfoData;
+                                mibinfoData.value = xmlNode4.Attributes["value"].Value;
+                                mibinfoData.color = xmlNode4.Attributes["color"].Value;
+                                mibinfoData.description = xmlNode4.Attributes["description"].Value;
+                                mibinfoDataList.Add(mibinfoData);
+                              }
+                            }
+                            if (xmlNode3.Attributes != null)
+                            {
+                              MibData mibData;
+                              mibData.mibname = xmlNode3.Attributes["name"].Value;
+                              mibData.mibdesp = xmlNode3.Attributes["description"].Value;
+                              mibData.mibinfo = mibinfoDataList;
+                              mibDataList.Add(mibData);
+                            }
+                          }
+                        }
+                        if (xmlNode2.Attributes != null)
+                        {
+                          XmlData xmlData;
+                          xmlData.name = xmlNode2.Attributes["name"].Value;
+                          xmlData.text = xmlNode2.Attributes["text"].Value;
+                          xmlData.state = xmlNode2.Attributes["state"].Value;
+                          xmlData.mib = mibDataList;
+                          this.xmldatalist_.Add(xmlData);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          catch (Exception ex)
+          {
+            Log.Error(string.Format("启动流程图解析配置文件出现异常:{0}.", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FlowChartView.xaml.cs", 261, nameof (Init));
+          }
+        }
+        else
+          Log.Error("无法获取selfStartupAlgorithmSwitch的值", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FlowChartView.xaml.cs", 267, nameof (Init));
+      }
+    }
+
+    public List<XmlData> GetXmlDataList()
+    {
+      this.Init();
+      return this.xmldatalist_;
+    }
+  }
+}

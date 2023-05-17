@@ -1,0 +1,20 @@
+using System.Globalization;
+using System.Windows.Controls;
+
+namespace LMT.View
+{
+  public class TimeValidationRule : ValidationRule
+  {
+    public override ValidationResult Validate(object value, CultureInfo cultureInfo)
+    {
+      int result;
+      if (!int.TryParse((string) value, out result))
+        return new ValidationResult(false, (object) null);
+      return result < this.MinValue || result > this.MaxValue ? new ValidationResult(false, (object) "Out of range!") : new ValidationResult(true, (object) null);
+    }
+
+    public int MinValue { get; set; }
+
+    public int MaxValue { get; set; } = 59;
+  }
+}

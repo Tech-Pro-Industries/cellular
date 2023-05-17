@@ -1,0 +1,100 @@
+using CommonUtility;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class JsonView : System.Windows.Controls.UserControl, IComponentConnector
+  {
+    internal JsonView jsView;
+    internal System.Windows.Controls.TextBox FtpPathTextBox;
+    internal System.Windows.Controls.Button FtpFilePathButton;
+    internal System.Windows.Controls.TextBox SnmpAgentTextBox;
+    internal System.Windows.Controls.Button SnmpAgentFilePath;
+    internal System.Windows.Controls.TextBox AlarmDataTime;
+    private bool _contentLoaded;
+
+    public JsonView() => this.InitializeComponent();
+
+    private void SnmpAgentFilePath_Click(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog1 = new OpenFileDialog();
+      openFileDialog1.Filter = "exe | *.exe";
+      OpenFileDialog openFileDialog2 = openFileDialog1;
+      if (openFileDialog2.ShowDialog() != DialogResult.OK)
+        return;
+      string fileName = openFileDialog2.FileName;
+      this.SnmpAgentTextBox.Text = fileName;
+      DispatcherHelper.DoEvents();
+      if (File.Exists(fileName))
+        return;
+      int num = (int) CustomMessageBox.Show("Index_APPCFG_FileNotExist", messageBoxImage: CustomMessageBoxIcon.Error);
+    }
+
+    private void FtpFilePathButton_Click(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog1 = new OpenFileDialog();
+      openFileDialog1.Filter = "exe | *.exe";
+      OpenFileDialog openFileDialog2 = openFileDialog1;
+      if (openFileDialog2.ShowDialog() != DialogResult.OK)
+        return;
+      string fileName = openFileDialog2.FileName;
+      this.FtpPathTextBox.Text = fileName;
+      DispatcherHelper.DoEvents();
+      if (File.Exists(fileName))
+        return;
+      int num = (int) CustomMessageBox.Show("Index_APPCFG_FileNotExist", messageBoxImage: CustomMessageBoxIcon.Error);
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/view/jsonview.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.jsView = (JsonView) target;
+          break;
+        case 2:
+          this.FtpPathTextBox = (System.Windows.Controls.TextBox) target;
+          break;
+        case 3:
+          this.FtpFilePathButton = (System.Windows.Controls.Button) target;
+          this.FtpFilePathButton.Click += new RoutedEventHandler(this.FtpFilePathButton_Click);
+          break;
+        case 4:
+          this.SnmpAgentTextBox = (System.Windows.Controls.TextBox) target;
+          break;
+        case 5:
+          this.SnmpAgentFilePath = (System.Windows.Controls.Button) target;
+          this.SnmpAgentFilePath.Click += new RoutedEventHandler(this.SnmpAgentFilePathClick);
+          break;
+        case 6:
+          this.AlarmDataTime = (System.Windows.Controls.TextBox) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}
+

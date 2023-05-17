@@ -1,0 +1,101 @@
+using CommonUtility;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class Relogin : CustomWindow, IComponentConnector
+  {
+    private bool _isLogined;
+    internal TextBox tbUserName;
+    internal PasswordBox pbPasswork;
+    internal Button btLogin;
+    internal Button btExit;
+    private bool _contentLoaded;
+
+    public Relogin()
+    {
+      this.InitializeComponent();
+      string appSettingValue = AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb");
+      this.Title = string.Format("{0} {1}", (object) LanguageServices.Current.GetTextValue("Index_Lock_UnLock"), (object) appSettingValue);
+      this.tbUserName.Text = Singleton<UserInfo>.GetInstance().User;
+      this._isLogined = false;
+    }
+
+    private void btLogin_Click(object sender, RoutedEventArgs e)
+    {
+      string password = this.pbPasswork.Password.Trim();
+      if (string.IsNullOrEmpty(password))
+      {
+        int num1 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_InputPassword"));
+      }
+      else if (UserInformation.Loading(Singleton<UserInfo>.GetInstance().User, password, Singleton<UserInfo>.GetInstance().IsRemeber))
+      {
+        if (bool.Parse(Singleton<UserInfo>.GetInstance().status))
+          Singleton<LockTimer>.GetInstance().TimerStart(Singleton<UserInfo>.GetInstance().time);
+        this._isLogined = true;
+        this.Close();
+      }
+      else
+      {
+        int num2 = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Login_LoginFailed"), messageBoxImage: CustomMessageBoxIcon.Error);
+      }
+    }
+
+    private void btExit_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void Window_Closing(object sender, CancelEventArgs e)
+    {
+      if (this._isLogined)
+        return;
+      Application.Current.Shutdown();
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/relogin.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((Window) target).Closing += new CancelEventHandler(this.Window_Closing);
+          break;
+        case 2:
+          this.tbUserName = (TextBox) target;
+          break;
+        case 3:
+          this.pbPasswork = (PasswordBox) target;
+          break;
+        case 4:
+          this.btLogin = (Button) target;
+          this.btLogin.Click += new RoutedEventHandler(this.btLogin_Click);
+          break;
+        case 5:
+          this.btExit = (Button) target;
+          this.btExit.Click += new RoutedEventHandler(this.btExit_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

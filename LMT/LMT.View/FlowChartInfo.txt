@@ -1,0 +1,11 @@
+using System.Collections.Generic;
+
+namespace LMT.View
+{
+  internal struct FlowChartInfo
+  {
+    public string name;
+    public string state;
+    public List<MsgInfo> msglist;
+  }
+}

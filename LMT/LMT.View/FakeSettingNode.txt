@@ -1,0 +1,269 @@
+using BidCfgParser;
+using CommonUtility;
+using LMT.ViewModel;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class FakeSettingNode : CustomWindow, IComponentConnector
+  {
+    private MibNodeModify _mibNodeModify;
+    private ObservableCollection<NameAndMib> _nodeHideItems;
+    private ObservableCollection<NodeNameModify> _nodeReplaceItems;
+    private readonly ObservableCollection<ObjNodeModel> _nodeList;
+    private Dictionary<string, string> _nodeDic = new Dictionary<string, string>();
+    internal ComboBox CbNodeHideName;
+    internal Button BtNodeHide;
+    internal DataGrid dgNodeHide;
+    internal MenuItem DeleteNodeHide;
+    internal ComboBox CbNodeReplaceName;
+    internal TextBox TbNodeModifyLNameCh;
+    internal Button BtNodeModify;
+    internal DataGrid dgNodeReplace;
+    internal MenuItem DeleteNodeReplace;
+    internal Button BtApply;
+    internal Button BtOriginal;
+    internal Button BtCancel;
+    private bool _contentLoaded;
+
+    public FakeSettingNode(ObservableCollection<ObjNodeModel> nodeList)
+    {
+      this.InitializeComponent();
+      this._nodeList = nodeList;
+    }
+
+    private void CustomWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+      Singleton<BidHelper>.GetInstance().GetMibTreeNodeConfig(out this._mibNodeModify);
+      this.InitMibNodeModify();
+      this.InitNodeDic();
+      this.CbNodeHideName.ItemsSource = (IEnumerable) this._nodeDic;
+      this.CbNodeReplaceName.ItemsSource = (IEnumerable) this._nodeDic;
+    }
+
+    private void BtNodeHide_Click(object sender, RoutedEventArgs e)
+    {
+      object selectedItem = this.CbNodeHideName.SelectedItem;
+      string str;
+      string key1;
+      if (selectedItem != null)
+      {
+        if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+        {
+          LogManager.Log.Error("对象树伪装配置（隐藏）：数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSettingNode.xaml.cs", 60, nameof (BtNodeHide_Click));
+          int num = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+          return;
+        }
+        str = keyValuePair.Value;
+        key1 = keyValuePair.Key;
+      }
+      else
+      {
+        string key2 = this.CbNodeHideName.Text.Trim();
+        if (string.IsNullOrEmpty(key2))
+        {
+          int num = (int) CustomMessageBox.Show("节点名不能为空！");
+          return;
+        }
+        if (!this._nodeDic.ContainsKey(key2))
+        {
+          int num = (int) CustomMessageBox.Show("不存在输入的节点！");
+          return;
+        }
+        str = key2;
+        key1 = this._nodeDic[key2];
+      }
+      this._nodeHideItems.Add(new NameAndMib()
+      {
+        nameCh = key1,
+        nameMib = str
+      });
+    }
+
+    private void BtNodeModify_Click(object sender, RoutedEventArgs e)
+    {
+      object selectedItem = this.CbNodeReplaceName.SelectedItem;
+      string str1;
+      string key1;
+      if (selectedItem != null)
+      {
+        if (!(selectedItem is KeyValuePair<string, string> keyValuePair))
+        {
+          LogManager.Log.Error("对象树伪装配置（替换）：数据错误，下拉框选中项不为KeyValuePair", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSettingNode.xaml.cs", 114, nameof (BtNodeModify_Click));
+          int num = (int) CustomMessageBox.Show("数据加载错误，添加失败！");
+          return;
+        }
+        str1 = keyValuePair.Value;
+        key1 = keyValuePair.Key;
+      }
+      else
+      {
+        string key2 = this.CbNodeHideName.Text.Trim();
+        if (string.IsNullOrEmpty(key2))
+        {
+          int num = (int) CustomMessageBox.Show("节点名不能为空！");
+          return;
+        }
+        if (!this._nodeDic.ContainsKey(key2))
+        {
+          int num = (int) CustomMessageBox.Show("不存在输入的节点！");
+          return;
+        }
+        str1 = key2;
+        key1 = this._nodeDic[key2];
+      }
+      string str2 = this.TbNodeModifyLNameCh.Text.Trim();
+      if (string.IsNullOrEmpty(str1))
+      {
+        int num1 = (int) CustomMessageBox.Show("新节点名不能为空！");
+      }
+      else
+        this._nodeReplaceItems.Add(new NodeNameModify()
+        {
+          originNodeNameCh = key1,
+          nameMib = str1,
+          latestNodeNameCh = str2
+        });
+    }
+
+    private void DeleteNodeHide_Click(object sender, RoutedEventArgs e)
+    {
+      List<NameAndMib> nameAndMibList = new List<NameAndMib>();
+      foreach (object selectedItem in (IEnumerable) this.dgNodeHide.SelectedItems)
+        nameAndMibList.Add(selectedItem as NameAndMib);
+      foreach (NameAndMib nameAndMib in nameAndMibList)
+        this._nodeHideItems.Remove(nameAndMib);
+    }
+
+    private void DeleteNodeReplace_Click(object sender, RoutedEventArgs e)
+    {
+      List<NodeNameModify> nodeNameModifyList = new List<NodeNameModify>();
+      foreach (object selectedItem in (IEnumerable) this.dgNodeReplace.SelectedItems)
+        nodeNameModifyList.Add(selectedItem as NodeNameModify);
+      foreach (NodeNameModify nodeNameModify in nodeNameModifyList)
+        this._nodeReplaceItems.Remove(nodeNameModify);
+    }
+
+    private void BtApply_Click(object sender, RoutedEventArgs e)
+    {
+      if (!Singleton<BidHelper>.GetInstance().SaveMibTreeNodeCfg(new MibNodeModify()
+      {
+        hide = new List<NameAndMib>((IEnumerable<NameAndMib>) this._nodeHideItems),
+        replace = new List<NodeNameModify>((IEnumerable<NodeNameModify>) this._nodeReplaceItems)
+      }))
+      {
+        int num = (int) CustomMessageBox.Show("保存失败！", messageBoxImage: CustomMessageBoxIcon.Error);
+      }
+      else
+        this.Close();
+    }
+
+    private void BtOriginal_Click(object sender, RoutedEventArgs e) => this.InitMibNodeModify();
+
+    private void BtCancel_Click(object sender, RoutedEventArgs e) => this.Close();
+
+    private void InitMibNodeModify()
+    {
+      if (this._mibNodeModify?.hide == null)
+        this.dgNodeHide.ItemsSource = (IEnumerable) (this._nodeHideItems = new ObservableCollection<NameAndMib>());
+      else
+        this.dgNodeHide.ItemsSource = (IEnumerable) (this._nodeHideItems = new ObservableCollection<NameAndMib>(this._mibNodeModify.hide));
+      if (this._mibNodeModify?.replace == null)
+        this.dgNodeReplace.ItemsSource = (IEnumerable) (this._nodeReplaceItems = new ObservableCollection<NodeNameModify>());
+      else
+        this.dgNodeReplace.ItemsSource = (IEnumerable) (this._nodeReplaceItems = new ObservableCollection<NodeNameModify>(this._mibNodeModify.replace));
+    }
+
+    private void InitNodeDic()
+    {
+      foreach (ObjNodeModel node in (Collection<ObjNodeModel>) this._nodeList)
+      {
+        string key = !node.ObjTableName.EndsWith("Table") ? node.ObjTableName : node.ObjTableName.Substring(0, node.ObjTableName.Length - 5) + "Entry";
+        string objName = node.ObjName;
+        if (this._nodeDic.ContainsKey(key))
+          LogManager.Log.Warn("对象树伪装配置：对象树存在重复的中文节点名", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FakeSettingNode.xaml.cs", 258, nameof (InitNodeDic));
+        else
+          this._nodeDic.Add(objName, key);
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/fakesettingnode.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          ((FrameworkElement) target).Loaded += new RoutedEventHandler(this.CustomWindow_Loaded);
+          break;
+        case 2:
+          this.CbNodeHideName = (ComboBox) target;
+          break;
+        case 3:
+          this.BtNodeHide = (Button) target;
+          this.BtNodeHide.Click += new RoutedEventHandler(this.BtNodeHide_Click);
+          break;
+        case 4:
+          this.dgNodeHide = (DataGrid) target;
+          break;
+        case 5:
+          this.DeleteNodeHide = (MenuItem) target;
+          this.DeleteNodeHide.Click += new RoutedEventHandler(this.DeleteNodeHide_Click);
+          break;
+        case 6:
+          this.CbNodeReplaceName = (ComboBox) target;
+          break;
+        case 7:
+          this.TbNodeModifyLNameCh = (TextBox) target;
+          break;
+        case 8:
+          this.BtNodeModify = (Button) target;
+          this.BtNodeModify.Click += new RoutedEventHandler(this.BtNodeModify_Click);
+          break;
+        case 9:
+          this.dgNodeReplace = (DataGrid) target;
+          break;
+        case 10:
+          this.DeleteNodeReplace = (MenuItem) target;
+          this.DeleteNodeReplace.Click += new RoutedEventHandler(this.DeleteNodeReplace_Click);
+          break;
+        case 11:
+          this.BtApply = (Button) target;
+          this.BtApply.Click += new RoutedEventHandler(this.BtApply_Click);
+          break;
+        case 12:
+          this.BtOriginal = (Button) target;
+          this.BtOriginal.Click += new RoutedEventHandler(this.BtOriginal_Click);
+          break;
+        case 13:
+          this.BtCancel = (Button) target;
+          this.BtCancel.Click += new RoutedEventHandler(this.BtCancel_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

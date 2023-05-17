@@ -1,0 +1,9 @@
+namespace LMT.View
+{
+  public enum eCfgOperMode
+  {
+    ObjMode,
+    ClassicMode,
+    PatchMode,
+  }
+}

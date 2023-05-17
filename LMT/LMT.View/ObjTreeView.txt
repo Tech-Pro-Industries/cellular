@@ -1,0 +1,64 @@
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.View
+{
+  public class ObjTreeView : UserControl, IComponentConnector
+  {
+    internal TreeView xObjTree;
+    internal MenuItem menuDeleteAllCfgCell;
+    internal MenuItem menuAddCfgCell;
+    internal MenuItem menuDeleteCfgCell;
+    internal MenuItem menuBidCfgConfigCell;
+    private bool _contentLoaded;
+
+    public ObjTreeView() => this.InitializeComponent();
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/view/objtreeview.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    internal Delegate _CreateDelegate(Type delegateType, string handler) => Delegate.CreateDelegate(delegateType, (object) this, handler);
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.xObjTree = (TreeView) target;
+          break;
+        case 2:
+          this.menuDeleteAllCfgCell = (MenuItem) target;
+          break;
+        case 3:
+          this.menuAddCfgCell = (MenuItem) target;
+          break;
+        case 4:
+          this.menuDeleteCfgCell = (MenuItem) target;
+          break;
+        case 5:
+          this.menuBidCfgConfigCell = (MenuItem) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

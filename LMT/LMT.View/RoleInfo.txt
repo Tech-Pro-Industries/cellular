@@ -1,0 +1,15 @@
+namespace LMT.View
+{
+  public class RoleInfo
+  {
+    public int ID { get; set; }
+
+    public string Name { get; set; }
+
+    public string Desc { get; set; }
+
+    public string Module { get; set; }
+
+    public bool cB { get; set; }
+  }
+}

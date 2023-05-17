@@ -1,0 +1,11 @@
+using System.Collections.Generic;
+
+namespace LMT.View
+{
+  internal struct MibData
+  {
+    public string mibname;
+    public string mibdesp;
+    public List<MibinfoData> mibinfo;
+  }
+}

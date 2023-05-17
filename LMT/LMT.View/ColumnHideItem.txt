@@ -1,0 +1,54 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Linq.Expressions;
+
+namespace LMT.View
+{
+  public class ColumnHideItem : ViewModelBase
+  {
+    private string _tblEntry;
+    private string _tblEntryCh;
+    private string _colMibName;
+    private string _colNameCh;
+
+    public string TblEntry
+    {
+      get => this._tblEntry;
+      set
+      {
+        this._tblEntry = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntry));
+      }
+    }
+
+    public string TblEntryCh
+    {
+      get => this._tblEntryCh;
+      set
+      {
+        this._tblEntryCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.TblEntryCh));
+      }
+    }
+
+    public string ColMibName
+    {
+      get => this._colMibName;
+      set
+      {
+        this._colMibName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColMibName));
+      }
+    }
+
+    public string ColNameCh
+    {
+      get => this._colNameCh;
+      set
+      {
+        this._colNameCh = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ColNameCh));
+      }
+    }
+  }
+}

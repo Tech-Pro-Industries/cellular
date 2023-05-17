@@ -1,0 +1,73 @@
+using CommonUtility;
+using System;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Threading;
+
+namespace LMT.View
+{
+  public class LockTimer : Singleton<LockTimer>
+  {
+    private DispatcherTimer _timer;
+    private int _timerTick;
+
+    private LockTimer()
+    {
+      this._timer = new DispatcherTimer();
+      this.SetInterval(0, 0, 5);
+    }
+
+    private void SetInterval(int hours, int mimutes, int seconds) => this._timer.Interval = new TimeSpan(hours, mimutes, seconds);
+
+    public void TimerStart(int tick)
+    {
+      this._timerTick = tick;
+      this._timer.Tick += new EventHandler(this.timer_Tick);
+      this._timer.Start();
+    }
+
+    public void TimerStop()
+    {
+      if (!this._timer.IsEnabled)
+        return;
+      this._timer.Stop();
+    }
+
+    public void TimerRestart(int tick)
+    {
+      if (this._timer.IsEnabled)
+        this._timer.Stop();
+      this._timerTick = tick;
+      this._timer.Tick += new EventHandler(this.timer_Tick);
+      this._timer.Start();
+    }
+
+    private void timer_Tick(object sender, EventArgs e)
+    {
+      if (LockTimer.GetIdleTick() / 1000L < (long) (this._timerTick * 60))
+        return;
+      this.TimerStop();
+      Relogin relogin = new Relogin();
+      relogin.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      relogin.ShowDialog();
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LockTimer.LASTINPUTINFO plii);
+
+    public static long GetIdleTick()
+    {
+      LockTimer.LASTINPUTINFO plii = new LockTimer.LASTINPUTINFO();
+      plii.cbSize = Marshal.SizeOf<LockTimer.LASTINPUTINFO>(plii);
+      return !LockTimer.GetLastInputInfo(ref plii) ? 0L : (long) Environment.TickCount - (long) plii.dwTime;
+    }
+
+    private struct LASTINPUTINFO
+    {
+      [MarshalAs(UnmanagedType.U4)]
+      public int cbSize;
+      [MarshalAs(UnmanagedType.U4)]
+      public uint dwTime;
+    }
+  }
+}

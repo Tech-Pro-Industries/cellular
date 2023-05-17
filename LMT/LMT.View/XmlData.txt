@@ -1,0 +1,12 @@
+using System.Collections.Generic;
+
+namespace LMT.View
+{
+  internal struct XmlData
+  {
+    public string name;
+    public string text;
+    public string state;
+    public List<MibData> mib;
+  }
+}

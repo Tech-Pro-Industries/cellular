@@ -1,0 +1,930 @@
+using CommonUtility;
+using DataBaseUtil;
+using LMT.Utils;
+using LMT.ViewModel;
+using LogManager;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Data;
+using System.Data.Common;
+using System.Data.SQLite;
+using System.IO;
+using System.Text;
+using System.Windows;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class UserInformation
+  {
+    private static string DBName = "SCMTUSER.db";
+    private static string strPath = FilePathHelper.GetLocalDbPath();
+    private static string strCon = string.Format("Data Source={0};Version=3;", (object) (UserInformation.strPath + UserInformation.DBName));
+    private static Dictionary<string, string> list = new Dictionary<string, string>();
+
+    public static bool CheckUserDb()
+    {
+      try
+      {
+        string strError = "";
+        if (!File.Exists(UserInformation.strPath + UserInformation.DBName))
+        {
+          if (!Directory.Exists(UserInformation.strPath))
+            Directory.CreateDirectory(UserInformation.strPath);
+          if (UserInformation.GetHardDiskSpace("C") < 10L)
+          {
+            string appSettingValue = AppConfigHelper.GetAppSettingValue<string>("LMT", "ToolNameAbb");
+            int num = (int) System.Windows.Forms.MessageBox.Show(LanguageServices.Current.GetTextValue("UM_ckdb"), string.Format("启动{0}", (object) appSettingValue));
+            Log.Error("创建数据库失败,C盘空间不足,请检查!", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 54, nameof (CheckUserDb));
+            return false;
+          }
+          SQLiteHelper.CreateDatabase(UserInformation.strPath + UserInformation.DBName);
+          UserInformation.CreatUserTable();
+          UserInformation.CreatENBGroupTable();
+          UserInformation.CreatENBInfoTable();
+          UserInformation.CreateNodeTable();
+          UserInformation.CreateVerTable();
+          UserInformation.CreatGROUPTable();
+          UserInformation.CreatROLETable();
+          UserInformation.SaveUserInfo("administrator", "111111", ref strError);
+          UserInformation.SaveData("insert into VERTABLE(Version) values('1')");
+          UserInformation.SaveData(string.Format("insert into ROLE(ROLEName,ROLEModule,ROLEDesc) values('{0} ','{1}','{2}')", (object) LanguageServices.Current.GetTextValue("UM_admin"), (object) LanguageServices.Current.GetTextValue("UM_allm"), (object) LanguageServices.Current.GetTextValue("UM_zgqx")));
+          UserInformation.SaveData("insert into _ENBGROUP(BGName) values('Ungrouped')");
+        }
+        else
+        {
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "USERINFO"))
+          {
+            UserInformation.CreatUserTable();
+            UserInformation.SaveUserInfo("administrator", "111111", ref strError);
+          }
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "_ENBGROUP"))
+          {
+            UserInformation.CreatENBGroupTable();
+            UserInformation.SaveData("insert into _ENBGROUP(BGName) values('Ungrouped')");
+          }
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "_ENBINFO"))
+            UserInformation.CreatENBInfoTable();
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "COLLECTENODE"))
+            UserInformation.CreateNodeTable();
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "VERTABLE"))
+          {
+            UserInformation.CreateVerTable();
+            UserInformation.SaveData("insert into VERTABLE(Version) values('1')");
+          }
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "ROLE"))
+          {
+            UserInformation.CreatROLETable();
+            UserInformation.SaveData(string.Format("insert into ROLE(ROLEName,ROLEModule,ROLEDesc) values('{0} ','{1}','{2}')", (object) LanguageServices.Current.GetTextValue("UM_admin"), (object) LanguageServices.Current.GetTextValue("UM_allm"), (object) LanguageServices.Current.GetTextValue("UM_zgqx")));
+          }
+          if (!SQLiteHelper.IsTableExists(UserInformation.strCon, "USERGROUP"))
+            UserInformation.CreatGROUPTable();
+        }
+        UserInformation.Datatrans();
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 112, nameof (CheckUserDb));
+        return false;
+      }
+      return true;
+    }
+
+    public static long GetHardDiskSpace(string str_HardDiskName)
+    {
+      long hardDiskSpace = 0;
+      str_HardDiskName += ":\\";
+      foreach (DriveInfo drive in DriveInfo.GetDrives())
+      {
+        if (drive.Name == str_HardDiskName)
+        {
+          hardDiskSpace = drive.TotalFreeSpace / 1048576L;
+          break;
+        }
+      }
+      return hardDiskSpace;
+    }
+
+    private static bool CheckTableColumn(string Tbname, string col)
+    {
+      try
+      {
+        string strSql = string.Format("select {0} from {1}", (object) col, (object) Tbname);
+        SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql).Close();
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 152, nameof (CheckTableColumn));
+        return false;
+      }
+      return true;
+    }
+
+    public static bool SaveData(string strSql)
+    {
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql);
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 170, nameof (SaveData));
+        return false;
+      }
+      return true;
+    }
+
+    public static bool CheckRecord(string strSql, out string err)
+    {
+      try
+      {
+        err = "";
+        if (Convert.ToInt32(SQLiteHelper.ExecuteScalar(UserInformation.strCon, strSql)) > 0)
+        {
+          err = LanguageServices.Current.GetTextValue("UM_palarm14");
+          return false;
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 194, nameof (CheckRecord));
+        err = ex.ToString();
+        return false;
+      }
+      return true;
+    }
+
+    public static bool SaveUserInfo(
+      string user,
+      string password,
+      ref string strError,
+      int Locktime = 10,
+      bool status = false,
+      bool isRemeber = false)
+    {
+      try
+      {
+        string strSql1 = string.Format("select count(*) from USERINFO where User='{0}'", (object) user);
+        if (Convert.ToInt32(SQLiteHelper.ExecuteScalar(UserInformation.strCon, strSql1)) > 0)
+        {
+          strError = LanguageServices.Current.GetTextValue("UM_palarm16");
+          return false;
+        }
+        string strSql2 = string.Format("insert into USERINFO(User,Password,LockTime,Status,Isremeber,LoadTime,Roles,Userstatus,Describe) values('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}')", (object) user, (object) password, (object) Locktime, (object) status, (object) isRemeber, (object) DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), (object) LanguageServices.Current.GetTextValue("UM_admin"), (object) LanguageServices.Current.GetTextValue("SC_Normal"), (object) LanguageServices.Current.GetTextValue("UM_mname"));
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql2);
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 228, nameof (SaveUserInfo));
+        strError = LanguageServices.Current.GetTextValue("UM_palarm15");
+        return false;
+      }
+      return true;
+    }
+
+    public static bool UpdataLockInfo(int userID, int Locktime, bool status)
+    {
+      try
+      {
+        string strSql = string.Format("update USERINFO set LockTime='{0}',Status='{1}' where ID={2}", (object) Locktime, (object) status.ToString(), (object) userID);
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql);
+        UserInfo instance = Singleton<UserInfo>.GetInstance();
+        instance.time = Locktime;
+        instance.status = status.ToString();
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 254, nameof (UpdataLockInfo));
+        return false;
+      }
+      return true;
+    }
+
+    public static Dictionary<string, string> SelectBSInfo()
+    {
+      Dictionary<string, string> dictionary = new Dictionary<string, string>();
+      try
+      {
+        string strSql = "select * from CURRENTTABLE";
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+          dictionary.Add(dbDataReader["User"].ToString(), dbDataReader["Password"].ToString());
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 279, nameof (SelectBSInfo));
+        return dictionary;
+      }
+      return dictionary;
+    }
+
+    public static bool WriteCruuInfo(string user, string password)
+    {
+      try
+      {
+        string strSql1 = string.Format("select count(*) from CURRENTTABLE where User='{0}'", (object) user);
+        if (Convert.ToInt32(SQLiteHelper.ExecuteScalar(UserInformation.strCon, strSql1)) > 0)
+          return true;
+        string strSql2 = string.Format("insert into CURRENTTABLE(User,Password) values('{0}','{1}')", (object) user, (object) password);
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql2);
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 307, nameof (WriteCruuInfo));
+        return false;
+      }
+      return true;
+    }
+
+    public static bool Loading(string user, string password, bool isRemeber = false)
+    {
+      try
+      {
+        UserInfo instance = Singleton<UserInfo>.GetInstance();
+        string strSql1 = string.Format("select count(*) from USERINFO where User='{0}' and Password='{1}'", (object) user, (object) password);
+        if (Convert.ToInt32(SQLiteHelper.ExecuteScalar(UserInformation.strCon, strSql1)) <= 0)
+          return false;
+        string strSql2 = string.Format("select * from USERINFO where User='{0}' and Password='{1}'", (object) user, (object) password);
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql2);
+        while (dbDataReader.Read())
+        {
+          instance.ID = Convert.ToInt32(dbDataReader["ID"]);
+          instance.User = dbDataReader["User"].ToString();
+          instance.password = dbDataReader["Password"].ToString();
+          if (!string.IsNullOrEmpty(dbDataReader["LockTime"].ToString()))
+            instance.time = Convert.ToInt32(dbDataReader["LockTime"]);
+          instance.status = dbDataReader["Status"].ToString();
+          instance.IsRemeber = Convert.ToBoolean(dbDataReader["Isremeber"]);
+        }
+        dbDataReader.Close();
+        SQLiteConnection.ClearAllPools();
+        if (instance.IsRemeber != isRemeber)
+        {
+          string strSql3 = string.Format("update USERINFO set Isremeber='{0}' where User='{1}'", (object) isRemeber, (object) user);
+          SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql3);
+        }
+        string strSql4 = string.Format("update USERINFO set LoadTime='{0}' where User='{1}'", (object) DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), (object) user);
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql4);
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 360, nameof (Loading));
+        return false;
+      }
+      return true;
+    }
+
+    public static List<string> GetUserName()
+    {
+      List<string> userName = new List<string>();
+      string strSql = "select User from USERINFO";
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+          userName.Add(dbDataReader["User"].ToString());
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return userName;
+      }
+      return userName;
+    }
+
+    public static ObservableCollection<USERInfo> GetUser()
+    {
+      ObservableCollection<USERInfo> user = new ObservableCollection<USERInfo>();
+      string strSql = "select ID,User,Describe,Roles,Groups,Userstatus from USERINFO";
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+          user.Add(new USERInfo()
+          {
+            ID = Convert.ToInt32(dbDataReader["ID"].ToString()),
+            User = dbDataReader["User"].ToString(),
+            UserDesc = dbDataReader["Describe"].ToString(),
+            Roles = dbDataReader["Roles"].ToString(),
+            Groups = dbDataReader["Groups"].ToString(),
+            Lockstatus = dbDataReader["Userstatus"].ToString()
+          });
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return user;
+      }
+      return user;
+    }
+
+    public static USERInfo GetUser(string name)
+    {
+      string strSql = string.Format("select ID,User,Describe,Roles,Groups,Userstatus from USERINFO where User='{0}'", (object) name);
+      USERInfo user = new USERInfo();
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+        {
+          user.ID = Convert.ToInt32(dbDataReader["ID"].ToString());
+          user.User = dbDataReader["User"].ToString();
+          user.UserDesc = dbDataReader["Describe"].ToString();
+          user.Roles = dbDataReader["Roles"].ToString();
+          user.Groups = dbDataReader["Groups"].ToString();
+          user.Lockstatus = dbDataReader["Userstatus"].ToString();
+        }
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return user;
+      }
+      return user;
+    }
+
+    public static List<RoleInfo> GetRole()
+    {
+      List<RoleInfo> role = new List<RoleInfo>();
+      string strSql = "select ROLEName,ROLEDesc,ROLEModule from ROLE";
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+          role.Add(new RoleInfo()
+          {
+            Name = dbDataReader["ROLEName"].ToString(),
+            Desc = dbDataReader["ROLEDesc"].ToString(),
+            Module = dbDataReader["ROLEModule"].ToString(),
+            cB = false
+          });
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return role;
+      }
+      return role;
+    }
+
+    public static RoleInfo GetRole(string roleName)
+    {
+      RoleInfo role = new RoleInfo();
+      string strSql = string.Format("select ID, ROLEName,ROLEDesc,ROLEModule from ROLE where ROLEName='{0}'", (object) roleName);
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+        {
+          role.ID = Convert.ToInt32(dbDataReader["ID"].ToString());
+          role.Name = roleName;
+          role.Desc = dbDataReader["ROLEDesc"].ToString();
+          role.Module = dbDataReader["ROLEModule"].ToString();
+          role.cB = false;
+        }
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return role;
+      }
+      return role;
+    }
+
+    public static ObservableCollection<GroupInfo> GetGroup()
+    {
+      ObservableCollection<GroupInfo> group = new ObservableCollection<GroupInfo>();
+      string strSql = "select * from USERGROUP";
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+          group.Add(new GroupInfo()
+          {
+            Status = dbDataReader["GStatus"].ToString(),
+            Name = dbDataReader["GName"].ToString(),
+            Desc = dbDataReader["GDesc"].ToString(),
+            Rights = dbDataReader["GRights"].ToString()
+          });
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return group;
+      }
+      return group;
+    }
+
+    public static GroupInfo GetGroup(string groupName)
+    {
+      string strSql = string.Format("select * from USERGROUP where GName='{0}'", (object) groupName);
+      GroupInfo group = new GroupInfo();
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+        {
+          group.ID = Convert.ToInt32(dbDataReader["ID"].ToString());
+          group.Status = dbDataReader["GStatus"].ToString();
+          group.Name = groupName;
+          group.Desc = dbDataReader["GDesc"].ToString();
+          group.Rights = dbDataReader["GRights"].ToString();
+        }
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return group;
+      }
+      return group;
+    }
+
+    public static Dictionary<string, string> GetUserNameAndTime()
+    {
+      UserInformation.list.Clear();
+      string strSql = "select User,LoadTime from USERINFO";
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+          UserInformation.list[dbDataReader["User"].ToString()] = dbDataReader["LoadTime"].ToString();
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+        return UserInformation.list;
+      }
+      return UserInformation.list;
+    }
+
+    public static string GetPassword(string UserName)
+    {
+      string password = "";
+      string strSql = string.Format("select Password,Isremeber from USERINFO where User='{0}'", (object) UserName);
+      try
+      {
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        if (dbDataReader.Read() && Convert.ToBoolean(dbDataReader["Isremeber"]))
+          password = dbDataReader["Password"].ToString();
+        dbDataReader.Close();
+      }
+      catch (Exception ex)
+      {
+      }
+      return password;
+    }
+
+    public static bool SaveNode(string nodename, string tablename, string ip, ref string strError)
+    {
+      try
+      {
+        string strSql1 = string.Format("select count(*) from COLLECTENODE where ObjTableName='{0}' and eNBIp='{1}'", (object) tablename, (object) ip);
+        if (Convert.ToInt32(SQLiteHelper.ExecuteScalar(UserInformation.strCon, strSql1)) > 0)
+        {
+          strError = LanguageServices.Current.GetTextValue("BaseInfo_DataGrid_AreadyEnsh");
+          return false;
+        }
+        string strSql2 = string.Format("insert into COLLECTENODE(ObjName,ObjTableName,eNBIp) values('{0}','{1}','{2}')", (object) nodename, (object) tablename, (object) ip);
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql2);
+      }
+      catch (Exception ex)
+      {
+        strError = LanguageServices.Current.GetTextValue("UM_palarm19");
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 625, nameof (SaveNode));
+        return false;
+      }
+      return true;
+    }
+
+    public static bool DeleteNode(string nodename, string ip, ref string strError)
+    {
+      try
+      {
+        string strSql = string.Format("delete from COLLECTENODE where ObjTableName='{0}' and eNBIp='{1}'", (object) nodename, (object) ip);
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql);
+      }
+      catch (Exception ex)
+      {
+        strError = LanguageServices.Current.GetTextValue("UM_palarm18");
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 645, nameof (DeleteNode));
+        return false;
+      }
+      return true;
+    }
+
+    public static bool DeleteNode()
+    {
+      try
+      {
+        string strSql = "delete from COLLECTENODE";
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql);
+      }
+      catch (Exception ex)
+      {
+        return false;
+      }
+      return true;
+    }
+
+    public static bool SelectNode(string ip, out List<ObjNodeModel> listNode, ref string strError)
+    {
+      listNode = new List<ObjNodeModel>();
+      try
+      {
+        string strSql = string.Format("select * from COLLECTENODE where eNBIp='{0}'", (object) ip);
+        DbDataReader dbDataReader = SQLiteHelper.ExecuteReader(UserInformation.strCon, strSql);
+        while (dbDataReader.Read())
+        {
+          Uri objTreeUri = DataGridUtils.SetObjTreeImage(dbDataReader["ObjTableName"].ToString(), ip);
+          ObjNodeModel objNodeModel = new ObjNodeModel(Convert.ToInt32(dbDataReader["id"]), 0, "", dbDataReader["ObjName"].ToString(), dbDataReader["ObjTableName"].ToString(), FontWeights.Normal, objTreeUri);
+          listNode.Add(objNodeModel);
+        }
+        dbDataReader.Close();
+        return true;
+      }
+      catch (Exception ex)
+      {
+        strError = LanguageServices.Current.GetTextValue("UM_palarm17");
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 689, nameof (SelectNode));
+        return false;
+      }
+    }
+
+    public static int SelectNode(string name, string ip)
+    {
+      int num = -1;
+      try
+      {
+        string strSql = string.Format("select count(*) from COLLECTENODE where ObjTableName='{0}' and eNBIp='{1}'", (object) name, (object) ip);
+        return Convert.ToInt32(SQLiteHelper.ExecuteScalar(UserInformation.strCon, strSql));
+      }
+      catch (Exception ex)
+      {
+        return num;
+      }
+    }
+
+    public static bool Datatrans()
+    {
+      try
+      {
+        string strSql1 = "";
+        if (SQLiteHelper.IsTableExists(UserInformation.strCon, "BSINFO"))
+        {
+          DataSet dataSet1 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, "select * from ENBINFO");
+          string strSql2 = "select * from BSINFO";
+          DataSet dataSet2 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, strSql2);
+          if (dataSet2.Tables.Count != 0 && dataSet2.Tables[0].Rows.Count != 0)
+          {
+            if (dataSet1.Tables[0].Rows.Count == 0)
+            {
+              foreach (DataRow row in (InternalDataCollectionBase) dataSet2.Tables[0].Rows)
+              {
+                if (!strSql1.Contains(row["FriendlyName"].ToString()) && !strSql1.Contains(row["IP"].ToString()))
+                  strSql1 += string.Format("insert into ENBINFO(FriendlyName,IP,ENBType,WriteTime) values('{0}','{1}','{2}','{3}');", (object) row["FriendlyName"].ToString(), (object) row["IP"].ToString(), (object) row["Reserve2"].ToString(), (object) DateTime.Now.ToString());
+              }
+            }
+            else
+            {
+              foreach (DataRow row1 in (InternalDataCollectionBase) dataSet2.Tables[0].Rows)
+              {
+                bool flag = true;
+                foreach (DataRow row2 in (InternalDataCollectionBase) dataSet1.Tables[0].Rows)
+                {
+                  if (row2["FriendlyName"].ToString() == row1["FriendlyName"].ToString() || row2["IP"].ToString() == row1["IP"].ToString())
+                  {
+                    flag = false;
+                    break;
+                  }
+                }
+                if (flag && !strSql1.Contains(row1["FriendlyName"].ToString()) && !strSql1.Contains(row1["IP"].ToString()))
+                  strSql1 += string.Format("insert into ENBINFO(FriendlyName,IP,ENBType,WriteTime) values('{0}','{1}','{2}','{3}');", (object) row1["FriendlyName"].ToString(), (object) row1["IP"].ToString(), (object) row1["Reserve2"].ToString(), (object) DateTime.Now.ToString());
+              }
+            }
+            if (!string.IsNullOrEmpty(strSql1))
+              SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql1);
+          }
+          UserInformation.DeleteTable("BSINFO");
+        }
+        Dictionary<string, int> dictionary = new Dictionary<string, int>();
+        string strSql3 = "";
+        if (SQLiteHelper.IsTableExists(UserInformation.strCon, "ENBGROUP"))
+        {
+          DataSet dataSet3 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, "select * from ENBGROUP");
+          DataSet dataSet4 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, "select * from _ENBGROUP");
+          if (dataSet3.Tables.Count != 0 && dataSet3.Tables[0].Rows.Count != 0)
+          {
+            foreach (DataRow row3 in (InternalDataCollectionBase) dataSet3.Tables[0].Rows)
+            {
+              bool flag = true;
+              foreach (DataRow row4 in (InternalDataCollectionBase) dataSet4.Tables[0].Rows)
+              {
+                if (row3["BGName"].ToString() == row4["BGName"].ToString())
+                {
+                  flag = false;
+                  break;
+                }
+              }
+              if (flag && row3["BGName"].ToString() != "Ungrouped")
+                strSql3 += string.Format("insert into _ENBGROUP(BGName) values('{0}');", (object) row3["BGName"].ToString());
+            }
+          }
+          if (!string.IsNullOrEmpty(strSql3))
+            SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql3);
+          UserInformation.DeleteTable("ENBGROUP");
+        }
+        string strSql4 = "";
+        if (SQLiteHelper.IsTableExists(UserInformation.strCon, "ENBINFO"))
+        {
+          DataSet dataSet5 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, "select * from _ENBGROUP");
+          if (dataSet5.Tables.Count != 0 && dataSet5.Tables[0].Rows.Count != 0)
+          {
+            foreach (DataRow row in (InternalDataCollectionBase) dataSet5.Tables[0].Rows)
+              dictionary[row["BGName"].ToString()] = int.Parse(row["id"].ToString());
+          }
+          DataSet dataSet6 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, "select * from ENBINFO");
+          DataSet dataSet7 = SQLiteHelper.ExecuteDataSet(UserInformation.strCon, "select * from _ENBINFO");
+          if (dataSet6.Tables.Count != 0 && dataSet6.Tables[0].Rows.Count != 0)
+          {
+            foreach (DataRow row5 in (InternalDataCollectionBase) dataSet6.Tables[0].Rows)
+            {
+              bool flag = true;
+              foreach (DataRow row6 in (InternalDataCollectionBase) dataSet7.Tables[0].Rows)
+              {
+                if (row6["FriendlyName"].ToString() == row5["FriendlyName"].ToString() || row6["IP"].ToString() == row5["IP"].ToString())
+                {
+                  flag = false;
+                  break;
+                }
+              }
+              if (flag)
+              {
+                if (string.IsNullOrEmpty(row5["Reserve4"].ToString()) || !dictionary.ContainsKey(row5["Reserve4"].ToString()))
+                  strSql4 += string.Format("insert into _ENBINFO(FriendlyName,IP,ENBType,WriteTime,GroupId) values('{0}','{1}','{2}','{3}',1);", (object) row5["FriendlyName"].ToString(), (object) row5["IP"].ToString(), (object) row5["ENBType"].ToString(), (object) DateTime.Now.ToString());
+                else
+                  strSql4 += string.Format("insert into _ENBINFO(FriendlyName,IP,ENBType,WriteTime,GroupId) values('{0}','{1}','{2}','{3}','{4}');", (object) row5["FriendlyName"].ToString(), (object) row5["IP"].ToString(), (object) row5["ENBType"].ToString(), (object) DateTime.Now.ToString(), (object) dictionary[row5["Reserve4"].ToString()]);
+              }
+            }
+          }
+          if (!string.IsNullOrEmpty(strSql4))
+            SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql4);
+          UserInformation.DeleteTable("ENBINFO");
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error(string.Format("迁移数据失败,异常信息：{0}", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 862, nameof (Datatrans));
+        return false;
+      }
+      return true;
+    }
+
+    private static void DeleteTable(string tb)
+    {
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, string.Format("drop table {0}", (object) tb));
+      }
+      catch (Exception ex)
+      {
+        Log.Error(string.Format("删除表{0}失败,异常信息：{1}", (object) tb, (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 876, nameof (DeleteTable));
+      }
+    }
+
+    private static void CreatUserTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS USERINFO");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("ID INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", User VARCHAR(50)");
+      stringBuilder.Append(", Password VARCHAR(50)");
+      stringBuilder.Append(", LockTime VARCHAR(20)");
+      stringBuilder.Append(", Status VARCHAR(20)");
+      stringBuilder.Append(", Isremeber VARCHAR(20)");
+      stringBuilder.Append(", LoadTime DateTime");
+      stringBuilder.Append(", Userstatus VARCHAR(20)");
+      stringBuilder.Append(", Describe text");
+      stringBuilder.Append(", ROLEID INTEGER");
+      stringBuilder.Append(", GROUPID INTEGER");
+      stringBuilder.Append(", Roles VARCHAR(20)");
+      stringBuilder.Append(", Groups VARCHAR(20)");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 INTEGER");
+      stringBuilder.Append(", Reserve3 VARCHAR(50)");
+      stringBuilder.Append(", Reserve4 VARCHAR(50)");
+      stringBuilder.Append(", Reserve5 DateTime");
+      stringBuilder.Append(", Reserve6 DateTime");
+      stringBuilder.Append(", Reserve7 VARCHAR(20)");
+      stringBuilder.Append(", Reserve8 VARCHAR(20)");
+      stringBuilder.Append(", Reserve9 VARCHAR(500)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+      }
+    }
+
+    private static void CreatROLETable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS ROLE");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("ID INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(",ROLEName VARCHAR(50)");
+      stringBuilder.Append(",ROLEDesc VARCHAR(100)");
+      stringBuilder.Append(",ROLEModule Text");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 VARCHAR(50)");
+      stringBuilder.Append(", Reserve3 DateTime");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 946, nameof (CreatROLETable));
+      }
+    }
+
+    private static void CreatGROUPTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS USERGROUP");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("ID INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(",GName VARCHAR(50)");
+      stringBuilder.Append(",GDesc VARCHAR(100)");
+      stringBuilder.Append(",GStatus VARCHAR(20)");
+      stringBuilder.Append(",GRights VARCHAR(100)");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 VARCHAR(50)");
+      stringBuilder.Append(", Reserve3 DateTime");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 975, nameof (CreatGROUPTable));
+      }
+    }
+
+    private static void CreatRIGHTSTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS USERRIGHTS");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("ID INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(",RName VARCHAR(50)");
+      stringBuilder.Append(",RDesc VARCHAR(100)");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 VARCHAR(50)");
+      stringBuilder.Append(", Reserve3 DateTime");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 1002, nameof (CreatRIGHTSTable));
+      }
+    }
+
+    private static void CreatBsInfoTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS BSINFO");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("id INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", FriendlyName VARCHAR(50)");
+      stringBuilder.Append(", IP VARCHAR(50)");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 VARCHAR(50)");
+      stringBuilder.Append(", Reserve3 DateTime");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 1028, nameof (CreatBsInfoTable));
+      }
+    }
+
+    private static void CreatENBInfoTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS _ENBINFO");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("id INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", FriendlyName VARCHAR(50) Unique");
+      stringBuilder.Append(", IP VARCHAR(50) Unique");
+      stringBuilder.Append(", ENBType VARCHAR(20)");
+      stringBuilder.Append(", WriteTime VARCHAR(20)");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(", GroupId INTEGER NOT NULL,FOREIGN KEY(GroupId) REFERENCES _ENBGROUP(id)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 1053, nameof (CreatENBInfoTable));
+      }
+    }
+
+    private static void CreatENBGroupTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS _ENBGROUP");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("id INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", BGName VARCHAR(50) Unique");
+      stringBuilder.Append(", BGDesc VARCHAR(50)");
+      stringBuilder.Append(", Reserve VARCHAR(50)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 1074, nameof (CreatENBGroupTable));
+      }
+    }
+
+    private static void CreateVerTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS VERTABLE");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("id INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", Version VARCHAR(50)");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 VARCHAR(50)");
+      stringBuilder.Append(", Reserve3 DateTime");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(")");
+      try
+      {
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+      }
+      catch (Exception ex)
+      {
+        Log.Error((object) ex, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 1097, nameof (CreateVerTable));
+      }
+    }
+
+    private static void CreateNodeTable()
+    {
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.Append("CREATE TABLE IF NOT EXISTS COLLECTENODE");
+      stringBuilder.Append(" (");
+      stringBuilder.Append("id INTEGER PRIMARY KEY AUTOINCREMENT");
+      stringBuilder.Append(", ObjName VARCHAR(50)");
+      stringBuilder.Append(", ObjTableName VARCHAR(50)");
+      stringBuilder.Append(", eNBIp VARCHAR(50)");
+      stringBuilder.Append(", Reserve1 INTEGER");
+      stringBuilder.Append(", Reserve2 VARCHAR(50)");
+      stringBuilder.Append(", Reserve3 DateTime");
+      stringBuilder.Append(", Reserve4 VARCHAR(20)");
+      stringBuilder.Append(", Reserve5 VARCHAR(500)");
+      stringBuilder.Append(")");
+      SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, stringBuilder.ToString());
+    }
+
+    private static void AddTableColumn(string Tbname, string colname, string type)
+    {
+      try
+      {
+        string strSql = string.Format("alter table {0} add {1} {2}", (object) Tbname, (object) colname, (object) type);
+        SQLiteHelper.ExecuteNonQuery(UserInformation.strCon, strSql);
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\UserInformation.cs", 1133, nameof (AddTableColumn));
+      }
+    }
+  }
+}

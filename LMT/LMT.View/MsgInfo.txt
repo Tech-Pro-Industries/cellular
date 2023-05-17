@@ -1,0 +1,8 @@
+namespace LMT.View
+{
+  internal struct MsgInfo
+  {
+    public bool isvaliad;
+    public string msg;
+  }
+}

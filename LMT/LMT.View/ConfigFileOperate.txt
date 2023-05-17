@@ -1,0 +1,935 @@
+using CfgFileOperation;
+using CfgFileOpStruct;
+using CommonUtility;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Forms;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  public class ConfigFileOperate : CustomWindow, IComponentConnector
+  {
+    private string cfgLogName;
+    private string cfgOutPath;
+    internal TabItem ParseClassic4G;
+    internal System.Windows.Controls.TextBox tbDataBaseClassic4G;
+    internal System.Windows.Controls.Button btnDataBaseClassic4G;
+    internal System.Windows.Controls.TextBox tbWarningClassic4G;
+    internal System.Windows.Controls.Button btnWarningClassicClassic4G;
+    internal System.Windows.Controls.TextBox tbRRUInfoClassic4G;
+    internal System.Windows.Controls.Button btnRRUInfoClassic4G;
+    internal System.Windows.Controls.TextBox tbRecListClassic4G;
+    internal System.Windows.Controls.Button btnRecListClassic4G;
+    internal System.Windows.Controls.TextBox tbSelfDefineClassic4G;
+    internal System.Windows.Controls.Button btnSelfDefineClassic4G;
+    internal System.Windows.Controls.TextBox tbPathToSaveClassic4G;
+    internal System.Windows.Controls.Button btnPathToSaveClassic4G;
+    internal TextBlock proBarClassic4GText;
+    internal System.Windows.Controls.ProgressBar proBarClassic4G;
+    internal System.Windows.Controls.Button btnOKClassic4G;
+    internal System.Windows.Controls.Button btnCancelClassic4G;
+    internal TabItem Parse4G;
+    internal System.Windows.Controls.TextBox tbDataBase4G;
+    internal System.Windows.Controls.Button btnDataBase4G;
+    internal System.Windows.Controls.TextBox tbAntWeight4G;
+    internal System.Windows.Controls.Button btnAntWeight4G;
+    internal System.Windows.Controls.TextBox tbWarning4G;
+    internal System.Windows.Controls.Button btnWarning4G;
+    internal System.Windows.Controls.TextBox tbRRUInfo4G;
+    internal System.Windows.Controls.Button btnRRUInfo4G;
+    internal System.Windows.Controls.TextBox tbRecList4G;
+    internal System.Windows.Controls.Button btnRecList4G;
+    internal System.Windows.Controls.TextBox tbSelfDefine4G;
+    internal System.Windows.Controls.Button btnSelfDefine4G;
+    internal System.Windows.Controls.TextBox tbPathToSave4G;
+    internal System.Windows.Controls.Button btnPathToSave4G;
+    internal System.Windows.Controls.RadioButton bigEndding4G;
+    internal System.Windows.Controls.RadioButton smallEndding4G;
+    internal System.Windows.Controls.CheckBox AntennaArrayType4G;
+    internal TextBlock proBar4GText;
+    internal System.Windows.Controls.ProgressBar proBar4G;
+    internal System.Windows.Controls.Button btnOK4G;
+    internal System.Windows.Controls.Button btnCancel4G;
+    internal TabItem Parse5G;
+    internal System.Windows.Controls.TextBox tbDataBase5G;
+    internal System.Windows.Controls.Button btnDataBase5G;
+    internal System.Windows.Controls.TextBox tbAntWeight5G;
+    internal System.Windows.Controls.Button btnAntWeight5G;
+    internal System.Windows.Controls.TextBox tbWarning5G;
+    internal System.Windows.Controls.Button btnWarning5G;
+    internal System.Windows.Controls.TextBox tbRRUInfo5G;
+    internal System.Windows.Controls.Button btnRRUInfo5G;
+    internal System.Windows.Controls.TextBox tbRecList5G;
+    internal System.Windows.Controls.Button btnRecList5G;
+    internal System.Windows.Controls.TextBox tbSelfDefine5G;
+    internal System.Windows.Controls.Button btnSelfDefine5G;
+    internal System.Windows.Controls.TextBox tbPathToSave5G;
+    internal System.Windows.Controls.Button btnPathToSave5G;
+    internal System.Windows.Controls.RadioButton bigEndding5G;
+    internal System.Windows.Controls.RadioButton smallEndding5G;
+    internal System.Windows.Controls.CheckBox AntStreng;
+    internal System.Windows.Controls.CheckBox AntennaArrayType5G;
+    internal TextBlock proBar5GText;
+    internal System.Windows.Controls.ProgressBar proBar5G;
+    internal System.Windows.Controls.Button btnOK5G;
+    internal System.Windows.Controls.Button btnCancel5G;
+    private bool _contentLoaded;
+
+    private void CreateLogInfoFile()
+    {
+      this.cfgLogName = string.Format("LMT_cfgLog_{0}.log", (object) TimeHelper.DateTimeToString(DateTime.Now, "yyyyMMdd-HHmmss"));
+      LogManager.Log.SetCfgLogFileName(this.cfgLogName);
+    }
+
+    private void ClosedLogInfoFile()
+    {
+      if (!string.IsNullOrEmpty(this.cfgLogName) || !string.IsNullOrEmpty(this.cfgOutPath))
+      {
+        string sourceFileName = string.Format("Log\\{0}", (object) this.cfgLogName);
+        string destFileName = string.Format("{0}\\{1}", (object) this.cfgOutPath, (object) this.cfgLogName);
+        try
+        {
+          File.Move(sourceFileName, destFileName);
+          this.cfgLogName = (string) null;
+        }
+        catch (Exception ex)
+        {
+          LogManager.Log.CfgError(ex.Message.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 57, nameof (ClosedLogInfoFile));
+        }
+      }
+      this.btnOK4G.IsEnabled = true;
+      this.btnOK5G.IsEnabled = true;
+    }
+
+    private bool IsBigEndding4G { get; set; }
+
+    private bool IsBigEndding5G { get; set; }
+
+    public ConfigFileOperate()
+    {
+      this.CreateLogInfoFile();
+      this.InitializeComponent();
+      this.IsBigEndding4G = true;
+      this.IsBigEndding5G = true;
+      this.bigEndding4G.IsChecked = new bool?(true);
+      this.bigEndding5G.IsChecked = new bool?(true);
+    }
+
+    private bool ParseInputPath(Dictionary<string, string> path, ParseType ptype, out string err)
+    {
+      switch (ptype)
+      {
+        case ParseType.Parse4G:
+          path.Add("DataMdb", this.tbDataBase4G.Text);
+          path.Add("Antenna", this.tbAntWeight4G.Text);
+          path.Add("Alarm", this.tbWarning4G.Text);
+          path.Add("RruInfo", this.tbRRUInfo4G.Text);
+          path.Add("Reclist", this.tbRecList4G.Text);
+          path.Add("SelfDef", this.tbSelfDefine4G.Text);
+          path.Add("BIsBigEnd", this.IsBigEndding4G.ToString());
+          Dictionary<string, string> dictionary1 = path;
+          bool? isChecked1 = this.AntennaArrayType4G.IsChecked;
+          bool flag1 = true;
+          string str1 = ((isChecked1.GetValueOrDefault() == flag1 ? (isChecked1.HasValue ? 1 : 0) : 0) != 0).ToString();
+          dictionary1.Add("BIsAntennaArrayType", str1);
+          path.Add("OutDir", this.tbPathToSave4G.Text + "\\");
+          break;
+        case ParseType.ParseClassic4G:
+          path.Add("DataMdb", this.tbDataBaseClassic4G.Text);
+          path.Add("Antenna", (string) null);
+          path.Add("Alarm", this.tbWarningClassic4G.Text);
+          path.Add("RruInfo", this.tbRRUInfoClassic4G.Text);
+          path.Add("Reclist", this.tbRecListClassic4G.Text);
+          path.Add("SelfDef", this.tbSelfDefineClassic4G.Text);
+          path.Add("BIsBigEnd", "true");
+          path.Add("OutDir", this.tbPathToSaveClassic4G.Text + "\\");
+          break;
+        default:
+          path.Add("DataMdb", this.tbDataBase5G.Text);
+          path.Add("Antenna", this.tbAntWeight5G.Text);
+          path.Add("Alarm", this.tbWarning5G.Text);
+          path.Add("RruInfo", this.tbRRUInfo5G.Text);
+          path.Add("Reclist", this.tbRecList5G.Text);
+          path.Add("SelfDef", this.tbSelfDefine5G.Text);
+          path.Add("BIsBigEnd", this.IsBigEndding5G.ToString());
+          Dictionary<string, string> dictionary2 = path;
+          bool? isChecked2 = this.AntStreng.IsChecked;
+          bool flag2 = true;
+          bool flag3 = (isChecked2.GetValueOrDefault() == flag2 ? (isChecked2.HasValue ? 1 : 0) : 0) != 0;
+          string str2 = flag3.ToString();
+          dictionary2.Add("BIsAntStreng", str2);
+          Dictionary<string, string> dictionary3 = path;
+          bool? isChecked3 = this.AntennaArrayType5G.IsChecked;
+          flag3 = true;
+          flag3 = (isChecked3.GetValueOrDefault() == flag3 ? (isChecked3.HasValue ? 1 : 0) : 0) != 0;
+          string str3 = flag3.ToString();
+          dictionary3.Add("BIsAntennaArrayType", str3);
+          path.Add("OutDir", this.tbPathToSave5G.Text + "\\");
+          break;
+      }
+      if (!this.IsAllPathValid(path, ptype, out err))
+        return false;
+      this.cfgOutPath = path["OutDir"];
+      return true;
+    }
+
+    private bool IsAllPathValid(Dictionary<string, string> paths, ParseType ptype, out string err)
+    {
+      err = "";
+      foreach (string key in paths.Keys)
+      {
+        if (string.Empty == paths[key])
+        {
+          err = string.Format("Err : {0} is null.\n", (object) key);
+          return false;
+        }
+      }
+      if (!File.Exists(paths["DataMdb"]))
+      {
+        err = "DataMdb: " + paths["DataMdb"] + " 文件不存在！\n";
+        return false;
+      }
+      if (ptype != ParseType.ParseClassic4G && !File.Exists(paths["Antenna"]))
+      {
+        err = "Antenna: " + paths["Antenna"] + " 文件不存在！\n";
+        return false;
+      }
+      if (!File.Exists(paths["Alarm"]))
+      {
+        err = "Alarm: " + paths["Alarm"] + " 文件不存在！\n";
+        return false;
+      }
+      if (!File.Exists(paths["RruInfo"]))
+      {
+        err = "RruInfo: " + paths["RruInfo"] + " 文件不存在！\n";
+        return false;
+      }
+      if (!File.Exists(paths["Reclist"]))
+      {
+        err = "Reclist: " + paths["Reclist"] + " 文件不存在！\n";
+        return false;
+      }
+      if (!File.Exists(paths["SelfDef"]))
+      {
+        err = "SelfDef: " + paths["SelfDef"] + " 文件不存在！\n";
+        return false;
+      }
+      if (Directory.Exists(paths["OutDir"]))
+        return true;
+      err = "OutDir: " + paths["OutDir"] + " 文件夹不存在！\n";
+      return false;
+    }
+
+    private bool IsDBLmdtz(Dictionary<string, string> paths) => paths["DataMdb"].Contains(".dtz");
+
+    private void btnDataBase_Click4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = "数据库文件 | *.mdb;*.dtz";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbDataBase4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnAntWeight_Click4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbAntWeight4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnWarning_Click4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbWarning4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnRRUInfo_Click4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbRRUInfo4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnRecList_Click4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        this.tbRecList4G.Text = openFileDialog.FileName;
+      string[] source = new string[2]{ "Cell参数表", "eNB参数表" };
+      if (CommExcelOleDbHelper.IsExistSheet(openFileDialog.FileName, ((IEnumerable<string>) source).ToList<string>()))
+        return;
+      this.tbRecList4G.Text = (string) null;
+      int num = (int) System.Windows.MessageBox.Show(string.Format(" Input file err.'{0}' not have '{1}' or '{2}' .", (object) openFileDialog.FileName, (object) source[0], (object) source[1]));
+    }
+
+    private void btnSelfDefine_Click4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbSelfDefine4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnPathToSave_Click4G(object sender, RoutedEventArgs e)
+    {
+      FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+      folderBrowserDialog.Description = "请选择配置文件的保存路径";
+      if (folderBrowserDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      if (string.IsNullOrEmpty(folderBrowserDialog.SelectedPath))
+      {
+        int num = (int) System.Windows.MessageBox.Show("路径不能为空");
+      }
+      else
+        this.tbPathToSave4G.Text = folderBrowserDialog.SelectedPath;
+    }
+
+    private void RadioButton_Click_bigEnd4G(object sender, RoutedEventArgs e) => this.IsBigEndding4G = true;
+
+    private void RadioButton_Click_smallEnd4G(object sender, RoutedEventArgs e) => this.IsBigEndding4G = false;
+
+    private async void btnOK_Click4G(object sender, RoutedEventArgs e)
+    {
+      ConfigFileOperate configFileOperate = this;
+      configFileOperate.btnOK4G.IsEnabled = false;
+      Dictionary<string, string> dictionary = new Dictionary<string, string>();
+      string err = "";
+      if (!configFileOperate.ParseInputPath(dictionary, ParseType.Parse4G, out err))
+      {
+        LogManager.Log.CfgInfo(string.Format("UI-CreateInitPatch : Input para err.{0}", (object) err), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 359, nameof (btnOK_Click4G));
+        int num = (int) System.Windows.MessageBox.Show(string.Format(" 入参有问题。{0}.", (object) err));
+        configFileOperate.btnOK4G.IsEnabled = true;
+      }
+      else
+      {
+        LogManager.Log.CfgInfo("....4G UI-CreateInitPatch Start....", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 366, nameof (btnOK_Click4G));
+        CfgOp cfgOp = new CfgOp(dictionary);
+        if (configFileOperate.IsDBLmdtz(dictionary))
+        {
+          cfgOp.SetProgressValueEvent += new EventHandler(configFileOperate.ProgressBarTextVal);
+          new Thread(new ThreadStart(cfgOp.CreatePatchAndInitCfg_4G)).Start();
+        }
+        else
+        {
+          LogManager.Log.CfgInfo(string.Format("Unresolved failed, need lm.dtz. Path:{0}.", (object) dictionary["DataMdb"]), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 377, nameof (btnOK_Click4G));
+          int num = (int) System.Windows.MessageBox.Show(string.Format("Unresolved failed, need lm.dtz. Path:{0}.", (object) dictionary["DataMdb"]));
+        }
+      }
+    }
+
+    private void btnCancel_Click4G(object sender, RoutedEventArgs e)
+    {
+      this.ClosedLogInfoFile();
+      this.Close();
+    }
+
+    private void btnDataBase_Click5G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = "数据库文件 | *.mdb;*.dtz";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbDataBase5G.Text = openFileDialog.FileName;
+    }
+
+    private void btnAntWeight_Click5G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbAntWeight5G.Text = openFileDialog.FileName;
+    }
+
+    private void btnWarning_Click5G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbWarning5G.Text = openFileDialog.FileName;
+    }
+
+    private void btnRRUInfo_Click5G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbRRUInfo5G.Text = openFileDialog.FileName;
+    }
+
+    private void btnRecList_Click5G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        this.tbRecList5G.Text = openFileDialog.FileName;
+      string[] source = new string[2]
+      {
+        "DT-Cell参数表",
+        "gNB参数表"
+      };
+      if (CommExcelOleDbHelper.IsExistSheet(openFileDialog.FileName, ((IEnumerable<string>) source).ToList<string>()))
+        return;
+      this.tbRecList5G.Text = (string) null;
+      int num = (int) System.Windows.MessageBox.Show(string.Format(" Input file err.'{0}' not have '{1}' or '{2}' .", (object) openFileDialog.FileName, (object) source[0], (object) source[1]));
+    }
+
+    private void btnSelfDefine_Click5G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbSelfDefine5G.Text = openFileDialog.FileName;
+    }
+
+    private void btnPathToSave_Click5G(object sender, RoutedEventArgs e)
+    {
+      FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+      folderBrowserDialog.Description = "请选择配置文件的保存路径";
+      if (folderBrowserDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      if (string.IsNullOrEmpty(folderBrowserDialog.SelectedPath))
+      {
+        int num = (int) System.Windows.MessageBox.Show("路径不能为空");
+      }
+      else
+        this.tbPathToSave5G.Text = folderBrowserDialog.SelectedPath;
+    }
+
+    private void RadioButton_Click_bigEnd5G(object sender, RoutedEventArgs e) => this.IsBigEndding5G = true;
+
+    private void RadioButton_Click_smallEnd5G(object sender, RoutedEventArgs e) => this.IsBigEndding5G = false;
+
+    private void btnOK_Click5G(object sender, RoutedEventArgs e)
+    {
+      this.btnOK5G.IsEnabled = false;
+      Dictionary<string, string> dictionary = new Dictionary<string, string>();
+      string err = "";
+      if (!this.ParseInputPath(dictionary, ParseType.Parse5G, out err))
+      {
+        LogManager.Log.CfgInfo("UI-CreateInitPatch : Input para err.", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 540, nameof (btnOK_Click5G));
+        int num = (int) System.Windows.MessageBox.Show(string.Format(" 入参有问题。{0}.", (object) err));
+        this.btnOK5G.IsEnabled = true;
+      }
+      else
+      {
+        LogManager.Log.CfgInfo("*** 5G UI-CreateInitPatch Start...", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 546, nameof (btnOK_Click5G));
+        CfgOp cfgOp = new CfgOp(dictionary, ParseType.Parse5G);
+        if (this.IsDBLmdtz(dictionary))
+        {
+          cfgOp.SetProgressValueEvent += new EventHandler(this.ProgressBarTextVal);
+          new Thread(new ThreadStart(cfgOp.CreatePatchAndInitCfg_5G)).Start();
+        }
+        else
+        {
+          LogManager.Log.CfgError(string.Format("Err 需要使用lm.dtz, {0}.", (object) dictionary["DataMdb"]), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 559, nameof (btnOK_Click5G));
+          this.ClosedLogInfoFile();
+        }
+      }
+    }
+
+    private void btnCancel_Click5G(object sender, RoutedEventArgs e)
+    {
+      this.ClosedLogInfoFile();
+      this.Close();
+    }
+
+    private void btnDataBase_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = "数据库文件 | *.dtz";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbDataBaseClassic4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnWarning_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbWarningClassic4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnRRUInfo_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbRRUInfoClassic4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnRecList_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        this.tbRecListClassic4G.Text = openFileDialog.FileName;
+      string[] source = new string[2]{ "Cell参数表", "eNB参数表" };
+      if (CommExcelOleDbHelper.IsExistSheet(openFileDialog.FileName, ((IEnumerable<string>) source).ToList<string>()))
+        return;
+      this.tbRecListClassic4G.Text = (string) null;
+      int num = (int) System.Windows.MessageBox.Show(string.Format(" Input file err.'{0}' not have '{1}' or '{2}' .", (object) openFileDialog.FileName, (object) source[0], (object) source[1]));
+    }
+
+    private void btnSelfDefine_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openFileDialog = new OpenFileDialog();
+      openFileDialog.Filter = LanguageServices.Current.IsEnLanguage ? "Excel File(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV File(*.csv)|*.csv" : "Excel 文件(*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw)|*.xl*;*.xlsx;*.xlsm;*.xls;*.xlm;*.xlw|CSV 文件(*.csv)|*.csv";
+      if (openFileDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      this.tbSelfDefineClassic4G.Text = openFileDialog.FileName;
+    }
+
+    private void btnPathToSave_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+      folderBrowserDialog.Description = "请选择配置文件的保存路径";
+      if (folderBrowserDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        return;
+      if (string.IsNullOrEmpty(folderBrowserDialog.SelectedPath))
+      {
+        int num = (int) System.Windows.MessageBox.Show("路径不能为空");
+      }
+      else
+        this.tbPathToSaveClassic4G.Text = folderBrowserDialog.SelectedPath;
+    }
+
+    private async void btnOK_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      ConfigFileOperate configFileOperate = this;
+      configFileOperate.btnOKClassic4G.IsEnabled = false;
+      Dictionary<string, string> dictionary = new Dictionary<string, string>();
+      string err = "";
+      if (!configFileOperate.ParseInputPath(dictionary, ParseType.ParseClassic4G, out err))
+      {
+        LogManager.Log.CfgInfo(string.Format("UI-CreateInitPatch : Input para err.{0}", (object) err), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 695, nameof (btnOK_ClickClassic4G));
+        int num = (int) System.Windows.MessageBox.Show(string.Format(" 入参有问题。{0}.", (object) err));
+        configFileOperate.btnOK4G.IsEnabled = true;
+      }
+      else
+      {
+        LogManager.Log.CfgInfo("....4G Classic UI-CreateInitPatch Start....", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 702, nameof (btnOK_ClickClassic4G));
+        CfgOp cfgOp = new CfgOp(dictionary, ParseType.ParseClassic4G);
+        if (configFileOperate.IsDBLmdtz(dictionary))
+        {
+          cfgOp.SetProgressValueEvent += new EventHandler(configFileOperate.ProgressBarTextVal);
+          new Thread(new ThreadStart(cfgOp.CreatePatchAndInitCfg_4G)).Start();
+        }
+        else
+        {
+          LogManager.Log.CfgInfo(string.Format("Unresolved failed, need lm.dtz. Path:{0}.", (object) dictionary["DataMdb"]), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 714, nameof (btnOK_ClickClassic4G));
+          int num = (int) System.Windows.MessageBox.Show(string.Format("Unresolved failed, need lm.dtz. Path:{0}.", (object) dictionary["DataMdb"]));
+        }
+      }
+    }
+
+    private void btnCancel_ClickClassic4G(object sender, RoutedEventArgs e)
+    {
+      this.ClosedLogInfoFile();
+      this.Close();
+    }
+
+    private void AntStrengChecked(object sender, RoutedEventArgs e)
+    {
+      bool? isChecked = this.AntStreng.IsChecked;
+      if ((1 == (isChecked.GetValueOrDefault() ? 1 : 0) ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+        LogManager.Log.CfgInfo("开启 码本增强功能 .", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 738, nameof (AntStrengChecked));
+      else
+        LogManager.Log.CfgInfo("关闭 码本增强功能 .", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 742, nameof (AntStrengChecked));
+    }
+
+    private void AntennaArrayType4GChecked(object sender, RoutedEventArgs e)
+    {
+      bool? isChecked = this.AntennaArrayType4G.IsChecked;
+      if ((1 == (isChecked.GetValueOrDefault() ? 1 : 0) ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+        LogManager.Log.CfgInfo("开启 天线阵功能 .", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 752, nameof (AntennaArrayType4GChecked));
+      else
+        LogManager.Log.CfgInfo("关闭 天线阵功能 .", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 756, nameof (AntennaArrayType4GChecked));
+    }
+
+    private void AntennaArrayType5GChecked(object sender, RoutedEventArgs e)
+    {
+      bool? isChecked = this.AntennaArrayType5G.IsChecked;
+      if ((1 == (isChecked.GetValueOrDefault() ? 1 : 0) ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+        LogManager.Log.CfgInfo("开启 天线阵功能 .", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 763, nameof (AntennaArrayType5GChecked));
+      else
+        LogManager.Log.CfgInfo("关闭 天线阵功能 .", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 767, nameof (AntennaArrayType5GChecked));
+    }
+
+    private void ProgressBarTextVal(object sender, EventArgs e) => this.Dispatcher.Invoke((Delegate) new ConfigFileOperate.ProBarTextPosDelegate(this.ProgressBarSetPosVal), sender);
+
+    private void ProgressBarSetPosVal(Dictionary<string, object> textPos)
+    {
+      if (!textPos.ContainsKey("ParseType"))
+        return;
+      ParseType textPo1 = (ParseType) textPos["ParseType"];
+      System.Windows.Controls.ProgressBar proBar4G = this.proBar4G;
+      TextBlock proBar4Gtext = this.proBar4GText;
+      System.Windows.Controls.ProgressBar progressBar;
+      TextBlock textBlock;
+      if (textPo1 == ParseType.Parse4G)
+      {
+        progressBar = this.proBar4G;
+        textBlock = this.proBar4GText;
+      }
+      else if (ParseType.ParseClassic4G == textPo1)
+      {
+        progressBar = this.proBarClassic4G;
+        textBlock = this.proBarClassic4GText;
+      }
+      else
+      {
+        progressBar = this.proBar5G;
+        textBlock = this.proBar5GText;
+      }
+      textPos.Remove("ParseType");
+      string key = textPos.Keys.ToList<string>().First<string>();
+      textBlock.Text = !string.IsNullOrEmpty(key) ? string.Format("{0}:{1}", (object) key, (object) DateTime.Now.ToString("mm:ss")) : "进度条 ：";
+      double textPo2 = (double) textPos[key];
+      if (textPo2 < progressBar.Maximum && textPo2 >= 0.0)
+        progressBar.Value = textPo2;
+      else if (textPo2 == progressBar.Maximum)
+      {
+        progressBar.Value = textPo2;
+        if (!key.Contains("OK"))
+          return;
+        LogManager.Log.CfgInfo("   Success! ", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 839, nameof (ProgressBarSetPosVal));
+        this.ClosedLogInfoFile();
+        int num = (int) System.Windows.MessageBox.Show("   Success! ");
+        this.Close();
+      }
+      else
+      {
+        if (textPo2 >= 0.0)
+          return;
+        progressBar.Value = progressBar.Maximum;
+        LogManager.Log.CfgInfo("Unresolved failed, look at the log.", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 849, nameof (ProgressBarSetPosVal));
+        this.ClosedLogInfoFile();
+        int num = (int) System.Windows.MessageBox.Show("Unresolved failed, look at the log.");
+        this.Close();
+      }
+    }
+
+    private void ProgressBarSetPosVal4G(double nowValue)
+    {
+      if (nowValue < this.proBar4G.Maximum && nowValue >= 0.0)
+        this.proBar4G.Value = nowValue;
+      else if (nowValue == this.proBar4G.Maximum)
+      {
+        this.proBar4G.Value = nowValue;
+        LogManager.Log.CfgInfo("   Success! ", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 870, nameof (ProgressBarSetPosVal4G));
+        this.ClosedLogInfoFile();
+        int num = (int) System.Windows.MessageBox.Show("   Success! ");
+        this.Close();
+      }
+      else
+      {
+        if (nowValue >= 0.0)
+          return;
+        this.proBar4G.Value = this.proBar4G.Maximum;
+        LogManager.Log.CfgInfo("Unresolved failed, look at the log.", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 879, nameof (ProgressBarSetPosVal4G));
+        this.ClosedLogInfoFile();
+        int num = (int) System.Windows.MessageBox.Show("Unresolved failed, look at the log.");
+        this.Close();
+      }
+    }
+
+    private void ProgressBarSetPosVal5G(double nowValue)
+    {
+      if (nowValue < this.proBar5G.Maximum && nowValue >= 0.0)
+        this.proBar5G.Value = nowValue;
+      else if (nowValue == this.proBar5G.Maximum)
+      {
+        this.proBar5G.Value = nowValue;
+        LogManager.Log.CfgInfo("   Success! ", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 899, nameof (ProgressBarSetPosVal5G));
+        this.ClosedLogInfoFile();
+        int num = (int) System.Windows.MessageBox.Show("   Success! ");
+        this.Close();
+      }
+      else
+      {
+        if (nowValue >= 0.0)
+          return;
+        this.proBar5G.Value = this.proBar5G.Maximum;
+        LogManager.Log.CfgInfo("Unresolved failed, look at the log.", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\ConfigFileOperate.xaml.cs", 908, nameof (ProgressBarSetPosVal5G));
+        this.ClosedLogInfoFile();
+        int num = (int) System.Windows.MessageBox.Show("Unresolved failed, look at the log.");
+        this.Close();
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      System.Windows.Application.LoadComponent((object) this, new Uri("/LMT;component/view/configfileoperate.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.ParseClassic4G = (TabItem) target;
+          break;
+        case 2:
+          this.tbDataBaseClassic4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 3:
+          this.btnDataBaseClassic4G = (System.Windows.Controls.Button) target;
+          this.btnDataBaseClassic4G.Click += new RoutedEventHandler(this.btnDataBase_ClickClassic4G);
+          break;
+        case 4:
+          this.tbWarningClassic4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 5:
+          this.btnWarningClassicClassic4G = (System.Windows.Controls.Button) target;
+          this.btnWarningClassicClassic4G.Click += new RoutedEventHandler(this.btnWarning_ClickClassic4G);
+          break;
+        case 6:
+          this.tbRRUInfoClassic4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 7:
+          this.btnRRUInfoClassic4G = (System.Windows.Controls.Button) target;
+          this.btnRRUInfoClassic4G.Click += new RoutedEventHandler(this.btnRRUInfo_ClickClassic4G);
+          break;
+        case 8:
+          this.tbRecListClassic4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 9:
+          this.btnRecListClassic4G = (System.Windows.Controls.Button) target;
+          this.btnRecListClassic4G.Click += new RoutedEventHandler(this.btnRecList_ClickClassic4G);
+          break;
+        case 10:
+          this.tbSelfDefineClassic4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 11:
+          this.btnSelfDefineClassic4G = (System.Windows.Controls.Button) target;
+          this.btnSelfDefineClassic4G.Click += new RoutedEventHandler(this.btnSelfDefine_ClickClassic4G);
+          break;
+        case 12:
+          this.tbPathToSaveClassic4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 13:
+          this.btnPathToSaveClassic4G = (System.Windows.Controls.Button) target;
+          this.btnPathToSaveClassic4G.Click += new RoutedEventHandler(this.btnPathToSave_ClickClassic4G);
+          break;
+        case 14:
+          this.proBarClassic4GText = (TextBlock) target;
+          break;
+        case 15:
+          this.proBarClassic4G = (System.Windows.Controls.ProgressBar) target;
+          break;
+        case 16:
+          this.btnOKClassic4G = (System.Windows.Controls.Button) target;
+          this.btnOKClassic4G.Click += new RoutedEventHandler(this.btnOK_ClickClassic4G);
+          break;
+        case 17:
+          this.btnCancelClassic4G = (System.Windows.Controls.Button) target;
+          this.btnCancelClassic4G.Click += new RoutedEventHandler(this.btnCancel_ClickClassic4G);
+          break;
+        case 18:
+          this.Parse4G = (TabItem) target;
+          break;
+        case 19:
+          this.tbDataBase4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 20:
+          this.btnDataBase4G = (System.Windows.Controls.Button) target;
+          this.btnDataBase4G.Click += new RoutedEventHandler(this.btnDataBase_Click4G);
+          break;
+        case 21:
+          this.tbAntWeight4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 22:
+          this.btnAntWeight4G = (System.Windows.Controls.Button) target;
+          this.btnAntWeight4G.Click += new RoutedEventHandler(this.btnAntWeight_Click4G);
+          break;
+        case 23:
+          this.tbWarning4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 24:
+          this.btnWarning4G = (System.Windows.Controls.Button) target;
+          this.btnWarning4G.Click += new RoutedEventHandler(this.btnWarning_Click4G);
+          break;
+        case 25:
+          this.tbRRUInfo4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 26:
+          this.btnRRUInfo4G = (System.Windows.Controls.Button) target;
+          this.btnRRUInfo4G.Click += new RoutedEventHandler(this.btnRRUInfo_Click4G);
+          break;
+        case 27:
+          this.tbRecList4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 28:
+          this.btnRecList4G = (System.Windows.Controls.Button) target;
+          this.btnRecList4G.Click += new RoutedEventHandler(this.btnRecList_Click4G);
+          break;
+        case 29:
+          this.tbSelfDefine4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 30:
+          this.btnSelfDefine4G = (System.Windows.Controls.Button) target;
+          this.btnSelfDefine4G.Click += new RoutedEventHandler(this.btnSelfDefine_Click4G);
+          break;
+        case 31:
+          this.tbPathToSave4G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 32:
+          this.btnPathToSave4G = (System.Windows.Controls.Button) target;
+          this.btnPathToSave4G.Click += new RoutedEventHandler(this.btnPathToSave_Click4G);
+          break;
+        case 33:
+          this.bigEndding4G = (System.Windows.Controls.RadioButton) target;
+          this.bigEndding4G.Checked += new RoutedEventHandler(this.RadioButton_Click_bigEnd4G);
+          break;
+        case 34:
+          this.smallEndding4G = (System.Windows.Controls.RadioButton) target;
+          this.smallEndding4G.Checked += new RoutedEventHandler(this.RadioButton_Click_smallEnd4G);
+          break;
+        case 35:
+          this.AntennaArrayType4G = (System.Windows.Controls.CheckBox) target;
+          this.AntennaArrayType4G.Checked += new RoutedEventHandler(this.AntennaArrayType4GChecked);
+          this.AntennaArrayType4G.Unchecked += new RoutedEventHandler(this.AntennaArrayType4GChecked);
+          break;
+        case 36:
+          this.proBar4GText = (TextBlock) target;
+          break;
+        case 37:
+          this.proBar4G = (System.Windows.Controls.ProgressBar) target;
+          break;
+        case 38:
+          this.btnOK4G = (System.Windows.Controls.Button) target;
+          this.btnOK4G.Click += new RoutedEventHandler(this.btnOK_Click4G);
+          break;
+        case 39:
+          this.btnCancel4G = (System.Windows.Controls.Button) target;
+          this.btnCancel4G.Click += new RoutedEventHandler(this.btnCancel_Click4G);
+          break;
+        case 40:
+          this.Parse5G = (TabItem) target;
+          break;
+        case 41:
+          this.tbDataBase5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 42:
+          this.btnDataBase5G = (System.Windows.Controls.Button) target;
+          this.btnDataBase5G.Click += new RoutedEventHandler(this.btnDataBase_Click5G);
+          break;
+        case 43:
+          this.tbAntWeight5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 44:
+          this.btnAntWeight5G = (System.Windows.Controls.Button) target;
+          this.btnAntWeight5G.Click += new RoutedEventHandler(this.btnAntWeight_Click5G);
+          break;
+        case 45:
+          this.tbWarning5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 46:
+          this.btnWarning5G = (System.Windows.Controls.Button) target;
+          this.btnWarning5G.Click += new RoutedEventHandler(this.btnWarning_Click5G);
+          break;
+        case 47:
+          this.tbRRUInfo5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 48:
+          this.btnRRUInfo5G = (System.Windows.Controls.Button) target;
+          this.btnRRUInfo5G.Click += new RoutedEventHandler(this.btnRRUInfo_Click5G);
+          break;
+        case 49:
+          this.tbRecList5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 50:
+          this.btnRecList5G = (System.Windows.Controls.Button) target;
+          this.btnRecList5G.Click += new RoutedEventHandler(this.btnRecList_Click5G);
+          break;
+        case 51:
+          this.tbSelfDefine5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 52:
+          this.btnSelfDefine5G = (System.Windows.Controls.Button) target;
+          this.btnSelfDefine5G.Click += new RoutedEventHandler(this.btnSelfDefine_Click5G);
+          break;
+        case 53:
+          this.tbPathToSave5G = (System.Windows.Controls.TextBox) target;
+          break;
+        case 54:
+          this.btnPathToSave5G = (System.Windows.Controls.Button) target;
+          this.btnPathToSave5G.Click += new RoutedEventHandler(this.btnPathToSave_Click5G);
+          break;
+        case 55:
+          this.bigEndding5G = (System.Windows.Controls.RadioButton) target;
+          this.bigEndding5G.Checked += new RoutedEventHandler(this.RadioButton_Click_bigEnd5G);
+          break;
+        case 56:
+          this.smallEndding5G = (System.Windows.Controls.RadioButton) target;
+          this.smallEndding5G.Checked += new RoutedEventHandler(this.RadioButton_Click_smallEnd5G);
+          break;
+        case 57:
+          this.AntStreng = (System.Windows.Controls.CheckBox) target;
+          this.AntStreng.Checked += new RoutedEventHandler(this.AntStrengChecked);
+          this.AntStreng.Unchecked += new RoutedEventHandler(this.AntStrengChecked);
+          break;
+        case 58:
+          this.AntennaArrayType5G = (System.Windows.Controls.CheckBox) target;
+          this.AntennaArrayType5G.Checked += new RoutedEventHandler(this.AntennaArrayType5GChecked);
+          this.AntennaArrayType5G.Unchecked += new RoutedEventHandler(this.AntennaArrayType5GChecked);
+          break;
+        case 59:
+          this.proBar5GText = (TextBlock) target;
+          break;
+        case 60:
+          this.proBar5G = (System.Windows.Controls.ProgressBar) target;
+          break;
+        case 61:
+          this.btnOK5G = (System.Windows.Controls.Button) target;
+          this.btnOK5G.Click += new RoutedEventHandler(this.btnOK_Click5G);
+          break;
+        case 62:
+          this.btnCancel5G = (System.Windows.Controls.Button) target;
+          this.btnCancel5G.Click += new RoutedEventHandler(this.btnCancel_Click5G);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+
+    private delegate void ProBarTextPosDelegate(Dictionary<string, object> textPos);
+  }
+}

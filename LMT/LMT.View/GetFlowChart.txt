@@ -1,0 +1,146 @@
+using LmtbSnmp;
+using LogManager;
+using MIBDataParser;
+using System.Collections.Generic;
+using System.Linq;
+using UILanguageHelper;
+
+namespace LMT.View
+{
+  internal class GetFlowChart
+  {
+    private string gnbip_;
+
+    public GetFlowChart(string gnbip) => this.gnbip_ = gnbip;
+
+    public void GetInfo(
+      XmlData xmldata,
+      Dictionary<string, List<Dictionary<string, string>>> mibdatadict,
+      out Dictionary<string, FlowChartInfo> flowchartmsg)
+    {
+      FlowChartInfo flowChartInfo = new FlowChartInfo()
+      {
+        state = "",
+        name = "",
+        msglist = new List<MsgInfo>()
+      };
+      flowchartmsg = new Dictionary<string, FlowChartInfo>();
+      if ("next" == xmldata.state)
+      {
+        string str = LanguageServices.Current.GetTextValue("Toolbox_GetBS_SelfStartSwitch1") + xmldata.text + "(" + xmldata.name + ")" + LanguageServices.Current.GetTextValue("Toolbox_GetBS_SelfStartSwitch2");
+        flowChartInfo.state = "next";
+        flowChartInfo.name = xmldata.text;
+        flowChartInfo.msglist.Add(new MsgInfo()
+        {
+          isvaliad = true,
+          msg = str
+        });
+      }
+      else if ("success" == xmldata.state)
+      {
+        flowChartInfo.state = "success";
+        flowChartInfo.name = xmldata.text;
+        flowChartInfo.msglist.Add(new MsgInfo()
+        {
+          isvaliad = true,
+          msg = LanguageServices.Current.GetTextValue("Toolbox_BaseStationStartup")
+        });
+      }
+      else
+      {
+        foreach (KeyValuePair<string, List<Dictionary<string, string>>> keyValuePair in mibdatadict)
+        {
+          string str1 = "";
+          List<MibinfoData> mibinfoDataList = new List<MibinfoData>();
+          foreach (MibData mibData in xmldata.mib)
+          {
+            if (keyValuePair.Key == mibData.mibname)
+            {
+              str1 = mibData.mibdesp;
+              mibinfoDataList = mibData.mibinfo;
+            }
+          }
+          string str2 = (string) null;
+          foreach (MibinfoData mibinfoData in mibinfoDataList)
+          {
+            if ("green" == mibinfoData.color)
+              str2 += mibinfoData.description;
+          }
+          List<Dictionary<string, string>> dictionaryList = keyValuePair.Value;
+          if (dictionaryList.Count == 0)
+          {
+            string str3 = LanguageServices.Current.GetTextValue("Toolbox_SFC_Message01") + str1 + "(" + keyValuePair.Key + ")" + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message02");
+            flowChartInfo.name = xmldata.text;
+            flowChartInfo.msglist.Add(new MsgInfo()
+            {
+              isvaliad = false,
+              msg = str3
+            });
+          }
+          else
+          {
+            string mibPrefix = SnmpToDatabase.GetMibPrefix();
+            MibLeafInfo mibNodeInfoByName = SnmpToDatabase.GetMibNodeInfoByName(keyValuePair.Key, this.gnbip_);
+            foreach (Dictionary<string, string> dictionary in dictionaryList)
+            {
+              string strReValue;
+              SnmpMibUtil.TranslateMibValue(this.gnbip_, keyValuePair.Key, dictionary.Values.First<string>(), out strReValue);
+              foreach (MibinfoData mibinfoData in mibinfoDataList)
+              {
+                string str4 = dictionary.Keys.First<string>().Substring(mibPrefix.Length + mibNodeInfoByName.childOid.Length);
+                if (dictionary.Values.First<string>() == mibinfoData.value && "red" == mibinfoData.color)
+                {
+                  string str5 = LanguageServices.Current.GetTextValue("Toolbox_SFC_Message01") + str1 + "(" + keyValuePair.Key + ")" + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message03") + str4 + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message04") + strReValue + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message05") + str2 + ".";
+                  flowChartInfo.name = xmldata.text;
+                  flowChartInfo.msglist.Add(new MsgInfo()
+                  {
+                    isvaliad = false,
+                    msg = str5
+                  });
+                }
+                if (dictionary.Values.First<string>() == mibinfoData.value && "green" == mibinfoData.color)
+                {
+                  string str6 = LanguageServices.Current.GetTextValue("Toolbox_SFC_Message01") + str1 + "(" + keyValuePair.Key + ")" + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message03") + str4 + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message04") + strReValue + LanguageServices.Current.GetTextValue("Toolbox_SFC_Message06");
+                  flowChartInfo.name = xmldata.text;
+                  flowChartInfo.msglist.Add(new MsgInfo()
+                  {
+                    isvaliad = true,
+                    msg = str6
+                  });
+                }
+              }
+            }
+          }
+        }
+        bool isvaliad = flowChartInfo.msglist[0].isvaliad;
+        foreach (MsgInfo msgInfo in flowChartInfo.msglist)
+        {
+          if (("LocalCellStartup" == xmldata.name || "CellSetup" == xmldata.name) && xmldata.mib.Count < flowChartInfo.msglist.Count)
+            isvaliad |= msgInfo.isvaliad;
+          else
+            isvaliad &= msgInfo.isvaliad;
+        }
+        flowChartInfo.state = !isvaliad ? "fail" : "success";
+      }
+      flowchartmsg.Add(xmldata.name, flowChartInfo);
+    }
+
+    public Dictionary<string, FlowChartInfo> GetFlowChartMsg()
+    {
+      Dictionary<string, FlowChartInfo> flowChartMsg = new Dictionary<string, FlowChartInfo>();
+      foreach (XmlData xmlData in new XmlParse(this.gnbip_).GetXmlDataList())
+      {
+        List<string> mibnamelist = new List<string>();
+        foreach (MibData mibData in xmlData.mib)
+          mibnamelist.Add(mibData.mibname);
+        Dictionary<string, List<Dictionary<string, string>>> mibdatadict;
+        if (!new GetMibData(this.gnbip_, mibnamelist).GetMibDataDict(out mibdatadict))
+          Log.Error("启动流程图,获取基站数据失败", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\View\\FlowChartView.xaml.cs", 468, nameof (GetFlowChartMsg));
+        Dictionary<string, FlowChartInfo> flowchartmsg;
+        this.GetInfo(xmlData, mibdatadict, out flowchartmsg);
+        flowChartMsg.Add(flowchartmsg.Keys.First<string>(), flowchartmsg.Values.First<FlowChartInfo>());
+      }
+      return flowChartMsg;
+    }
+  }
+}
