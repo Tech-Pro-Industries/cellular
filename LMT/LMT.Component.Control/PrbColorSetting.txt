@@ -1,0 +1,89 @@
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control
+{
+  public class PrbColorSetting : CustomWindow, IComponentConnector
+  {
+    internal PrbColorSetting ColorSettingWindow;
+    internal Label IDLE;
+    internal Label OVEREDGE;
+    internal Label PARCH;
+    internal Label PUCCH;
+    internal Label SR1;
+    internal Label SR2;
+    internal Label SR3;
+    internal Label CSI;
+    internal Label ACK0;
+    internal Label ACK1;
+    internal Label Conflict;
+    private bool _contentLoaded;
+
+    public PrbColorSetting() => this.InitializeComponent();
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/prbcolorsetting.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.ColorSettingWindow = (PrbColorSetting) target;
+          break;
+        case 2:
+          this.IDLE = (Label) target;
+          break;
+        case 3:
+          this.OVEREDGE = (Label) target;
+          break;
+        case 4:
+          this.PARCH = (Label) target;
+          break;
+        case 5:
+          this.PUCCH = (Label) target;
+          break;
+        case 6:
+          this.SR1 = (Label) target;
+          break;
+        case 7:
+          this.SR2 = (Label) target;
+          break;
+        case 8:
+          this.SR3 = (Label) target;
+          break;
+        case 9:
+          this.CSI = (Label) target;
+          break;
+        case 10:
+          this.ACK0 = (Label) target;
+          break;
+        case 11:
+          this.ACK1 = (Label) target;
+          break;
+        case 12:
+          this.Conflict = (Label) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

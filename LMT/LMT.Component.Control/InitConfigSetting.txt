@@ -1,0 +1,180 @@
+using CommonUtility;
+using LinkPath;
+using SCMTOperationCore.Control;
+using SCMTOperationCore.Message.SI;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Markup;
+using UILanguageHelper;
+
+namespace LMT.Component.Control
+{
+  public class InitConfigSetting : CustomWindow, IComponentConnector
+  {
+    private List<string> listIP = new List<string>();
+    private string curIP;
+    internal CheckBox chbgNB;
+    internal CheckBox chbNoClock;
+    internal CheckBox chbNomme;
+    private bool _contentLoaded;
+
+    public InitConfigSetting(string ip)
+    {
+      this.InitializeComponent();
+      this.Title = LanguageServices.Current.GetTextValue("Toolbox_ParameterConfig") + ip;
+      this.curIP = ip;
+      this.listIP.Add(this.curIP);
+      if (CSEnbHelper.GetStationFrameType(ip) != EnbTypeEnum.ENB_EMB5116)
+        return;
+      this.chbgNB.SetBinding(ContentControl.ContentProperty, (BindingBase) new LocalisedTextExtension()
+      {
+        Key = "Toolbox_InitParaConfig_eNBReset"
+      }.LookupBinding);
+    }
+
+    private void Button_Click(object sender, RoutedEventArgs e)
+    {
+      string strMsg = string.Empty;
+      bool? isChecked1 = this.chbgNB.IsChecked;
+      bool flag1 = true;
+      if ((isChecked1.GetValueOrDefault() == flag1 ? (isChecked1.HasValue ? 1 : 0) : 0) != 0)
+      {
+        switch (CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Toolbox_GenerateDynamicConfigFile_Tip"), LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_gNBReset"), CustomMessageBoxButton.YesNoCancel, CustomMessageBoxIcon.Question))
+        {
+          case CustomMessageBoxResult.Cancel:
+            break;
+          case CustomMessageBoxResult.Yes:
+            string cmdName = "ResetEquip";
+            Dictionary<string, string> name2Value = new Dictionary<string, string>();
+            name2Value.Add("equipResetTrigger", "1");
+            foreach (string targetIp in this.listIP)
+              strMsg = CDTCmdExecuteMgr.CmdSetSync(cmdName, name2Value, ".0", targetIp) != 0 ? strMsg + targetIp + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_ResetFailed") + "\n" : strMsg + targetIp + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_ResetSuccess") + "\n";
+            int num1 = (int) CustomMessageBox.Show(strMsg, LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_gNBReset"));
+            this.Close();
+            break;
+          default:
+            SiMsgHead siMsgHead = new SiMsgHead();
+            siMsgHead.u16MsgType = (ushort) 80;
+            siMsgHead.u16MsgLength = (ushort) 4;
+            byte[] ret1 = new byte[(int) siMsgHead.u16MsgLength];
+            siMsgHead.SerializeToBytes(ref ret1, 0);
+            foreach (string nodeIp in this.listIP)
+            {
+              if (NodeBControl.SendSiMsg(nodeIp, ret1))
+                strMsg = strMsg + nodeIp + "  " + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_ResetSuccess") + "\n";
+              else
+                strMsg = strMsg + nodeIp + "  " + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_ResetFailed") + "\n";
+            }
+            int num2 = (int) CustomMessageBox.Show(strMsg, LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_gNBReset"));
+            this.Close();
+            break;
+        }
+      }
+      else
+      {
+        foreach (string str in this.listIP)
+        {
+          bool? isChecked2 = this.chbNoClock.IsChecked;
+          bool flag2 = true;
+          if ((isChecked2.GetValueOrDefault() == flag2 ? (isChecked2.HasValue ? 1 : 0) : 0) != 0)
+          {
+            if (CDTCmdExecuteMgr.CmdSetSync("SetSysStartIsNoClkSrcSete", new Dictionary<string, string>()
+            {
+              {
+                "sysStartIsNoClkSrcMode",
+                "1"
+              }
+            }, ".0", str) == 0)
+              strMsg = strMsg + str + "  " + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_StartWithoutClockSourceSuccess") + "\n";
+            else
+              strMsg = strMsg + str + "  " + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_StartWithoutClockSourceFailed") + "\n";
+          }
+          bool? isChecked3 = this.chbNomme.IsChecked;
+          bool flag3 = true;
+          if ((isChecked3.GetValueOrDefault() == flag3 ? (isChecked3.HasValue ? 1 : 0) : 0) != 0)
+          {
+            SiMsgNoMMEDef siMsgNoMmeDef = new SiMsgNoMMEDef();
+            siMsgNoMmeDef.u16IsNoMMEMode = (ushort) 1;
+            byte[] ret2 = new byte[siMsgNoMmeDef.Len];
+            siMsgNoMmeDef.SerializeToBytes(ref ret2, 0);
+            if (NodeBControl.SendSiMsg(str, ret2))
+              strMsg = strMsg + str + "  " + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_NommeSuccess") + "\n";
+            else
+              strMsg = strMsg + str + "  " + LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_NommeFailed") + "\n";
+          }
+        }
+        if (!(strMsg != string.Empty))
+          return;
+        int num3 = (int) CustomMessageBox.Show(strMsg, LanguageServices.Current.GetTextValue("Toolbox_InitParaConfig_OrderIssued"));
+        this.Close();
+      }
+    }
+
+    private void CheckBox_Checked(object sender, RoutedEventArgs e)
+    {
+      bool? isChecked = this.chbgNB.IsChecked;
+      bool flag = true;
+      if ((isChecked.GetValueOrDefault() == flag ? (isChecked.HasValue ? 1 : 0) : 0) == 0)
+        return;
+      this.chbNoClock.IsChecked = new bool?(false);
+      this.chbNomme.IsChecked = new bool?(false);
+      this.chbNomme.IsEnabled = false;
+      this.chbNoClock.IsEnabled = false;
+    }
+
+    private void chbgNB_Unchecked(object sender, RoutedEventArgs e)
+    {
+      bool? isChecked = this.chbgNB.IsChecked;
+      bool flag = false;
+      if ((isChecked.GetValueOrDefault() == flag ? (isChecked.HasValue ? 1 : 0) : 0) == 0)
+        return;
+      this.chbNomme.IsEnabled = true;
+      this.chbNoClock.IsEnabled = true;
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/initconfigsetting.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.chbgNB = (CheckBox) target;
+          this.chbgNB.Checked += new RoutedEventHandler(this.CheckBox_Checked);
+          this.chbgNB.Unchecked += new RoutedEventHandler(this.chbgNB_Unchecked);
+          break;
+        case 2:
+          this.chbNoClock = (CheckBox) target;
+          break;
+        case 3:
+          this.chbNomme = (CheckBox) target;
+          break;
+        case 4:
+          ((ButtonBase) target).Click += new RoutedEventHandler(this.Button_Click);
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}

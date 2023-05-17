@@ -1,0 +1,206 @@
+using CefSharp;
+using CefSharp.Wpf;
+using LinkPath;
+using LmtbSnmp;
+using MIBDataParser;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control
+{
+  public class BarChart : UserControl, IComponentConnector
+  {
+    public CallbackObjectForJs m_CbForJs = new CallbackObjectForJs();
+    private bool GettingValue;
+    private string m_gnbIp;
+    private int flag;
+    public static object locker = new object();
+    private List<string> oidList;
+    internal ChromiumWebBrowser address;
+    private bool _contentLoaded;
+
+    public BarChart(string strGnbIp)
+    {
+      this.InitializeComponent();
+      this.m_gnbIp = strGnbIp;
+      this.address.Address = Environment.CurrentDirectory + "\\Chart\\LineChart_JS\\LineChart.html";
+      CefSharpSettings.LegacyJavascriptBindingEnabled = true;
+      this.m_CbForJs.canvas_height = "300";
+      this.m_CbForJs.canvas_width = "800";
+      this.address.RegisterJsObject("JsObj", (object) this.m_CbForJs, (BindingOptions) null);
+      this.address.BeginInit();
+      this.address.MenuHandler = (IContextMenuHandler) new MenuHandler();
+      this.address.AllowDrop = true;
+      this.address.Drop += new DragEventHandler(this.Address_Drop);
+      this.flag = 1;
+      this.oidList = new List<string>();
+    }
+
+    public void WindowProperty_Changed(object sender, PropertyChangedEventArgs e)
+    {
+    }
+
+    public void Sub_Closed(object sender, EventArgs e) => this.GettingValue = false;
+
+    private void Address_Drop(object sender, DragEventArgs e)
+    {
+      try
+      {
+        if (!(e.Data.GetData(typeof (DataGridCell_MIB_MouseEventArgs)) is DataGridCell_MIB_MouseEventArgs data1))
+          return;
+        foreach (KeyValuePair<string, object> property in data1.SelectedCell.Properties)
+        {
+          if (property.Value is DataGrid_Cell_MIB_ENUM && (property.Value as DataGrid_Cell_MIB_ENUM).MibName_CN == data1.HeaderName && property.Value is GridCell && data1.HeaderName == (property.Value as GridCell).MibName_CN)
+          {
+            int num = (int) CustomMessageBox.Show(data1.HeaderName + " 不支持画图功能");
+            break;
+          }
+          if (property.Value is GridCell && data1.HeaderName == (property.Value as GridCell).MibName_CN)
+          {
+            if (this.oidList.Count == 0 && property.Value is DataGrid_Cell_MIB)
+            {
+              this.oidList.Add((property.Value as DataGrid_Cell_MIB).oid);
+            }
+            else
+            {
+              foreach (string oid in this.oidList)
+              {
+                if (property.Value is DataGrid_Cell_MIB && string.Equals((property.Value as DataGrid_Cell_MIB).oid, oid))
+                  return;
+              }
+              if (property.Value is DataGrid_Cell_MIB)
+                this.oidList.Add((property.Value as DataGrid_Cell_MIB).oid);
+            }
+            List<string> inputoid = new List<string>();
+            if (property.Value is DataGrid_Cell_MIB)
+              inputoid.Add((property.Value as DataGrid_Cell_MIB).oid);
+            string mibPrefix = SnmpToDatabase.GetMibPrefix();
+            string str = "";
+            if (property.Value is DataGrid_Cell_MIB)
+              str = (property.Value as DataGrid_Cell_MIB).oid.Substring(mibPrefix.Length);
+            MibTableInfo tableProperty = data1.SelectedCell.TableProperty as MibTableInfo;
+            string oidLegend = (string) null;
+            if (tableProperty != null)
+            {
+              foreach (MibLeafInfo child in tableProperty.childList)
+              {
+                if (str.Contains(child.childOid) && property.Value is DataGrid_Cell_MIB)
+                  oidLegend = (property.Value as DataGrid_Cell_MIB).MibName_CN + str.Substring(child.childOid.Length);
+              }
+            }
+            this.GettingValue = true;
+            string[] data = new string[0];
+            new Task((Action) (() =>
+            {
+              string[] data2 = new string[0];
+              Dictionary<string, string> queryResults = new Dictionary<string, string>();
+              List<string> first = new List<string>();
+              List<string> stringList = new List<string>();
+              string[] second = new string[this.m_CbForJs.listForXAxis.Length];
+              List<string> list = first.Concat<string>((IEnumerable<string>) second).ToList<string>();
+              while (this.GettingValue)
+              {
+                SnmpSessionWorker.SnmpGetSync(this.m_gnbIp, inputoid, out queryResults);
+                double result = 0.0;
+                lock (BarChart.locker)
+                {
+                  foreach (KeyValuePair<string, string> keyValuePair in queryResults)
+                  {
+                    double.TryParse(keyValuePair.Value, out result);
+                    list.Add(result.ToString());
+                    stringList.Add(DateTime.Now.ToString("T"));
+                    if (list.Count<string>() > 1000)
+                    {
+                      list.RemoveAt(0);
+                      stringList.RemoveAt(0);
+                    }
+                    data2 = list.ToArray();
+                    data = stringList.ToArray();
+                  }
+                  series series = new series(oidLegend, "bar", false, "", "", data2);
+                  if (!this.m_CbForJs.listForLegend.Contains(oidLegend))
+                  {
+                    this.m_CbForJs.listForLegend.Add(oidLegend);
+                    this.m_CbForJs.listForSeries.Add(series);
+                    this.m_CbForJs.listForXAxis = this.m_CbForJs.listForSeries.Count != 0 ? (this.m_CbForJs.listForXAxis.Length > data.Length ? this.m_CbForJs.listForXAxis : data) : data;
+                  }
+                  else
+                  {
+                    this.m_CbForJs.listForSeries[this.m_CbForJs.listForLegend.IndexOf(oidLegend)] = series;
+                    this.m_CbForJs.listForXAxis = this.m_CbForJs.listForSeries.Count != 0 ? (this.m_CbForJs.listForXAxis.Length > data.Length ? this.m_CbForJs.listForXAxis : data) : data;
+                  }
+                  legend legend = new legend(this.m_CbForJs.listForLegend);
+                  xAxis xAxis1 = new xAxis(this.m_CbForJs.listForXAxis);
+                  List<series> listForSeries = this.m_CbForJs.listForSeries;
+                  xAxis xAxis2 = xAxis1;
+                  this.m_CbForJs.Option = Option.ObjectToJson((object) new Option(legend, listForSeries, xAxis2));
+                }
+                Thread.Sleep(1000);
+              }
+            })).Start();
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error("BarChart Receive Mouse Drop Exception " + ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\BarChart.xaml.cs", 230, nameof (Address_Drop));
+      }
+    }
+
+    private void Button_Click(object sender, RoutedEventArgs e) => this.address.ShowDevTools();
+
+    private void WindowSizeChange(object sender, SizeChangedEventArgs e)
+    {
+      this.address.Width = e.NewSize.Width;
+      this.address.Height = e.NewSize.Height;
+      this.m_CbForJs.canvas_width = (e.NewSize.Width - 50.0).ToString();
+      this.m_CbForJs.canvas_height = (e.NewSize.Height - 50.0).ToString();
+      if (this.flag == 1)
+      {
+        ++this.flag;
+      }
+      else
+      {
+        if (this.address.GetBrowser() == null)
+          return;
+        this.address.GetBrowser().MainFrame.EvaluateScriptAsync("resetSize()");
+      }
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/barchart.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId != 1)
+      {
+        if (connectionId == 2)
+          this.address = (ChromiumWebBrowser) target;
+        else
+          this._contentLoaded = true;
+      }
+      else
+        ((FrameworkElement) target).SizeChanged += new SizeChangedEventHandler(this.WindowSizeChange);
+    }
+  }
+}

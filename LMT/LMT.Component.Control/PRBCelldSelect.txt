@@ -1,0 +1,85 @@
+using CommonUtility;
+using LinkPath;
+using PRB;
+using SCMTOperationCore.Control;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control
+{
+  public class PRBCellIdSelect : Window, IComponentConnector
+  {
+    public List<string> indexList = new List<string>();
+    public byte selectedCellID;
+    public bool bOK;
+    public string strIP;
+    internal ComboBox cbCellID;
+    internal Button btnOK;
+    private bool _contentLoaded;
+
+    public PRBCellIdSelect(string strIP)
+    {
+      this.InitializeComponent();
+      this.strIP = strIP;
+      Dictionary<string, string> results = new Dictionary<string, string>();
+      Singleton<CDTCmdExecuteMgr>.GetInstance().CmdGetNextSync("GetLocalNRCellInfo", out long _, out this.indexList, out results, strIP);
+      if (this.indexList == null || this.indexList.Count <= 0)
+        return;
+      foreach (string index in this.indexList)
+        this.cbCellID.Items.Add((object) index.Substring(1));
+      this.cbCellID.SelectedIndex = 0;
+    }
+
+    private void btnOK_Click(object sender, RoutedEventArgs e)
+    {
+      if (this.cbCellID.SelectedItem != null && byte.TryParse(this.cbCellID.SelectedItem.ToString(), out this.selectedCellID))
+      {
+        this.bOK = true;
+        LMTAOM_LMTOM_GetCellResReqMsg getCellResReqMsg = new LMTAOM_LMTOM_GetCellResReqMsg(this.selectedCellID);
+        if (getCellResReqMsg.SerializeToBytes() != -1)
+        {
+          if (NodeBControl.SendSiMsg(this.strIP, getCellResReqMsg.ReqData))
+            LogManager.Log.Debug(string.Format("IP地址为{0}  PRB请求数据下发成功，数据信息：{1},{2},{3}", (object) this.strIP, (object) getCellResReqMsg.u16MsgLength, (object) getCellResReqMsg.u16MsgType, (object) getCellResReqMsg.u8LocalCellId), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\PRBCellIdSelect.xaml.cs", 64, nameof (btnOK_Click));
+          else
+            LogManager.Log.Debug(string.Format("IP地址为{0}  PRB请求数据下发失败，数据信息：{1},{2},{3}", (object) this.strIP, (object) getCellResReqMsg.u16MsgLength, (object) getCellResReqMsg.u16MsgType, (object) getCellResReqMsg.u8LocalCellId), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\PRBCellIdSelect.xaml.cs", 68, nameof (btnOK_Click));
+        }
+      }
+      this.Close();
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/prbcellidselect.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId != 1)
+      {
+        if (connectionId == 2)
+        {
+          this.btnOK = (Button) target;
+          this.btnOK.Click += new RoutedEventHandler(this.btnOK_Click);
+        }
+        else
+          this._contentLoaded = true;
+      }
+      else
+        this.cbCellID = (ComboBox) target;
+    }
+  }
+}

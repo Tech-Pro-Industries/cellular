@@ -1,0 +1,204 @@
+using CefSharp;
+using CefSharp.Wpf;
+using LinkPath;
+using LmtbSnmp;
+using MIBDataParser;
+using SCMTResources.CustomControls;
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control
+{
+  public class LinechartContent : UserControl, IComponentConnector
+  {
+    public CallbackObjectForJs m_CbForJs = new CallbackObjectForJs();
+    private bool GettingValue;
+    private string m_gnbIp;
+    private int flag;
+    public static object locker = new object();
+    private List<string> oidList;
+    internal ChromiumWebBrowser address;
+    private bool _contentLoaded;
+
+    public LinechartContent(string gnbIp)
+    {
+      this.InitializeComponent();
+      this.address.Address = Environment.CurrentDirectory + "\\Chart\\LineChart_JS\\LineChart.html";
+      CefSharpSettings.LegacyJavascriptBindingEnabled = true;
+      this.m_CbForJs.canvas_height = "430";
+      this.m_CbForJs.canvas_width = "580";
+      this.m_gnbIp = gnbIp;
+      this.address.MenuHandler = (IContextMenuHandler) new MenuHandler();
+      this.address.RegisterJsObject("JsObj", (object) this.m_CbForJs, (BindingOptions) null);
+      this.address.BeginInit();
+      this.address.AllowDrop = true;
+      this.address.Drop += new DragEventHandler(this.Address_Drop);
+      this.flag = 1;
+      this.oidList = new List<string>();
+    }
+
+    public void WindowProperty_Changed(object sender, PropertyChangedEventArgs e)
+    {
+    }
+
+    public void Sub_Closed(object sender, EventArgs e) => this.GettingValue = false;
+
+    private void Address_Drop(object sender, DragEventArgs e)
+    {
+      try
+      {
+        if (!(e.Data.GetData(typeof (DataGridCell_MIB_MouseEventArgs)) is DataGridCell_MIB_MouseEventArgs data1))
+          return;
+        foreach (KeyValuePair<string, object> property in data1.SelectedCell.Properties)
+        {
+          if (property.Value is DataGrid_Cell_MIB_ENUM && (property.Value as DataGrid_Cell_MIB_ENUM).MibName_CN == data1.HeaderName && property.Value is GridCell && data1.HeaderName == (property.Value as GridCell).MibName_CN)
+          {
+            int num = (int) CustomMessageBox.Show(data1.HeaderName + " 不支持画图功能");
+            break;
+          }
+          if (data1.HeaderName == (property.Value as GridCell).MibName_CN && property.Value is DataGrid_Cell_MIB)
+          {
+            if (this.oidList.Count == 0)
+            {
+              this.oidList.Add((property.Value as DataGrid_Cell_MIB).oid);
+            }
+            else
+            {
+              foreach (string oid in this.oidList)
+              {
+                if (string.Equals((property.Value as DataGrid_Cell_MIB).oid, oid))
+                  return;
+              }
+              this.oidList.Add((property.Value as DataGrid_Cell_MIB).oid);
+            }
+            List<string> inputoid = new List<string>();
+            inputoid.Add((property.Value as DataGrid_Cell_MIB).oid);
+            Dictionary<string, string> queryResults1;
+            SnmpSessionWorker.SnmpGetSync(this.m_gnbIp, inputoid, out queryResults1);
+            foreach (KeyValuePair<string, string> keyValuePair in queryResults1)
+            {
+              if (!double.TryParse(keyValuePair.Value, out double _))
+              {
+                int num = (int) CustomMessageBox.Show(data1.HeaderName + "内容不支持画图功能");
+                return;
+              }
+            }
+            string mibPrefix = SnmpToDatabase.GetMibPrefix();
+            string str = (property.Value as DataGrid_Cell_MIB).oid.Substring(mibPrefix.Length);
+            MibTableInfo tableProperty = data1.SelectedCell.TableProperty as MibTableInfo;
+            string oidLegend = (string) null;
+            foreach (MibLeafInfo child in tableProperty.childList)
+            {
+              if (str.Contains(child.childOid))
+                oidLegend = (property.Value as DataGrid_Cell_MIB).MibName_CN + str.Substring(child.childOid.Length);
+            }
+            this.GettingValue = true;
+            new Task((Action) (() =>
+            {
+              string[] strArray = new string[0];
+              string[] data2 = new string[0];
+              Dictionary<string, string> queryResults2 = new Dictionary<string, string>();
+              List<string> first = new List<string>();
+              List<string> stringList = new List<string>();
+              string[] second = new string[this.m_CbForJs.listForXAxis.Length];
+              List<string> list = first.Concat<string>((IEnumerable<string>) second).ToList<string>();
+              while (this.GettingValue)
+              {
+                SnmpSessionWorker.SnmpGetSync(this.m_gnbIp, inputoid, out queryResults2);
+                double result = 0.0;
+                lock (LinechartContent.locker)
+                {
+                  foreach (KeyValuePair<string, string> keyValuePair in queryResults2)
+                  {
+                    double.TryParse(keyValuePair.Value, out result);
+                    list.Add(result.ToString());
+                    stringList.Add(DateTime.Now.ToString("T"));
+                    if (list.Count > 1000)
+                    {
+                      list.RemoveAt(0);
+                      stringList.RemoveAt(0);
+                    }
+                    data2 = list.ToArray();
+                    strArray = stringList.ToArray();
+                  }
+                  series series = new series(oidLegend, "line", false, "circle", "", data2);
+                  if (!this.m_CbForJs.listForLegend.Contains(oidLegend))
+                  {
+                    this.m_CbForJs.listForLegend.Add(oidLegend);
+                    this.m_CbForJs.listForSeries.Add(series);
+                    this.m_CbForJs.listForXAxis = this.m_CbForJs.listForSeries.Count != 0 ? (this.m_CbForJs.listForXAxis.Length > strArray.Length ? this.m_CbForJs.listForXAxis : strArray) : strArray;
+                  }
+                  else
+                  {
+                    this.m_CbForJs.listForSeries[this.m_CbForJs.listForLegend.IndexOf(oidLegend)] = series;
+                    this.m_CbForJs.listForXAxis = this.m_CbForJs.listForSeries.Count != 0 ? (this.m_CbForJs.listForXAxis.Length > strArray.Length ? this.m_CbForJs.listForXAxis : strArray) : strArray;
+                  }
+                  legend legend = new legend(this.m_CbForJs.listForLegend);
+                  xAxis xAxis1 = new xAxis(this.m_CbForJs.listForXAxis);
+                  List<series> listForSeries = this.m_CbForJs.listForSeries;
+                  xAxis xAxis2 = xAxis1;
+                  this.m_CbForJs.Option = Option.ObjectToJson((object) new Option(legend, listForSeries, xAxis2));
+                }
+                Thread.Sleep(1000);
+              }
+            })).Start();
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error("LineChart Receive Mouse Drop Exception " + ex.ToString(), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\LinechartContent.xaml.cs", 243, nameof (Address_Drop));
+      }
+    }
+
+    private void Button_Click(object sender, RoutedEventArgs e) => this.address.ShowDevTools();
+
+    private void WindowSizeChange(object sender, SizeChangedEventArgs e)
+    {
+      this.address.Width = e.NewSize.Width;
+      this.address.Height = e.NewSize.Height;
+      this.m_CbForJs.canvas_width = (e.NewSize.Width - 50.0).ToString();
+      this.m_CbForJs.canvas_height = (e.NewSize.Height - 50.0).ToString();
+      if (this.flag == 1)
+        ++this.flag;
+      else
+        this.address.GetBrowser()?.MainFrame.EvaluateScriptAsync("resetSize()");
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/linechartcontent.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      if (connectionId != 1)
+      {
+        if (connectionId == 2)
+          this.address = (ChromiumWebBrowser) target;
+        else
+          this._contentLoaded = true;
+      }
+      else
+        ((FrameworkElement) target).SizeChanged += new SizeChangedEventHandler(this.WindowSizeChange);
+    }
+  }
+}
+

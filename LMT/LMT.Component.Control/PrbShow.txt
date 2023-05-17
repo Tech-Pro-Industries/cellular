@@ -1,0 +1,79 @@
+using LMT.Component.ViewModel;
+using MsgQueue;
+using PRB;
+using System;
+using System.CodeDom.Compiler;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+
+namespace LMT.Component.Control
+{
+  public class PrbShow : Window, IComponentConnector
+  {
+    private OMLMTA_OMLMT_GetCellResRspMsg prbInfo;
+    private PrbShowVM _psVM;
+    private string _ip;
+    internal DataGrid PrbDataGrid;
+    internal Grid listViewWidth;
+    internal GridViewColumn lvTime;
+    private bool _contentLoaded;
+
+    public PrbShow(string ip, PrbShowVM psVM)
+    {
+      this.InitializeComponent();
+      this._ip = ip;
+      this._psVM = psVM;
+      this.DataContext = (object) this._psVM;
+      SubscribeHelper.AddSubscribe(string.Format("/{0}/{1}", (object) ip, (object) "prb_response_msg"), new HandlerSubscribeMsg(this.PRBInfoShow), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\PrbShow.xaml.cs", 36, ".ctor");
+      LogManager.Log.Debug(string.Format("PRB订阅信息：/{0}/{1}", (object) ip, (object) "prb_response_msg"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\PrbShow.xaml.cs", 37, ".ctor");
+      this._psVM.strIP = this._ip;
+    }
+
+    private void PRBInfoShow(SubscribeMsg msg)
+    {
+      LogManager.Log.Debug(string.Format("收到PRB信息{0}", (object) msg.Data), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\Component\\SCMTControl\\PrbShow.xaml.cs", 43, nameof (PRBInfoShow));
+      this.prbInfo = new OMLMTA_OMLMT_GetCellResRspMsg(msg.Data);
+      this._psVM.prbInfo = this.prbInfo;
+      this.Dispatcher.BeginInvoke((Delegate) (() => this._psVM.ReadPrbData()));
+    }
+
+    public void Sub_Closed(object sender, EventArgs e)
+    {
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    public void InitializeComponent()
+    {
+      if (this._contentLoaded)
+        return;
+      this._contentLoaded = true;
+      Application.LoadComponent((object) this, new Uri("/LMT;component/component/scmtcontrol/prbshow.xaml", UriKind.Relative));
+    }
+
+    [DebuggerNonUserCode]
+    [GeneratedCode("PresentationBuildTasks", "4.0.0.0")]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+      switch (connectionId)
+      {
+        case 1:
+          this.PrbDataGrid = (DataGrid) target;
+          break;
+        case 2:
+          this.listViewWidth = (Grid) target;
+          break;
+        case 3:
+          this.lvTime = (GridViewColumn) target;
+          break;
+        default:
+          this._contentLoaded = true;
+          break;
+      }
+    }
+  }
+}
