@@ -1,0 +1,6 @@
+namespace LMT.ViewModel
+{
+  public class AlarmManageVM : TabBase
+  {
+  }
+}

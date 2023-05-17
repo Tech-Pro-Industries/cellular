@@ -1,0 +1,10 @@
+namespace LMT.ViewModel
+{
+  public class Config
+  {
+    public string UserName = "";
+    public string FileName = "";
+    public string FileVersion = "";
+    public string ProductVersion = "";
+  }
+}

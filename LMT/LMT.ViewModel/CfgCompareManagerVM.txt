@@ -1,0 +1,7 @@
+namespace LMT.ViewModel
+{
+  public class CfgCompareManagerVM : TabBase
+  {
+    public byte[] msgData;
+  }
+}

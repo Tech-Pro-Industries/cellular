@@ -1,0 +1,803 @@
+using CommonUtility;
+using GalaSoft.MvvmLight;
+using LMT.Utils;
+using LMT.View;
+using LogManager;
+using MIBDataParser;
+using Microsoft.Practices.Prism.Commands;
+using MsgQueue;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using UICore.Controls.Metro;
+using UILanguageHelper;
+
+namespace LMT.ViewModel
+{
+  public class ObjTreeVM : ViewModelBase, I_SCMT_BelongUserControl
+  {
+    private ObservableCollection<ObjNodeModel> _itemsSourceData;
+    private ObjNodeModel selectTreeitem;
+    private Visibility addCollectVis;
+    private Visibility delAllCollectVis;
+    private Visibility delCollectVis;
+    private bool flag = true;
+    private ContextMenu cm;
+    private static readonly object _syncLock = new object();
+    private CancellationTokenSource cts;
+    private ObservableCollection<ObjNodeModel> NodeList;
+    private Visibility fakeVisibility;
+    public TreeShowType treeType;
+    public bool isGetParaTaskRunning;
+    private GalaSoft.MvvmLight.Command.RelayCommand menuObjTreeCollectAddCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand menuObjTreeCollectDeleteAllCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand menuObjTreeCollectDeleteCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand menuObjTreeFakeCommand;
+    private object obj = new object();
+    private string Cache = "";
+
+    public ObservableCollection<ObjNodeModel> ItemsSourceData
+    {
+      get => this._itemsSourceData;
+      set
+      {
+        this._itemsSourceData = value;
+        this.RaisePropertyChanged<ObservableCollection<ObjNodeModel>>((Expression<Func<ObservableCollection<ObjNodeModel>>>) (() => this.ItemsSourceData));
+      }
+    }
+
+    public ObjNodeModel SelectTreeitem
+    {
+      get => this.selectTreeitem;
+      set
+      {
+        this.selectTreeitem = value;
+        this.RaisePropertyChanged<ObjNodeModel>((Expression<Func<ObjNodeModel>>) (() => this.SelectTreeitem));
+      }
+    }
+
+    public Visibility AddCollectVis
+    {
+      get => this.addCollectVis;
+      set
+      {
+        this.addCollectVis = value;
+        this.RaisePropertyChanged<Visibility>((Expression<Func<Visibility>>) (() => this.AddCollectVis));
+      }
+    }
+
+    public Visibility DelAllCollectVis
+    {
+      get => this.delAllCollectVis;
+      set
+      {
+        this.delAllCollectVis = value;
+        this.RaisePropertyChanged<Visibility>((Expression<Func<Visibility>>) (() => this.DelAllCollectVis));
+      }
+    }
+
+    public Visibility DelCollectVis
+    {
+      get => this.delCollectVis;
+      set
+      {
+        this.delCollectVis = value;
+        this.RaisePropertyChanged<Visibility>((Expression<Func<Visibility>>) (() => this.DelCollectVis));
+      }
+    }
+
+    public CancellationTokenSource GetCTS() => this.cts;
+
+    public Visibility FakeVisibility
+    {
+      get => this.fakeVisibility;
+      set
+      {
+        this.fakeVisibility = value;
+        this.RaisePropertyChanged<Visibility>((Expression<Func<Visibility>>) (() => this.FakeVisibility));
+      }
+    }
+
+    public NodeBControlPage MainPage { get; set; }
+
+    public string NodeBIP { get; set; }
+
+    public ObjTreeVM(TreeShowType type)
+    {
+      this.ItemsSourceData = new ObservableCollection<ObjNodeModel>();
+      this.SelectTreeCommand = (ICommand) new DelegateCommand<ObjNodeModel>(new Action<ObjNodeModel>(this.SelectTreeCommandExec));
+      this.PreviewMouseRightButtonDownCommand = (ICommand) new DelegateCommand<RoutedEventArgs>(new Action<RoutedEventArgs>(this.PreviewMouseRightButtonDownCommandExec));
+      this.TreeNodeCommand = (ICommand) new DelegateCommand<MouseButtonEventArgs>(new Action<MouseButtonEventArgs>(this.TreeNodeCommandExec));
+      this.treeType = type;
+      this.AddCollectVis = Visibility.Visible;
+      this.DelAllCollectVis = Visibility.Collapsed;
+      this.SearchResult = new ObservableCollection<ObjNodeModel>();
+      this.InitUnConnectData();
+      SubscribeHelper.AddSubscribe("Language_Changed", new HandlerSubscribeMsg(this.LanguageChange_Deal), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 175, ".ctor");
+    }
+
+    public void InitUnConnectData()
+    {
+      if (this.ItemsSourceData.Count > 0 || this.treeType == TreeShowType.ChartTree)
+        return;
+      ObjNodeModel objNodeModel = new ObjNodeModel(0, 0, "1.0", this.treeType != TreeShowType.ObjTree ? LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks") : LanguageServices.Current.GetTextValue("BaseInfo_Tree_ObjTree"), "/", FontWeights.Normal);
+      ObservableCollection<ObjNodeModel> observableCollection = new ObservableCollection<ObjNodeModel>();
+      observableCollection.Add(objNodeModel);
+      this.ItemsSourceData = observableCollection;
+    }
+
+    public void InitObjTreeData(
+      ObservableCollection<ObjNodeModel> listObjData,
+      ObservableCollection<ObjNodeModel> nodeList,
+      string ip,
+      NodeBControlPage mainPage)
+    {
+      try
+      {
+        if (this.ItemsSourceData.Count > 0)
+        {
+          lock (ObjTreeVM._syncLock)
+          {
+            this.isGetParaTaskRunning = false;
+            this.ItemsSourceData.Clear();
+          }
+        }
+        this.ItemsSourceData = listObjData;
+        this.NodeBIP = ip;
+        this.MainPage = mainPage;
+        this.NodeList = nodeList;
+        if (AppConfigHelper.GetAppSettingValue<bool>(false, "ShowFakeMenu") && mainPage.MainTabVM.IsOnLine)
+          this.FakeVisibility = Visibility.Visible;
+        else
+          this.FakeVisibility = Visibility.Collapsed;
+      }
+      catch (Exception ex)
+      {
+        Log.Error("初始化对象树：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 229, nameof (InitObjTreeData));
+      }
+    }
+
+    public void InitCollectData(string ip, NodeBControlPage mainPage)
+    {
+      try
+      {
+        if (this.ItemsSourceData.Count > 0)
+        {
+          lock (ObjTreeVM._syncLock)
+          {
+            this.isGetParaTaskRunning = false;
+            this.ItemsSourceData.Clear();
+          }
+        }
+        this.MainPage = mainPage;
+        this.NodeBIP = ip;
+        this.AddCollectVis = Visibility.Collapsed;
+        this.DelAllCollectVis = Visibility.Collapsed;
+        this.fakeVisibility = Visibility.Collapsed;
+        this.RefreshCollectShow();
+      }
+      catch (Exception ex)
+      {
+        Log.Error("初始化收藏节点：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", (int) byte.MaxValue, nameof (InitCollectData));
+      }
+    }
+
+    public void InitObjWindowData(
+      NodeBControlPage mainPage,
+      Dictionary<string, EventHandler> WinNameCheck)
+    {
+      this.MainPage = mainPage;
+      this.RefreshObjWindowShow(WinNameCheck);
+    }
+
+    public void ClearObjData()
+    {
+      lock (ObjTreeVM._syncLock)
+      {
+        this.isGetParaTaskRunning = false;
+        if (this.ItemsSourceData.Count <= 0)
+          return;
+        this.ItemsSourceData[0].ObjSubList.Clear();
+      }
+    }
+
+    public ICommand TreeNodeCommand { get; set; }
+
+    private void TreeNodeCommandExec(MouseButtonEventArgs e)
+    {
+      if (this.MainPage == null || e.LeftButton != MouseButtonState.Pressed || !(ObjTreeVM.VisualUpwardSearch<TreeViewItem>(e.OriginalSource as DependencyObject) is TreeViewItem treeViewItem))
+        return;
+      treeViewItem.Focus();
+      if (!(treeViewItem.DataContext is ObjNodeModel dataContext))
+        return;
+      if (this.treeType == TreeShowType.ObjTree && this.MainPage.CollectTreeViewVM.ItemsSourceData.Count > 0)
+        this.MainPage.CollectTreeViewVM.ItemsSourceData[0].IsExpanded = false;
+      if (e.ClickCount == 1)
+      {
+        if (this.treeType == TreeShowType.ChartTree)
+        {
+          dataContext.ChartCheck();
+          e.Handled = true;
+        }
+        else
+        {
+          this.SelectTreeitem = dataContext;
+          this.SelectObjNode(dataContext);
+          e.Handled = true;
+        }
+      }
+      else
+      {
+        if (e.ClickCount != 2)
+          return;
+        dataContext.IsExpanded = !dataContext.IsExpanded;
+        e.Handled = true;
+      }
+    }
+
+    public ICommand SelectTreeCommand { get; set; }
+
+    private void SelectTreeCommandExec(ObjNodeModel e)
+    {
+      if (e == null)
+        return;
+      ObjNodeModel selectTreeitem = this.SelectTreeitem;
+      if ((selectTreeitem != null ? (selectTreeitem.ObjName.Equals(e.ObjName) ? 1 : 0) : 0) != 0)
+        return;
+      this.SelectTreeitem = e;
+      this.SelectObjNode(e);
+    }
+
+    private void SelectObjNode(ObjNodeModel objNode)
+    {
+      if (objNode == null)
+        return;
+      if (this.MainPage.Main_Dynamic_DataGrid.BtnCancelMutiQuery.Visibility == Visibility.Visible)
+        this.MainPage.Main_Dynamic_DataGrid.ShowLogInfo(LanguageServices.Current.GetTextValue("BaseInfo_Mib_MutiQueryExsit"));
+      else if (this.isGetParaTaskRunning)
+      {
+        Log.Info("上一个Get命令正在进行，本次操作无法进行，已退出...", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 371, nameof (SelectObjNode));
+      }
+      else
+      {
+        this.cts = new CancellationTokenSource();
+        this.MainPage.Main_Dynamic_DataGrid.ResetDataGridInfo();
+        this.MainPage.MainHorizenTab.SelectedIndex = 0;
+        if (!(objNode.ObjTableName != "/"))
+          return;
+        this.ObjTreeNode_Click(objNode, this.cts.Token);
+      }
+    }
+
+    public void InitSelectMibObjNode()
+    {
+      try
+      {
+        ObjNodeModel objNode = (ObjNodeModel) null;
+        lock (ObjTreeVM._syncLock)
+        {
+          if (this.ItemsSourceData.Count == 0)
+          {
+            Log.Error("初始化对象树，ItemsSourceData.Count == 0，直接返回", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 400, nameof (InitSelectMibObjNode));
+            return;
+          }
+          ObjNodeModel objNodeModel = this.ItemsSourceData[0];
+          if (objNodeModel == null)
+          {
+            Log.Error("初始化对象树，ItemsSourceData[0] == null，直接返回", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 407, nameof (InitSelectMibObjNode));
+            return;
+          }
+          if (objNodeModel.ObjSubList.Count == 0)
+          {
+            Log.Error("初始化对象树，ItemsSourceData[0].ObjSubList.Count == 0，直接返回", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 413, nameof (InitSelectMibObjNode));
+            return;
+          }
+          objNode = objNodeModel.ObjSubList[0];
+        }
+        if (this.SelectTreeitem != null || objNode == null)
+          return;
+        this.SelectTreeitem = objNode;
+        this.SelectObjNode(objNode);
+      }
+      catch (Exception ex)
+      {
+        Log.Error("InitSelectMibObjNode Exception：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 430, nameof (InitSelectMibObjNode));
+      }
+    }
+
+    public void ChangeCfgPatchMode()
+    {
+      try
+      {
+        if (this.MainPage == null || this.MainPage.IsOnLine || this.SelectTreeitem == null)
+          return;
+        this.SelectObjNode(this.SelectTreeitem);
+      }
+      catch (Exception ex)
+      {
+        Log.Error("InitSelectMibObjNode Exception：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 449, nameof (ChangeCfgPatchMode));
+      }
+    }
+
+    private void ObjTreeNode_Click(ObjNodeModel node, CancellationToken token)
+    {
+      try
+      {
+        Task task1 = new Task((Action) (() => this.GetParentNodeDatasThd(node, token)), token);
+        task1.ConfigureAwait(false);
+        task1.ContinueWith<bool>((Func<Task, bool>) (task => this.isGetParaTaskRunning = false), token);
+        this.isGetParaTaskRunning = true;
+        task1.Start();
+      }
+      catch (Exception ex)
+      {
+        this.isGetParaTaskRunning = false;
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 477, nameof (ObjTreeNode_Click));
+        throw;
+      }
+    }
+
+    private static void GetParentNodeDatas(Action<ObjNodeModel> _ac, ObjNodeModel objNode) => _ac(objNode);
+
+    private void GetParentNodeDatasThd(ObjNodeModel node, CancellationToken tocken) => DataGridUtils.UpdateMibTableDataGrid(node.ObjTableName, this.NodeBIP, this.MainPage, tocken);
+
+    public ICommand PreviewMouseRightButtonDownCommand { get; set; }
+
+    private void PreviewMouseRightButtonDownCommandExec(RoutedEventArgs e)
+    {
+      TreeViewItem treeViewItem = ObjTreeVM.VisualUpwardSearch<TreeViewItem>(e.OriginalSource as DependencyObject) as TreeViewItem;
+      TreeView source = (TreeView) e.Source;
+      if (this.flag)
+      {
+        this.cm = source.ContextMenu;
+        this.flag = false;
+      }
+      if (treeViewItem == null)
+        return;
+      treeViewItem.Focus();
+      if (treeViewItem.DataContext is ObjNodeModel dataContext)
+      {
+        this.SelectTreeitem = dataContext;
+        NodeBControlPage.m_strNodeName = dataContext.ObjName;
+        if (dataContext.ObjName != LanguageServices.Current.GetTextValue("BaseInfo_Tree_ObjTree") && dataContext.ObjName != LanguageServices.Current.GetTextValue("BaseInfo_Tree_GraphTemplate") && dataContext.ObjName != LanguageServices.Current.GetTextValue("BaseInfo_Tree_PRB"))
+        {
+          if (dataContext.ObjName == LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks"))
+          {
+            this.DelAllCollectVis = Visibility.Visible;
+            this.DelCollectVis = Visibility.Collapsed;
+          }
+          else
+          {
+            this.DelAllCollectVis = Visibility.Collapsed;
+            this.DelCollectVis = Visibility.Visible;
+          }
+          source.ContextMenu = this.cm;
+        }
+        else
+          source.ContextMenu = (ContextMenu) null;
+      }
+      e.Handled = true;
+    }
+
+    private static DependencyObject VisualUpwardSearch<T>(DependencyObject source)
+    {
+      while (source != null && source.GetType() != typeof (T))
+        source = VisualTreeHelper.GetParent(source);
+      return source;
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand MenuObjTreeCollectAddCommand
+    {
+      get => this.menuObjTreeCollectAddCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.MenuObjTreeCollectAddCommandExc())) : this.menuObjTreeCollectAddCommand;
+      set => this.menuObjTreeCollectAddCommand = value;
+    }
+
+    private void MenuObjTreeCollectAddCommandExc() => this.AddCollect();
+
+    public void AddCollect()
+    {
+      try
+      {
+        if (this.ItemsSourceData == null)
+          return;
+        string strError = "";
+        string objName = this.SelectTreeitem.ObjName;
+        string gnbIp = this.MainPage.MainTabVM.GnbIp;
+        if (gnbIp == null)
+          throw new CustomException("尚未选择要操作的基站");
+        ObjNodeModel objSub;
+        try
+        {
+          objSub = this.ItemsSourceData[0].ObjSubList[0];
+        }
+        catch (Exception ex)
+        {
+          Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 608, nameof (AddCollect));
+          return;
+        }
+        string version = objSub.Version;
+        StreamReader reader = File.OpenText(FilePathHelper.GetLocalMibJsonPath() + version + "\\Tree_Collect.json");
+        JObject jobject = (JObject) JToken.ReadFrom((JsonReader) new JsonTextReader((TextReader) reader));
+        IEnumerable<int> ints = jobject.Last.First.Select<JToken, int>((Func<JToken, int>) (nodes => (int) nodes[(object) "ObjID"]));
+        int key = 0;
+        foreach (int num1 in ints)
+        {
+          string nodename = (string) jobject.Last.First[(object) key][(object) "ObjName"];
+          string tablename = (string) jobject.Last.First[(object) key][(object) "MibTableName"];
+          if (nodename == objName)
+          {
+            if (tablename == "/")
+            {
+              if (LanguageServices.Current.IsEnLanguage)
+              {
+                int num2 = (int) CustomMessageBox.Show("This node is not allowed collect");
+                break;
+              }
+              int num3 = (int) CustomMessageBox.Show("该节点不可被收藏");
+              break;
+            }
+            if (!UserInformation.SaveNode(nodename, tablename, gnbIp, ref strError))
+            {
+              if (this.CheckNode(this.SelectTreeitem.ObjName))
+              {
+                Uri objTreeUri = DataGridUtils.SetObjTreeImage(this.SelectTreeitem.ObjTableName, this.MainPage.MainTabVM.GnbIp);
+                this.MainPage.CollectTreeViewVM.ItemsSourceData[0].ObjSubList.Add(new ObjNodeModel(this.SelectTreeitem.ObjID, 0, "", objName, this.SelectTreeitem.ObjTableName, FontWeights.Normal, objTreeUri));
+              }
+              int num4 = (int) CustomMessageBox.Show(strError);
+              break;
+            }
+            if (this.MainPage.CollectTreeViewVM.ItemsSourceData.Count == 0)
+              this.MainPage.CollectTreeViewVM.ItemsSourceData.Add(new ObjNodeModel(0, 0, "1.0", LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks"), "/", FontWeights.Normal)
+              {
+                IsExpanded = true
+              });
+            Uri objTreeUri1 = DataGridUtils.SetObjTreeImage(this.SelectTreeitem.ObjTableName, this.MainPage.MainTabVM.GnbIp);
+            this.MainPage.CollectTreeViewVM.ItemsSourceData[0].ObjSubList.Add(new ObjNodeModel(this.SelectTreeitem.ObjID, 0, "", objName, this.SelectTreeitem.ObjTableName, FontWeights.Normal, objTreeUri1));
+            break;
+          }
+          ++key;
+        }
+        reader.Close();
+      }
+      catch (Exception ex)
+      {
+        Log.Error("添加收藏节点：" + ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 662, nameof (AddCollect));
+      }
+    }
+
+    private bool CheckNode(string nodename)
+    {
+      foreach (ObjNodeModel objSub in (Collection<ObjNodeModel>) this.MainPage.CollectTreeViewVM.ItemsSourceData[0].ObjSubList)
+      {
+        if (objSub.ObjName == nodename)
+          return false;
+      }
+      return true;
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand MenuObjTreeCollectDeleteAllCommand
+    {
+      get => this.menuObjTreeCollectDeleteAllCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.DeleteCollect())) : this.menuObjTreeCollectDeleteAllCommand;
+      set => this.menuObjTreeCollectDeleteAllCommand = value;
+    }
+
+    public void DeleteCollect()
+    {
+      try
+      {
+        if (this.ItemsSourceData == null)
+          return;
+        if (!UserInformation.DeleteNode())
+        {
+          int num = (int) CustomMessageBox.Show("清除全部收藏节点失败.");
+        }
+        else
+          this.MainPage.CollectTreeViewVM.ItemsSourceData[0].ObjSubList.Clear();
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 710, nameof (DeleteCollect));
+      }
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand MenuObjTreeCollectDeleteCommand
+    {
+      get => this.menuObjTreeCollectDeleteCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.MenuObjTreeCollectDeleteCommandExc())) : this.menuObjTreeCollectDeleteCommand;
+      set => this.menuObjTreeCollectDeleteCommand = value;
+    }
+
+    private void MenuObjTreeCollectDeleteCommandExc() => this.CancelCollect();
+
+    public void CancelCollect()
+    {
+      try
+      {
+        if (this.ItemsSourceData == null)
+          return;
+        string strError = "";
+        string objTableName = this.SelectTreeitem.ObjTableName;
+        string gnbIp = this.MainPage.MainTabVM.GnbIp;
+        ObservableCollection<ObjNodeModel> objSubList = this.MainPage.CollectTreeViewVM.ItemsSourceData[0].ObjSubList;
+        if (gnbIp == null)
+          throw new CustomException("尚未选择要操作的基站");
+        if (UserInformation.SelectNode(objTableName, gnbIp) > 0 && !UserInformation.DeleteNode(objTableName, gnbIp, ref strError))
+        {
+          int num = (int) CustomMessageBox.Show(strError);
+        }
+        else
+        {
+          foreach (ObjNodeModel objNodeModel in (Collection<ObjNodeModel>) objSubList)
+          {
+            if (objNodeModel.ObjTableName.Equals(objTableName))
+            {
+              this.MainPage.CollectTreeViewVM.ItemsSourceData[0].ObjSubList.Remove(objNodeModel);
+              break;
+            }
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex.Message, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 778, nameof (CancelCollect));
+      }
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand MenuObjTreeFakeCommand
+    {
+      get => this.menuObjTreeFakeCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.MenuObjTreeFakeCommandExc())) : this.menuObjTreeFakeCommand;
+      set => this.menuObjTreeFakeCommand = value;
+    }
+
+    private void MenuObjTreeFakeCommandExc()
+    {
+      FakeSettingNode fakeSettingNode = new FakeSettingNode(this.NodeList);
+      fakeSettingNode.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+      fakeSettingNode.ShowDialog();
+    }
+
+    public ObjNodeModel GetIndexTreeToName(string strName)
+    {
+      if (this.ItemsSourceData != null && this.ItemsSourceData.Count > 0)
+      {
+        foreach (ObjNodeModel objSub in (Collection<ObjNodeModel>) this.ItemsSourceData[0].ObjSubList)
+        {
+          if (objSub.ObjName.Equals(strName))
+            return objSub;
+        }
+      }
+      return (ObjNodeModel) null;
+    }
+
+    public void RefreshCollectShow()
+    {
+      string err = "";
+      string gnbIp = this.MainPage.MainTabVM.GnbIp;
+      if (gnbIp == null || this.ItemsSourceData.Count > 0)
+        return;
+      ObjNodeModel objNodeModel1 = new ObjNodeModel(0, 0, "1.0", LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks"), "/", FontWeights.Normal);
+      objNodeModel1.IsExpanded = false;
+      List<ObjNodeModel> listNode;
+      if (!UserInformation.SelectNode(gnbIp, out listNode, ref err))
+      {
+        int num1 = (int) MessageBox.Show(err, LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks"), MessageBoxButton.OK);
+      }
+      else
+      {
+        if (listNode.Count != 0)
+        {
+          Dictionary<string, string> reData = new Dictionary<string, string>();
+          foreach (ObjNodeModel objNodeModel2 in listNode)
+            reData[objNodeModel2.ObjTableName] = objNodeModel2.ObjName;
+          if (!Database.GetInstance().GetObjTreeObjName(gnbIp, reData, out err))
+          {
+            int num2 = (int) MessageBox.Show(err, LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks"), MessageBoxButton.OK);
+            return;
+          }
+          foreach (ObjNodeModel objNodeModel3 in listNode)
+            objNodeModel3.ObjName = reData[objNodeModel3.ObjTableName];
+        }
+        ObservableCollection<ObjNodeModel> observableCollection = new ObservableCollection<ObjNodeModel>();
+        foreach (ObjNodeModel objNodeModel4 in listNode)
+        {
+          if (!objNodeModel1.ObjSubList.Contains(objNodeModel4))
+            objNodeModel1.Add(objNodeModel4);
+        }
+        observableCollection.Add(objNodeModel1);
+        this.ItemsSourceData = observableCollection;
+      }
+    }
+
+    private ObservableCollection<ObjNodeModel> SearchResult { get; set; }
+
+    public void UpdateBelongControl(object sender, SearchButtonEventArgs e)
+    {
+      if (e.SearchContent == this.Cache)
+      {
+        this.Cache = "";
+      }
+      else
+      {
+        this.Cache = e.SearchContent;
+        this.MainPage.FavLeaf_Lists.Children.Clear();
+        if (string.IsNullOrEmpty(e.SearchContent) || e.SearchContent.Contains("'"))
+          return;
+        Application.Current.Dispatcher?.BeginInvoke((Delegate) (() =>
+        {
+          lock (this.obj)
+          {
+            this.SearchResult.Clear();
+            this.SearchResult = this.FindObjByName(this.ItemsSourceData, e.SearchContent);
+            this.FindFinishUpdateSubExpander();
+            Log.Debug(string.Format("当前输入字符:{0}结束，搜索结果：{1}", (object) e.SearchContent, (object) this.SearchResult.Count), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\ObjTreeVM.cs", 934, nameof (UpdateBelongControl));
+          }
+        }));
+      }
+    }
+
+    private ObservableCollection<ObjNodeModel> FindObjByName(
+      ObservableCollection<ObjNodeModel> findlist,
+      string search_content)
+    {
+      Database instance = Database.GetInstance();
+      string err = "";
+      foreach (ObjNodeModel objNodeModel in (Collection<ObjNodeModel>) findlist)
+      {
+        string lower = objNodeModel.ObjName.ToLower();
+        MibTableInfo reData;
+        instance.GetMibDataByTableName(objNodeModel.ObjTableName, out reData, this.NodeBIP, out err);
+        if (reData != null)
+        {
+          if (lower.Contains(search_content.ToLower()) || objNodeModel.ObjTableName.ToLower().Contains(search_content.ToLower()) || reData.nameCh.ToLower().Contains(search_content.ToLower()) || reData.nameMib.ToLower().Contains(search_content.ToLower()))
+          {
+            ObjNodeModel str = objNodeModel;
+            if (this.DeleRepition(this.SearchResult, str))
+              this.SearchResult.Add(str);
+          }
+          else
+          {
+            foreach (MibLeafInfo child in reData.childList)
+            {
+              if (child.IsValidMib() && (child.childNameCh.ToLower().Contains(search_content.ToLower()) || child.childNameMib.ToLower().Contains(search_content.ToLower())))
+              {
+                ObjNodeModel str = objNodeModel;
+                if (this.DeleRepition(this.SearchResult, str))
+                  this.SearchResult.Add(str);
+              }
+            }
+          }
+        }
+        if (objNodeModel.ObjSubList != null)
+          this.FindObjByName(objNodeModel.ObjSubList, search_content);
+      }
+      return this.SearchResult;
+    }
+
+    private bool DeleRepition(ObservableCollection<ObjNodeModel> Collect, ObjNodeModel str)
+    {
+      foreach (ObjNodeModel objNodeModel in (Collection<ObjNodeModel>) Collect)
+      {
+        if (objNodeModel == str)
+          return false;
+      }
+      return true;
+    }
+
+    private void FindFinishUpdateSubExpander()
+    {
+      this.MainPage.FavLeaf_Lists.Children.Clear();
+      int num = 0;
+      Database instance = Database.GetInstance();
+      if (this.SearchResult == null || this.SearchResult.Count == 0)
+        return;
+      foreach (ObjNodeModel objNodeModel in (Collection<ObjNodeModel>) this.SearchResult)
+      {
+        ++num;
+        MibTableInfo reData;
+        instance.GetMibDataByTableName(objNodeModel.ObjTableName, out reData, this.NodeBIP, out string _);
+        MetroExpander element = new MetroExpander()
+        {
+          obj_type = (object) objNodeModel
+        };
+        element.Header = reData.nameCh;
+        element.Click += new EventHandler(this.Subitems_Click);
+        element.MouseRightButtonDown += new MouseButtonEventHandler(this.Subitems_MouseRightButtonDown);
+        this.MainPage.FavLeaf_Lists.Children.Add((UIElement) element);
+        if (num == 100)
+          break;
+      }
+    }
+
+    private void Subitems_Click(object sender, EventArgs e)
+    {
+      if (!((sender is MetroExpander metroExpander ? metroExpander.obj_type : (object) null) is ObjNodeModel objType))
+        return;
+      this.SetSelectTreeitemParentExpand(objType);
+      this.SelectTreeitem = objType;
+      this.SelectObjNode(objType);
+    }
+
+    private void Subitems_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+      if (!(e.Source is MetroExpander source))
+        return;
+      ObjNodeModel objType = source.obj_type as ObjNodeModel;
+      this.SelectTreeitem = objType;
+      NodeBControlPage.m_strNodeName = objType?.ObjName;
+    }
+
+    public void RefreshObjWindowShow(Dictionary<string, EventHandler> WinNameCheck)
+    {
+      if (this.ItemsSourceData.Count > 0)
+      {
+        lock (ObjTreeVM._syncLock)
+        {
+          this.isGetParaTaskRunning = false;
+          this.ItemsSourceData.Clear();
+        }
+      }
+      Uri objTreeUri = new Uri("/SCMTResources;component/Images/TreeView/BarChart.png", UriKind.Relative);
+      ObjNodeModel objNodeModel1 = new ObjNodeModel(0, 0, "1.0", LanguageServices.Current.GetTextValue("BaseInfo_Tree_GraphTemplate"), "/", FontWeights.Normal, objTreeUri);
+      objNodeModel1.IsExpanded = false;
+      ObservableCollection<ObjNodeModel> observableCollection = new ObservableCollection<ObjNodeModel>();
+      foreach (KeyValuePair<string, EventHandler> keyValuePair in WinNameCheck)
+      {
+        ObjNodeModel objNodeModel2 = new ObjNodeModel(0, 0, "", keyValuePair.Key, "", FontWeights.Normal, objTreeUri);
+        objNodeModel2.SetProgressShowChartCheck += keyValuePair.Value;
+        objNodeModel1.Add(objNodeModel2);
+      }
+      observableCollection.Add(objNodeModel1);
+      this.ItemsSourceData = observableCollection;
+      this.FakeVisibility = Visibility.Collapsed;
+    }
+
+    private void SetSelectTreeitemParentExpand(ObjNodeModel selectTree)
+    {
+      if (this.NodeList == null || selectTree == null)
+        return;
+      string mibName = selectTree.ObjTableName;
+      ObjNodeModel objNodeModel1 = this.NodeList.ToList<ObjNodeModel>().Find((Predicate<ObjNodeModel>) (p => p.ObjTableName.Equals(mibName)));
+      if (objNodeModel1 == null)
+        return;
+      int parentId = objNodeModel1.ObjParentID;
+      while (parentId != 1)
+      {
+        ObjNodeModel objNodeModel2 = this.NodeList.ToList<ObjNodeModel>().Find((Predicate<ObjNodeModel>) (p => p.ObjID.Equals(parentId)));
+        if (objNodeModel2 == null)
+          break;
+        parentId = objNodeModel2.ObjParentID;
+        if (objNodeModel2.ObjID != 1)
+          objNodeModel2.IsExpanded = true;
+      }
+    }
+
+    private void LanguageChange_Deal(SubscribeMsg msg)
+    {
+      if (this.ItemsSourceData.Count <= 0)
+        return;
+      if (this.treeType == TreeShowType.ChartTree)
+        this.ItemsSourceData[0].ObjName = LanguageServices.Current.GetTextValue("BaseInfo_Tree_GraphTemplate");
+      else if (this.treeType == TreeShowType.CollectTree)
+      {
+        this.ItemsSourceData[0].ObjName = LanguageServices.Current.GetTextValue("BaseInfo_Tree_Bookmarks");
+      }
+      else
+      {
+        if (this.treeType != TreeShowType.ObjTree)
+          return;
+        this.ItemsSourceData[0].ObjName = LanguageServices.Current.GetTextValue("BaseInfo_Tree_ObjTree");
+      }
+    }
+  }
+}

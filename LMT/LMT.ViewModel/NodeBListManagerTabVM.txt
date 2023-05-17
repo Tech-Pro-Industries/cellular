@@ -1,0 +1,201 @@
+using CfgCompareManager.View;
+using CfgFileOperation.UIShowManger;
+using CommonUtility;
+using DataConsistencyParse;
+using LMT.Pages;
+using LMT.View;
+using LogManager;
+using MIBDataParser;
+using MsgQueue;
+using SCMTOperationCore.Control;
+using SCMTResources.CustomControls;
+using System;
+using System.Windows.Forms;
+using UILanguageHelper;
+
+namespace LMT.ViewModel
+{
+  public class NodeBListManagerTabVM : TabBase
+  {
+    private GalaSoft.MvvmLight.Command.RelayCommand cfgFileOpenCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand cfgFileCompareCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand cfgFileModifyCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand alarmManageCommand;
+    private GalaSoft.MvvmLight.Command.RelayCommand selfCheckingTool;
+    private GalaSoft.MvvmLight.Command.RelayCommand dataConsistencyParseCommand;
+
+    public event EventHandler<AddNodeBEvtArgs> onConnectNodeBEvt = (_param1, _param2) => { };
+
+    public GalaSoft.MvvmLight.Command.RelayCommand<ConnectNodeBPara> ConnectNodeBCommand { get; set; }
+
+    public NodeBListManagerTabVM()
+    {
+      this.ConnectNodeBCommand = new GalaSoft.MvvmLight.Command.RelayCommand<ConnectNodeBPara>(new Action<ConnectNodeBPara>(this.ConnectNodeB));
+      SubscribeHelper.AddSubscribe("OfflineParamRecover_NodeBListManagerTrap", new HandlerSubscribeMsg(this.OfflineParamRecoverCfgComppare), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\TabsVM\\NodeBListManagerTabVM.cs", 51, ".ctor");
+    }
+
+    ~NodeBListManagerTabVM() => SubscribeHelper.CancelSubscribe("OfflineParamRecover_NodeBListManagerTrap", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\TabsVM\\NodeBListManagerTabVM.cs", 55, nameof (Finalize));
+
+    public void OfflineParamRecoverCfgComppare(SubscribeMsg msg) => this.CfgFileCompareExc(msg);
+
+    private void ConnectNodeB(ConnectNodeBPara para)
+    {
+      NodeBMainTabVM nodeBmainTabVm = new NodeBMainTabVM();
+      nodeBmainTabVm.TabName = para.BaseStationType + ":" + para.FriendlyName;
+      nodeBmainTabVm.GnbIp = para.IpAddress;
+      SCMTOperationCore.Elements.NodeB nodeByFname = NodeBControl.GetInstance().GetNodeByFName(para.FriendlyName) as SCMTOperationCore.Elements.NodeB;
+      this.onConnectNodeBEvt((object) this, new AddNodeBEvtArgs()
+      {
+        tab = nodeBmainTabVm,
+        node = nodeByFname
+      });
+    }
+
+    private string CurOpenCfgFileName { get; set; }
+
+    private string CurOpenCfgFilePath { get; set; }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand CfgFileOpenCommand
+    {
+      get => this.cfgFileOpenCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand(new Action(this.CfgFileOpenExc)) : this.cfgFileOpenCommand;
+      set => this.cfgFileOpenCommand = value;
+    }
+
+    private void CfgFileOpenExc()
+    {
+      OpenFileDialog openFileDialog1 = new OpenFileDialog();
+      openFileDialog1.Filter = "Cfg Files (*.cfg)|*.cfg|All Files (*.*)|*.*";
+      OpenFileDialog openFileDialog2 = openFileDialog1;
+      if (openFileDialog2.ShowDialog() != DialogResult.OK)
+        return;
+      this.CurOpenCfgFileName = openFileDialog2.SafeFileName;
+      this.CurOpenCfgFilePath = openFileDialog2.FileName;
+      string strMibVer;
+      byte adaptStationType;
+      if (!CfgLogicMid.GetInstance().GetCfgMibVersion(this.CurOpenCfgFilePath, "", out strMibVer, out string _, out adaptStationType) || string.IsNullOrEmpty(strMibVer))
+        return;
+      if (!Database.GetInstance().GetDataIsExistVersion(strMibVer) && !Database.GetInstance().AutoLoadLmDtzByDBVersion(strMibVer).Result)
+      {
+        if (CustomMessageBox.Show(string.Format("{0} {1}, {2} {3}, {4}", (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_File"), (object) this.CurOpenCfgFileName, (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_Version"), (object) strMibVer, (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_LoadDB"))) != CustomMessageBoxResult.OK)
+          return;
+        new LoadLmdtz().ShowDialog();
+      }
+      else
+      {
+        EnbTypeEnum frameType = adaptStationType == (byte) 2 ? EnbTypeEnum.ENB_EMB6116 : EnbTypeEnum.ENB_EMB5116;
+        Log.Info(string.Format("{0}基站类型原始值为{1},最终按照{2}处理", (object) this.CurOpenCfgFilePath, (object) adaptStationType, (object) frameType), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\TabsVM\\NodeBListManagerTabVM.cs", 180, nameof (CfgFileOpenExc));
+        CSEnbHelper.SetStationFrameType(this.CurOpenCfgFilePath, frameType);
+        NodeBMainTabVM nodeBmainTabVm1 = new NodeBMainTabVM();
+        nodeBmainTabVm1.TabName = this.CurOpenCfgFilePath;
+        nodeBmainTabVm1.CfgFilePath = this.CurOpenCfgFilePath;
+        nodeBmainTabVm1.GnbIp = strMibVer;
+        nodeBmainTabVm1.IsOnLine = false;
+        nodeBmainTabVm1.CfgModeName = LanguageServices.Current.GetTextValue("CfgFile_Menu_ClassicMode");
+        nodeBmainTabVm1.IsCfgFile = true;
+        NodeBMainTabVM nodeBmainTabVm2 = nodeBmainTabVm1;
+        this.onConnectNodeBEvt((object) this, new AddNodeBEvtArgs()
+        {
+          tab = nodeBmainTabVm2
+        });
+      }
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand CfgFileCompareCommand
+    {
+      get => this.cfgFileCompareCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.CfgFileCompareExc())) : this.cfgFileCompareCommand;
+      set => this.cfgFileCompareCommand = value;
+    }
+
+    private void CfgFileCompareExc(SubscribeMsg msg = null)
+    {
+      CfgCompareManagerVM compareManagerVm = new CfgCompareManagerVM();
+      compareManagerVm.TabName = "CfgCompare_TabPage_Name";
+      if (msg != null)
+        compareManagerVm.msgData = msg.Data;
+      this.onConnectNodeBEvt((object) this, new AddNodeBEvtArgs()
+      {
+        cfgCompareTab = compareManagerVm
+      });
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand CfgFileModifyCommand
+    {
+      get => this.cfgFileModifyCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.CfgFileModifyExc())) : this.cfgFileModifyCommand;
+      set => this.cfgFileModifyCommand = value;
+    }
+
+    private void CfgFileModifyExc() => new CfgMultiModifyWin().ShowDialog();
+
+    public GalaSoft.MvvmLight.Command.RelayCommand AlarmManageCommand
+    {
+      get => this.alarmManageCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.AlarmManageExc())) : this.alarmManageCommand;
+      set => this.alarmManageCommand = value;
+    }
+
+    private void AlarmManageExc()
+    {
+      AlarmManageVM alarmManageVm = new AlarmManageVM();
+      alarmManageVm.TabName = "Alarm_Menu_AlarmManagement";
+      this.onConnectNodeBEvt((object) this, new AddNodeBEvtArgs()
+      {
+        alarmManageTab = alarmManageVm
+      });
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand SelfCheckingTool
+    {
+      get => this.selfCheckingTool == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.SelfCheckingToolExc())) : this.selfCheckingTool;
+      set => this.selfCheckingTool = value;
+    }
+
+    public void SelfCheckingToolExc()
+    {
+      SelfCheckingToolVM selfCheckingToolVm = new SelfCheckingToolVM();
+      selfCheckingToolVm.TabName = LanguageServices.Current.GetTextValue("SC_SelfCheckingTool");
+      this.onConnectNodeBEvt((object) this, new AddNodeBEvtArgs()
+      {
+        selfCheckingToolTab = selfCheckingToolVm
+      });
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand DataConsistencyParseCommand
+    {
+      get => this.dataConsistencyParseCommand == null ? new GalaSoft.MvvmLight.Command.RelayCommand((Action) (() => this.DataConsistencyParseExc())) : this.dataConsistencyParseCommand;
+      set => this.dataConsistencyParseCommand = value;
+    }
+
+    private void DataConsistencyParseExc()
+    {
+      OpenFileDialog openFileDialog1 = new OpenFileDialog();
+      openFileDialog1.Filter = "dcb Files (*.dcb)|*.dcb|All Files (*.*)|*.*";
+      OpenFileDialog openFileDialog2 = openFileDialog1;
+      if (openFileDialog2.ShowDialog() != DialogResult.OK)
+        return;
+      string fileName = openFileDialog2.FileName;
+      Singleton<ParseDataConsistencyFile>.GetInstance().ClearDataConsistencyFile(fileName, out string _);
+      string mibVersionByXml = Singleton<ParseDataConsistencyFile>.GetInstance().GetMibVersionByXML(fileName);
+      if (string.IsNullOrEmpty(mibVersionByXml))
+      {
+        int num1 = (int) CustomMessageBox.Show(string.Format("{0}{1}, {2}.", (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_File"), (object) fileName, (object) LanguageServices.Current.GetTextValue("CfgFile_Message_NoVer")));
+      }
+      else if (!Database.GetInstance().GetDataIsExistVersion(mibVersionByXml) && !Database.GetInstance().AutoLoadLmDtzByDBVersion(mibVersionByXml).Result)
+      {
+        int num2 = (int) CustomMessageBox.Show(string.Format("{0} {1}, {2} {3}, {4}", (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_File"), (object) fileName, (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_Version"), (object) mibVersionByXml, (object) LanguageServices.Current.GetTextValue("CfgCompare_Message_LoadDB")));
+      }
+      else
+      {
+        NodeBMainTabVM nodeBmainTabVm1 = new NodeBMainTabVM();
+        nodeBmainTabVm1.TabName = fileName;
+        nodeBmainTabVm1.CfgFilePath = fileName;
+        nodeBmainTabVm1.GnbIp = mibVersionByXml;
+        nodeBmainTabVm1.IsOnLine = false;
+        nodeBmainTabVm1.IsCfgFile = false;
+        NodeBMainTabVM nodeBmainTabVm2 = nodeBmainTabVm1;
+        this.onConnectNodeBEvt((object) this, new AddNodeBEvtArgs()
+        {
+          tab = nodeBmainTabVm2
+        });
+      }
+    }
+  }
+}

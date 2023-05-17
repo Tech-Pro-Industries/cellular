@@ -1,0 +1,23 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+
+namespace LMT.ViewModel
+{
+  public class ConfigModel : INotifyPropertyChanged
+  {
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public Collection<ConfigModel> Children { get; set; }
+
+    public string DisplayContent { get; set; }
+
+    public bool IsHasChildren => this.Children.Count != 0;
+
+    protected void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+  }
+}

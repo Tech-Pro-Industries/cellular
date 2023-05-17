@@ -1,0 +1,91 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows;
+using UEData;
+
+namespace LMT.ViewModel
+{
+  public class UeInfoModel : DependencyObject, INotifyPropertyChanged
+  {
+    private ObservableCollection<UeInformation> ueInfos = GlobalData.strUeInfo;
+    private ObservableCollection<UeMeasCfInfo> ueMeasInfos;
+    private ObservableCollection<UeMeasGap> ueMeasGapInfos;
+    private ObservableCollection<UeipCellInfo> ueIpCellInfos;
+    private ObservableCollection<UeipInfo> ueIpInfos;
+
+    public string strBSIp { get; set; }
+
+    public UeInfoModel(string ip)
+    {
+      this.strBSIp = ip;
+      this.ueMeasInfos = GlobalData.strUeMeasInfos[this.strBSIp];
+      this.ueMeasGapInfos = GlobalData.strUeMeasGapInfos[this.strBSIp];
+      this.ueIpCellInfos = GlobalData.strUeIpCellInfos[this.strBSIp];
+      this.ueIpInfos = GlobalData.strUeIpInfos[this.strBSIp];
+      this.Inital();
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    public ObservableCollection<UeInformation> UeInfos
+    {
+      get => this.ueInfos;
+      set
+      {
+        this.ueInfos = value;
+        this.NotifyPropertyChange(nameof (UeInfos));
+      }
+    }
+
+    public ObservableCollection<UeMeasCfInfo> UeMeasInfos
+    {
+      get => this.ueMeasInfos;
+      set
+      {
+        this.ueMeasInfos = value;
+        this.NotifyPropertyChange(nameof (UeMeasInfos));
+      }
+    }
+
+    public ObservableCollection<UeMeasGap> UeMeasGapInfos
+    {
+      get => this.ueMeasGapInfos;
+      set
+      {
+        this.ueMeasGapInfos = value;
+        this.NotifyPropertyChange(nameof (UeMeasGapInfos));
+      }
+    }
+
+    public ObservableCollection<UeipCellInfo> UeIpCellInfos
+    {
+      get => this.ueIpCellInfos;
+      set
+      {
+        this.ueIpCellInfos = value;
+        this.NotifyPropertyChange(nameof (UeIpCellInfos));
+      }
+    }
+
+    public ObservableCollection<UeipInfo> UeIpInfos
+    {
+      get => this.ueIpInfos;
+      set
+      {
+        this.ueIpInfos = value;
+        this.NotifyPropertyChange(nameof (UeIpInfos));
+      }
+    }
+
+    private void Inital()
+    {
+    }
+
+    private void NotifyPropertyChange(string propertyName)
+    {
+      if (this.PropertyChanged == null)
+        return;
+      this.PropertyChanged((object) this, new PropertyChangedEventArgs(propertyName));
+    }
+  }
+}

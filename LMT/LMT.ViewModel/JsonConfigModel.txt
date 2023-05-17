@@ -1,0 +1,66 @@
+using CommonUtility;
+using System.Collections.ObjectModel;
+
+namespace LMT.ViewModel
+{
+  public class JsonConfigModel : ConfigModel
+  {
+    private string _snmpAgentPath;
+    private int _alarmDataTime;
+    private bool _isUseSnmpAgent;
+    private bool _isUseSnmpV3;
+    private string _ftpFullPath;
+
+    public JsonConfigModel()
+    {
+      this.Children = new Collection<ConfigModel>();
+      this.FtpFullPath = ConfigFileHelper.GetJsonFtpPath();
+      this.IsUseSnmpAgent = ConfigFileHelper.JsonCFGIsUseSnmpAgent();
+      this.IsUseSnmpV3 = ConfigFileHelper.JsonCFGIsUseSnmpV3();
+      this.SnmpAgentPath = "tools\\SnmpAgent\\LmtAgent.exe";
+      this.AlarmDataTime = 7;
+    }
+
+    public string SnmpAgentPath
+    {
+      get => this._snmpAgentPath;
+      set => this._snmpAgentPath = value;
+    }
+
+    public int AlarmDataTime
+    {
+      get => this._alarmDataTime;
+      set => this._alarmDataTime = value;
+    }
+
+    public bool IsUseSnmpAgent
+    {
+      get => this._isUseSnmpAgent;
+      set => this._isUseSnmpAgent = value;
+    }
+
+    public bool NoUseSnmpAgent
+    {
+      get => !this._isUseSnmpAgent;
+      set => this._isUseSnmpAgent = !value;
+    }
+
+    public bool IsUseSnmpV3
+    {
+      get => this._isUseSnmpV3;
+      set => this._isUseSnmpV3 = value;
+    }
+
+    public bool NoUseSnmpV3
+    {
+      get => !this._isUseSnmpV3;
+      set => this._isUseSnmpV3 = !value;
+    }
+
+    public string FtpFullPath
+    {
+      get => this._ftpFullPath;
+      set => this._ftpFullPath = value;
+    }
+  }
+}

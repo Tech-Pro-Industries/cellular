@@ -1,0 +1,46 @@
+using GalaSoft.MvvmLight;
+
+namespace LMT.ViewModel
+{
+  public class CfgPatchPara : ObservableObject
+  {
+    private bool isSelected;
+    private string showName;
+    private string mibNameEN;
+    public int instNum;
+
+    public CfgPatchPara(bool selected, string name, string enName, int instNo)
+    {
+      this.IsSelected = selected;
+      this.ShowName = name;
+      this.MibNameEN = enName;
+      this.instNum = instNo;
+    }
+
+    public string MibNameEN
+    {
+      get => this.mibNameEN;
+      set => this.mibNameEN = value;
+    }
+
+    public bool IsSelected
+    {
+      get => this.isSelected;
+      set
+      {
+        this.isSelected = value;
+        this.RaisePropertyChanged(nameof (IsSelected));
+      }
+    }
+
+    public string ShowName
+    {
+      get => this.showName;
+      set
+      {
+        this.showName = value;
+        this.RaisePropertyChanged(nameof (ShowName));
+      }
+    }
+  }
+}

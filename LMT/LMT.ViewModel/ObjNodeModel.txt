@@ -1,0 +1,121 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq.Expressions;
+using System.Windows;
+
+namespace LMT.ViewModel
+{
+  public class ObjNodeModel : ObservableObject
+  {
+    private string objName;
+    private ObservableCollection<ObjNodeModel> objSubList;
+    private FontWeight _fontWeight;
+    private bool _isExpanded;
+    private Uri _icon;
+
+    public int ObjID { get; set; }
+
+    public int ObjParentID { get; set; }
+
+    public string ObjName
+    {
+      get => this.objName;
+      set
+      {
+        this.objName = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.ObjName));
+      }
+    }
+
+    public string ObjTableName { get; set; }
+
+    public ObservableCollection<ObjNodeModel> ObjSubList
+    {
+      get => this.objSubList;
+      set
+      {
+        this.objSubList = value;
+        this.RaisePropertyChanged<ObservableCollection<ObjNodeModel>>((Expression<Func<ObservableCollection<ObjNodeModel>>>) (() => this.ObjSubList));
+      }
+    }
+
+    public string Version { get; set; }
+
+    public FontWeight NameFontWeight
+    {
+      get => this._fontWeight;
+      set
+      {
+        this._fontWeight = value;
+        this.RaisePropertyChanged<FontWeight>((Expression<Func<FontWeight>>) (() => this.NameFontWeight));
+      }
+    }
+
+    public bool IsExpanded
+    {
+      get => this._isExpanded;
+      set
+      {
+        if (value == this._isExpanded)
+          return;
+        this._isExpanded = value;
+        this.RaisePropertyChanged<bool>((Expression<Func<bool>>) (() => this.IsExpanded));
+      }
+    }
+
+    public Uri ObjTreeIcon
+    {
+      get => this._icon;
+      set
+      {
+        this._icon = value;
+        this.RaisePropertyChanged(nameof (ObjTreeIcon));
+      }
+    }
+
+    public event EventHandler SetProgressShowChartCheck;
+
+    public void ChartCheck()
+    {
+      if (string.Equals(this.objName, "窗口图表模板"))
+        return;
+      EventHandler progressShowChartCheck = this.SetProgressShowChartCheck;
+      if (progressShowChartCheck == null)
+        return;
+      progressShowChartCheck((object) this.objName, new EventArgs());
+    }
+
+    public ObjNodeModel(
+      int id,
+      int pid,
+      string version,
+      string name,
+      string tablename,
+      FontWeight weight,
+      Uri objTreeUri = null)
+    {
+      this.ObjID = id;
+      this.ObjParentID = pid;
+      this.ObjName = name;
+      this.ObjTableName = tablename;
+      this.Version = version;
+      this.NameFontWeight = weight;
+      this.IsExpanded = false;
+      this.ObjSubList = new ObservableCollection<ObjNodeModel>();
+      if (objTreeUri == (Uri) null)
+        this.ObjTreeIcon = new Uri("/SCMTResources;component/Images/TreeView/NoExistTable.png", UriKind.Relative);
+      else
+        this.ObjTreeIcon = objTreeUri;
+    }
+
+    public void Add(ObjNodeModel obj)
+    {
+      if (this.ObjSubList.IndexOf(obj) >= 0)
+        return;
+      this.ObjSubList.Add(obj);
+    }
+
+    public void Remove(ObjNodeModel obj) => this.ObjSubList.Remove(obj);
+  }
+}

@@ -1,0 +1,434 @@
+using CfgCompareManager.Model;
+using CfgFileOperation.UIShowManger;
+using CfgFileOperation.UIShowManger.UICfgDBOp;
+using ChromeTabs;
+using CommonUtility;
+using GalaSoft.MvvmLight;
+using LMT.Pages;
+using LMT.View;
+using MsgQueue;
+using Newtonsoft.Json;
+using SCMTOperationCore.Control;
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Windows;
+using System.Windows.Data;
+using System.Windows.Threading;
+using UILanguageHelper;
+
+namespace LMT.ViewModel
+{
+  public class MainWindowVM : ViewModelBase
+  {
+    private Visibility cfgClassicModeVisible;
+    private TabBase selectedTab;
+
+    public ObservableCollection<TabBase> ItemCollection { get; set; }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand<TabReorder> ReorderTabsCommand { get; set; }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand AddTabCommand { get; set; }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand<object> CloseTabCommand { get; set; }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand<object> CfgClassicModeCommand { get; set; }
+
+    public Visibility CfgClassicModeVisible
+    {
+      get => this.cfgClassicModeVisible;
+      set
+      {
+        this.cfgClassicModeVisible = value;
+        this.RaisePropertyChanged(nameof (CfgClassicModeVisible));
+      }
+    }
+
+    public GalaSoft.MvvmLight.Command.RelayCommand<object> CfgMakePatchModeCommand { get; set; }
+
+    public TabBase SelectedTab
+    {
+      get => this.selectedTab;
+      set
+      {
+        if (value == null || this.selectedTab == value)
+          return;
+        TabBase selectedTab = this.selectedTab;
+        this.selectedTab = value;
+        if (this.selectedTab == null)
+          return;
+        this.SelectedTab_PropertyChanged(this.selectedTab);
+      }
+    }
+
+    private void SelectedTab_PropertyChanged(TabBase tab)
+    {
+      if (tab.GetType() == typeof (NodeBMainTabVM) && (tab is NodeBMainTabVM nodeBmainTabVm ? nodeBmainTabVm.Page : (NodeBControlPage) null) != null)
+      {
+        nodeBmainTabVm.Page.SetObjNodeMainPage();
+        nodeBmainTabVm.Page.IsSelected = true;
+        CSEnbHelper.SetCurEnbAddr(nodeBmainTabVm.GnbIp);
+      }
+      this.RaisePropertyChanged("SelectedTab");
+    }
+
+    public bool CanAddTabs { get; set; }
+
+    public string Title { get; set; }
+
+    public MainWindowVM()
+    {
+      this.ItemCollection = new ObservableCollection<TabBase>();
+      this.ItemCollection.CollectionChanged += new NotifyCollectionChangedEventHandler(this.ItemCollection_CollectionChanged);
+      this.CloseTabCommand = new GalaSoft.MvvmLight.Command.RelayCommand<object>(new Action<object>(this.CloseTabCommandAction));
+      this.CfgClassicModeCommand = new GalaSoft.MvvmLight.Command.RelayCommand<object>(new Action<object>(this.CfgClassicModeCommandAction));
+      this.CanAddTabs = true;
+      this.CfgClassicModeVisible = Visibility.Collapsed;
+      this.CfgMakePatchModeCommand = new GalaSoft.MvvmLight.Command.RelayCommand<object>(new Action<object>(this.CfgMakePatchModeCommandAction));
+      this.Title = AppConfigHelper.GetAppSettingValue<string>("Datang Mobile", "CompanyName") + " " + AppConfigHelper.GetAppSettingValue<string>("Local Maintain Tool", "ToolName");
+      this.StartLmtAgent();
+      NodeBListManagerTabVM objectVM = new NodeBListManagerTabVM();
+      objectVM.TabName = "Index_StationManagement";
+      objectVM.IsPinned = true;
+      objectVM.onConnectNodeBEvt += new EventHandler<AddNodeBEvtArgs>(this.ManagerListTab_AddMainWindowTags);
+      ENBListManager.getMainVM(objectVM);
+      this.ItemCollection.Add((TabBase) objectVM);
+    }
+
+    private void ManagerListTab_AddMainWindowTags(object sender, AddNodeBEvtArgs e)
+    {
+      this.CfgClassicModeVisible = Visibility.Collapsed;
+      if (e.tab != null)
+      {
+        if (!e.tab.IsOnLine)
+        {
+          List<NodeBMainTabVM> list = this.ItemCollection.OfType<NodeBMainTabVM>().ToList<NodeBMainTabVM>();
+          if (list.Count > 0)
+          {
+            NodeBMainTabVM nodeBmainTabVm = list.Find((Predicate<NodeBMainTabVM>) (p => p.TabName.Equals(e.tab.TabName)));
+            if (nodeBmainTabVm != null)
+            {
+              this.SelectedTab = (TabBase) nodeBmainTabVm;
+              return;
+            }
+          }
+          e.tab.ChageTabIcon(ConnectStatus.Connected);
+          this.ItemCollection.Add((TabBase) e.tab);
+          this.SelectedTab = (TabBase) e.tab;
+          if (!e.tab.TabName.Contains(".cfg"))
+            return;
+          this.CfgClassicModeVisible = Visibility.Visible;
+        }
+        else
+        {
+          e.tab.ChageTabIcon(ConnectStatus.Disconnect);
+          this.ItemCollection.Add((TabBase) e.tab);
+        }
+      }
+      else if (e.cfgCompareTab != null)
+      {
+        List<CfgCompareManagerVM> list = this.ItemCollection.OfType<CfgCompareManagerVM>().ToList<CfgCompareManagerVM>();
+        if (list.Count == 0)
+          Application.Current.Dispatcher?.Invoke((Action) (() =>
+          {
+            this.ItemCollection.Add((TabBase) e.cfgCompareTab);
+            this.SelectedTab = (TabBase) e.cfgCompareTab;
+            CSEnbHelper.IsExistCfgCompareWin = true;
+          }));
+        else
+          this.SelectedTab = (TabBase) list[0];
+      }
+      else if (e.alarmManageTab != null)
+      {
+        List<AlarmManageVM> list = this.ItemCollection.OfType<AlarmManageVM>().ToList<AlarmManageVM>();
+        if (list.Count == 0)
+        {
+          this.ItemCollection.Add((TabBase) e.alarmManageTab);
+          this.SelectedTab = (TabBase) e.alarmManageTab;
+        }
+        else
+          this.SelectedTab = (TabBase) list[0];
+      }
+      else
+      {
+        if (e.selfCheckingToolTab == null)
+          return;
+        List<SelfCheckingToolVM> list = this.ItemCollection.OfType<SelfCheckingToolVM>().ToList<SelfCheckingToolVM>();
+        if (list.Count == 0)
+        {
+          this.ItemCollection.Add((TabBase) e.selfCheckingToolTab);
+          SelfCheckingToolVM selfCheckingToolTab = e.selfCheckingToolTab;
+          this.SelectedTab = (TabBase) e.selfCheckingToolTab;
+        }
+        else
+          this.SelectedTab = (TabBase) list[0];
+      }
+    }
+
+    protected virtual void ReorderTabsCommandAction(TabReorder reorder)
+    {
+      ICollectionView defaultView = CollectionViewSource.GetDefaultView((object) this.ItemCollection);
+      int fromIndex = reorder.FromIndex;
+      int toIndex = reorder.ToIndex;
+      List<TabBase> list = defaultView.Cast<TabBase>().ToList<TabBase>();
+      list[fromIndex].TabNumber = list[toIndex].TabNumber;
+      if (toIndex > fromIndex)
+      {
+        for (int index = fromIndex + 1; index <= toIndex; ++index)
+          --list[index].TabNumber;
+      }
+      else if (fromIndex > toIndex)
+      {
+        for (int index = toIndex; index < fromIndex; ++index)
+          ++list[index].TabNumber;
+      }
+      defaultView.Refresh();
+    }
+
+    private void ItemCollection_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+    {
+    }
+
+    private void CloseTabCommandAction(object obj)
+    {
+      if (!((obj is ChromeTabItem chromeTabItem ? chromeTabItem.DataContext : (object) null) is TabBase dataContext) || dataContext.GetType() == typeof (NodeBListManagerTabVM))
+        return;
+      if (dataContext.GetType() != typeof (NodeBMainTabVM))
+      {
+        if (dataContext is CfgCompareManagerVM)
+        {
+          CustomMessageBoxResult messageBoxResult = CustomMessageBox.Show(LanguageServices.Current.GetTextValue("CfgCompare_Message_IsSave"), CustomMessageBoxButton.YesNoCancel, CustomMessageBoxIcon.Question);
+          if (CustomMessageBoxResult.Yes == messageBoxResult)
+          {
+            if (CfgCompMgr.GetInstance().SaveCfgFile(true) & CfgCompMgr.GetInstance().SaveCfgFile(false))
+            {
+              int num = (int) CustomMessageBox.Show(LanguageServices.Current.GetTextValue("CfgFile_Message_SaveSuc"));
+            }
+          }
+          else if (CustomMessageBoxResult.Cancel == messageBoxResult)
+            return;
+          CompareDataMgr.GetInstance().ClearAllDataInfo();
+          CSEnbHelper.IsExistCfgCompareWin = false;
+        }
+        chromeTabItem.ParentTabControl.ReSelectItem((object) null);
+        this.ItemCollection.Remove(dataContext);
+      }
+      else
+      {
+        if (!(dataContext is NodeBMainTabVM nodeBmainTabVm))
+          return;
+        if (!nodeBmainTabVm.IsOnLine && nodeBmainTabVm.IsCfgFile)
+        {
+          string err = "";
+          if (CfgLogicMid.GetInstance().GetCfgModifyFlag(nodeBmainTabVm.CfgFilePath))
+          {
+            CustomMessageBoxResult messageBoxResult = CustomMessageBox.Show(LanguageServices.Current.GetTextValue("CfgCompare_Message_IsSave"), CustomMessageBoxButton.YesNoCancel, CustomMessageBoxIcon.Question);
+            if (CustomMessageBoxResult.Yes == messageBoxResult)
+            {
+              if (CfgLogicMid.GetInstance().SaveCfgFile(nodeBmainTabVm.CfgFilePath, ref err, nodeBmainTabVm.CfgFilePath))
+              {
+                int num1 = (int) CustomMessageBox.Show(nodeBmainTabVm.CfgFilePath + LanguageServices.Current.GetTextValue("CfgFile_Message_SaveSuc"));
+              }
+              else
+              {
+                int num2 = (int) CustomMessageBox.Show(nodeBmainTabVm.CfgFilePath + LanguageServices.Current.GetTextValue("CfgCompare_Message_SaveFail"));
+              }
+            }
+            else if (CustomMessageBoxResult.Cancel == messageBoxResult)
+              return;
+          }
+          else if (CustomMessageBoxResult.Yes != CustomMessageBox.Show(LanguageServices.Current.GetTextValue("CfgFile_Message_IsClose"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question))
+            return;
+          chromeTabItem.ParentTabControl.ReSelectItem((object) null);
+          this.ItemCollection.Remove(dataContext);
+          CfgLogicMid.GetInstance().DelDBCfgDb(nodeBmainTabVm.CfgFilePath, out err);
+        }
+        else
+        {
+          string gnbIp = nodeBmainTabVm.GnbIp;
+          if (string.IsNullOrEmpty(gnbIp))
+          {
+            chromeTabItem.ParentTabControl.ReSelectItem((object) null);
+            this.ItemCollection.Remove(dataContext);
+            nodeBmainTabVm.Page?.DisConnect();
+            nodeBmainTabVm.Page?.Dispose();
+            PublishHelper.PublishMsg("NodeBList_ClosedTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 405, nameof (CloseTabCommandAction));
+          }
+          else if (!NodeBControl.GetInstance().NodeHasConnected(gnbIp))
+          {
+            chromeTabItem.ParentTabControl.ReSelectItem((object) null);
+            this.ItemCollection.Remove(dataContext);
+            nodeBmainTabVm.Page?.DisConnect();
+            nodeBmainTabVm.Page?.Dispose();
+            PublishHelper.PublishMsg("NodeBList_ClosedTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 418, nameof (CloseTabCommandAction));
+          }
+          else
+          {
+            if (CustomMessageBoxResult.Yes != CustomMessageBox.Show(LanguageServices.Current.GetTextValue("Index_Others_CloseTabTip"), CustomMessageBoxButton.YesNo, CustomMessageBoxIcon.Question))
+              return;
+            nodeBmainTabVm.Page?.DisConnect();
+            nodeBmainTabVm.Page?.Dispose();
+            PublishHelper.PublishMsg("AlarmActive_DisconnectTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 435, nameof (CloseTabCommandAction));
+            PublishHelper.PublishMsg("Event_DisconnectTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 436, nameof (CloseTabCommandAction));
+            PublishHelper.PublishMsg("NodeBList_ClosedTrap", gnbIp, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 438, nameof (CloseTabCommandAction));
+            chromeTabItem.ParentTabControl.ReSelectItem((object) null);
+            this.ItemCollection.Remove(dataContext);
+            if (TimeHelper.Timer == null)
+              return;
+            TimeHelper.Timer.Stop();
+            TimeHelper.Timer = (DispatcherTimer) null;
+          }
+        }
+      }
+    }
+
+    private void AddTabCommandAction() => this.ItemCollection.Add(this.CreateENodeBTab());
+
+    protected TabBase CreateENodeBTab() => (TabBase) new NodeBListManagerTabVM();
+
+    public void NextTab()
+    {
+      if (this.SelectedTab == null)
+        return;
+      this.SelectedTab = this.ItemCollection[(this.ItemCollection.IndexOf(this.SelectedTab) + 1) % this.ItemCollection.Count];
+    }
+
+    private void CfgClassicModeCommandAction(object obj)
+    {
+      if (!(obj is ChromeTabItem chromeTabItem) || !(chromeTabItem.DataContext is TabBase dataContext1) || !(dataContext1.GetType() == typeof (NodeBMainTabVM)) || !(chromeTabItem.DataContext is NodeBMainTabVM dataContext2) || dataContext2.IsOnLine)
+        return;
+      string err = "";
+      bool displayMode = false;
+      if (dataContext2.CfgModeName.Equals(LanguageServices.Current.GetTextValue("CfgFile_Menu_ClassicMode")))
+      {
+        if (!CfgDBOp.GetInstance().GetCfgDisplayMode(dataContext2.CfgFilePath, out displayMode, out err))
+          return;
+        if (displayMode)
+        {
+          this.SetCfgCurrentOperMode(eCfgOperMode.ClassicMode, false);
+        }
+        else
+        {
+          if (!CfgLogicMid.GetInstance().SetFileDisplayMode(dataContext2.CfgFilePath, true, out err))
+            return;
+          dataContext2.CfgModeName = LanguageServices.Current.GetTextValue("CfgFile_Menu_ObjConfigMode");
+          this.SetCfgCurrentOperMode(eCfgOperMode.ClassicMode, true);
+        }
+      }
+      else
+      {
+        if (CfgLogicMid.GetInstance().SetFileDisplayMode(dataContext2.CfgFilePath, false, out err))
+          dataContext2.CfgModeName = LanguageServices.Current.GetTextValue("CfgFile_Menu_ClassicMode");
+        this.SetCfgCurrentOperMode(eCfgOperMode.ObjMode, true);
+      }
+    }
+
+    private void CfgMakePatchModeCommandAction(object obj)
+    {
+      if (!(obj is ChromeTabItem chromeTabItem) || !(chromeTabItem.DataContext is TabBase dataContext1) || !(dataContext1.GetType() == typeof (NodeBMainTabVM)) || !(chromeTabItem.DataContext is NodeBMainTabVM dataContext2) || dataContext2.IsOnLine)
+        return;
+      string err = "";
+      bool displayMode = false;
+      if (!CfgDBOp.GetInstance().GetCfgDisplayMode(dataContext2.CfgFilePath, out displayMode, out err))
+        return;
+      if (displayMode)
+      {
+        this.SetCfgCurrentOperMode(eCfgOperMode.PatchMode, false);
+      }
+      else
+      {
+        if (!CfgLogicMid.GetInstance().SetFileDisplayMode(dataContext2.CfgFilePath, true, out err))
+          return;
+        dataContext2.CfgModeName = LanguageServices.Current.GetTextValue("CfgFile_Menu_ObjConfigMode");
+        this.SetCfgCurrentOperMode(eCfgOperMode.PatchMode, true);
+      }
+    }
+
+    private void SetCfgCurrentOperMode(eCfgOperMode mode, bool isUpdate) => PublishHelper.PublishMsg("CfgPatchFileMode", SerializeHelper.Serialize2Binary((object) new CfgOperMode(mode, isUpdate)), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 583, nameof (SetCfgCurrentOperMode));
+
+    private void StartLmtAgent()
+    {
+      try
+      {
+        if (ProcessHelper.GetProcessByName("LmtAgent") == null)
+        {
+          string strErrMsg;
+          if (!StartToolsHelper.StartAgent(out strErrMsg))
+          {
+            ShowLogHelper.Show(string.Format("启动Agent失败，原因：{0}", (object) strErrMsg), "SCMT");
+          }
+          else
+          {
+            Process processByName = ProcessHelper.GetProcessByName("LmtAgent");
+            Config config = new Config()
+            {
+              UserName = Environment.UserName,
+              FileName = processByName.MainModule.FileVersionInfo.FileName,
+              FileVersion = processByName.MainModule.FileVersionInfo.FileVersion,
+              ProductVersion = processByName.MainModule.FileVersionInfo.ProductVersion
+            };
+            string strNewContents = JsonHelper.SerializeObjectToString((object) config, Formatting.Indented);
+            if (!FilePathHelper.CreateFolder("C:\\Users\\Public\\Documents\\LmtAgent"))
+              LogManager.Log.Error("Create C:\\Users\\Public\\Documents\\LmtAgent folder fail!", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 610, nameof (StartLmtAgent));
+            else if (!FileRdWrHelper.OverWriteFileContents("C:\\Users\\Public\\Documents\\LmtAgent\\config.json", strNewContents))
+              LogManager.Log.Error("Write C:\\Users\\Public\\Documents\\LmtAgent\\config.json file fail!", "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 616, nameof (StartLmtAgent));
+            else
+              LogManager.Log.Info(string.Format("LmtAgent username:{0},filename:{1},fileversion:{2}!", (object) config.UserName, (object) config.FileName, (object) config.FileVersion), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 620, nameof (StartLmtAgent));
+          }
+        }
+        else
+          this.CheckLmtAgent();
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("Start LmtAgent have exception,exception msg:{0}!", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 632, nameof (StartLmtAgent));
+      }
+    }
+
+    private void CheckLmtAgent()
+    {
+      try
+      {
+        Version version1 = Assembly.LoadFile(FilePathHelper.GetAppPath() + FilePathHelper.GetSnmpAgentPath()).GetName().Version;
+        string fileContent = FileRdWrHelper.GetFileContent("C:\\Users\\Public\\Documents\\LmtAgent\\config.json");
+        if (fileContent == null)
+        {
+          ProcessHelper.GetProcessByName("LmtAgent").Kill();
+          Thread.Sleep(1000);
+          this.StartLmtAgent();
+        }
+        else
+        {
+          Version version2 = new Version(JsonHelper.SerializeJsonToObject<Config>(fileContent, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 654, nameof (CheckLmtAgent)).FileVersion);
+          if (!(version1 > version2))
+            return;
+          ProcessHelper.GetProcessByName("LmtAgent").Kill();
+          Thread.Sleep(1000);
+          this.StartLmtAgent();
+        }
+      }
+      catch (Exception ex)
+      {
+        LogManager.Log.Error(string.Format("Check lmtagent have exception,exception msg:{0}!", (object) ex.Message), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 666, nameof (CheckLmtAgent));
+        string str;
+        if (File.Exists("C:\\Users\\Public\\Documents\\LmtAgent\\config.json"))
+        {
+          Config config = JsonHelper.SerializeJsonToObject<Config>(FileRdWrHelper.GetFileContent("C:\\Users\\Public\\Documents\\LmtAgent\\config.json"), "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 672, nameof (CheckLmtAgent));
+          str = string.Format("The version of {0} is old,please connect:{1} close lmt and Lmtagent,and then restart new lmt!", (object) config.FileName, (object) config.UserName);
+        }
+        else
+          str = "The current version of lmtagent is old,check the lmtagent user by administrator,please connect the user close lmt and lmtagent,and then restart new lmt!";
+        LogManager.Log.Info(str, "d:\\code\\SCMT\\src\\scmt\\MainWindow\\ViewModel\\PagesVM\\MainWindowVM.cs", 679, nameof (CheckLmtAgent));
+        int num = (int) CustomMessageBox.Show(str);
+      }
+    }
+  }
+}

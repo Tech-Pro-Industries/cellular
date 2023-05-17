@@ -1,0 +1,150 @@
+using GalaSoft.MvvmLight;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Linq.Expressions;
+
+namespace LMT.ViewModel
+{
+  public class MainDataGridParaTreeModel : ObservableObject
+  {
+    private string _id;
+    private string _parentid;
+    private string _name;
+    private string _parentName;
+    private bool? _isChecked;
+    private ObservableCollection<MainDataGridParaTreeModel> _children;
+    private MainDataGridParaTreeModel _parent;
+    public bool _isExpanded = true;
+
+    public MainDataGridParaTreeModel(
+      string pId,
+      string parentId,
+      string strName,
+      string pName,
+      MainDataGridParaTreeModel parent)
+    {
+      this.Id = pId;
+      this.ParentId = parentId;
+      this.Name = strName;
+      this.ParentName = pName;
+      this.Parent = parent;
+      this.Children = new ObservableCollection<MainDataGridParaTreeModel>();
+      this.IsChecked = new bool?(false);
+    }
+
+    public bool IsExpanded
+    {
+      get => this._isExpanded;
+      set
+      {
+        if (value == this._isExpanded)
+          return;
+        this._isExpanded = value;
+        this.RaisePropertyChanged<bool>((Expression<Func<bool>>) (() => this.IsExpanded));
+      }
+    }
+
+    public string Id
+    {
+      get => this._id;
+      set => this._id = value;
+    }
+
+    public string ParentId
+    {
+      get => this._parentid;
+      set => this._parentid = value;
+    }
+
+    public string Name
+    {
+      get => this._name;
+      set
+      {
+        this._name = value;
+        this.RaisePropertyChanged<string>((Expression<Func<string>>) (() => this.Name));
+      }
+    }
+
+    public string ParentName
+    {
+      get => this._parentName;
+      set => this._parentName = value;
+    }
+
+    public bool? IsChecked
+    {
+      get => this._isChecked;
+      set
+      {
+        bool? nullable = value;
+        bool? isChecked = this._isChecked;
+        if ((nullable.GetValueOrDefault() == isChecked.GetValueOrDefault() ? (nullable.HasValue != isChecked.HasValue ? 1 : 0) : 1) == 0)
+          return;
+        this._isChecked = value;
+        this.RaisePropertyChanged<bool?>((Expression<Func<bool?>>) (() => this.IsChecked));
+      }
+    }
+
+    public MainDataGridParaTreeModel Parent
+    {
+      get => this._parent;
+      set => this._parent = value;
+    }
+
+    public ObservableCollection<MainDataGridParaTreeModel> Children
+    {
+      get => this._children;
+      set
+      {
+        this._children = value;
+        this.RaisePropertyChanged<ObservableCollection<MainDataGridParaTreeModel>>((Expression<Func<ObservableCollection<MainDataGridParaTreeModel>>>) (() => this.Children));
+      }
+    }
+
+    public void SetChildrenChecked(bool isCheck)
+    {
+      if (this.Children == null || this.Children.Count <= 0)
+        return;
+      foreach (MainDataGridParaTreeModel child in (Collection<MainDataGridParaTreeModel>) this.Children)
+      {
+        child.IsChecked = new bool?(isCheck);
+        if (child.Children != null && this.Children.Count > 0)
+          child.SetChildrenChecked(isCheck);
+      }
+    }
+
+    public void SetParentChecked()
+    {
+      if (this.Parent == null)
+        return;
+      if (this.Parent.Children.Count<MainDataGridParaTreeModel>((Func<MainDataGridParaTreeModel, bool>) (c => !c.IsChecked.HasValue)) > 0)
+        this.Parent.IsChecked = new bool?();
+      else if (this.Parent.Children.Count<MainDataGridParaTreeModel>((Func<MainDataGridParaTreeModel, bool>) (c =>
+      {
+        bool? isChecked = c.IsChecked;
+        bool flag = true;
+        return isChecked.GetValueOrDefault() == flag && isChecked.HasValue;
+      })) == 0)
+        this.Parent.IsChecked = new bool?(false);
+      else if (this.Parent.Children.Count<MainDataGridParaTreeModel>((Func<MainDataGridParaTreeModel, bool>) (c =>
+      {
+        bool? isChecked = c.IsChecked;
+        bool flag = true;
+        return isChecked.GetValueOrDefault() == flag && isChecked.HasValue;
+      })) == this.Parent.Children.Count)
+        this.Parent.IsChecked = new bool?(true);
+      else if (this.Parent.Children.Count<MainDataGridParaTreeModel>((Func<MainDataGridParaTreeModel, bool>) (c =>
+      {
+        bool? isChecked = c.IsChecked;
+        bool flag = true;
+        return isChecked.GetValueOrDefault() == flag && isChecked.HasValue;
+      })) < this.Parent.Children.Count)
+        this.Parent.IsChecked = new bool?();
+      if (this.Parent.Parent == null)
+        return;
+      this.Parent.SetParentChecked();
+    }
+  }
+}

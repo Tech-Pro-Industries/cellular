@@ -1,0 +1,60 @@
+using LogUploadManager.ViewModel;
+using SCMTOperationCore.Elements;
+using System;
+
+namespace LMT.ViewModel
+{
+  public class NodeBMainTabVM : TabBase
+  {
+    private string gnbip;
+    private LogUploadMgrModel logVm;
+
+    private NodeB nodeB { get; set; }
+
+    private ObjNodeModel ObjNode { get; set; }
+
+    public NodeBControlPage Page { get; set; }
+
+    public string GnbIp
+    {
+      get => this.gnbip;
+      set
+      {
+        this.gnbip = value;
+        this.logVm = new LogUploadMgrModel(this.gnbip);
+      }
+    }
+
+    public LogUploadMgrModel LogVm
+    {
+      get => this.logVm;
+      set
+      {
+        this.logVm = value;
+        this.RaisePropertyChanged(nameof (LogVm));
+      }
+    }
+
+    public bool IsOnLine { get; set; } = true;
+
+    public string CfgFilePath { get; set; }
+
+    public bool IsCfgFile { get; set; } = true;
+
+    public void ChageTabIcon(ConnectStatus status)
+    {
+      switch (status)
+      {
+        case ConnectStatus.Disconnect:
+          this.TabIcon = new Uri("/LMT;component/Resources/disconnect_new.png", UriKind.Relative);
+          break;
+        case ConnectStatus.Connecting:
+          this.TabIcon = new Uri("/LMT;component/Resources/connecting.gif", UriKind.Relative);
+          break;
+        case ConnectStatus.Connected:
+          this.TabIcon = new Uri("/LMT;component/Resources/connection.png", UriKind.Relative);
+          break;
+      }
+    }
+  }
+}

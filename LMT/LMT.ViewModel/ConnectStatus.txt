@@ -1,0 +1,9 @@
+namespace LMT.ViewModel
+{
+  public enum ConnectStatus
+  {
+    Disconnect,
+    Connecting,
+    Connected,
+  }
+}

@@ -1,0 +1,9 @@
+namespace LMT.ViewModel
+{
+  public enum TreeShowType
+  {
+    ObjTree,
+    CollectTree,
+    ChartTree,
+  }
+}

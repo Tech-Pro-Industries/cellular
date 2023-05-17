@@ -1,0 +1,85 @@
+using GalaSoft.MvvmLight;
+using Microsoft.Practices.Prism.Commands;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq.Expressions;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+
+namespace LMT.ViewModel
+{
+  public class MainDataGridParaTreeVM : ViewModelBase
+  {
+    private ObservableCollection<MainDataGridParaTreeModel> _itemsSourceData;
+    private IList<MainDataGridParaTreeModel> _checkedTreeList = (IList<MainDataGridParaTreeModel>) new List<MainDataGridParaTreeModel>();
+
+    public ObservableCollection<MainDataGridParaTreeModel> ItemsSourceData
+    {
+      get => this._itemsSourceData;
+      set
+      {
+        this._itemsSourceData = value;
+        this.RaisePropertyChanged<ObservableCollection<MainDataGridParaTreeModel>>((Expression<Func<ObservableCollection<MainDataGridParaTreeModel>>>) (() => this.ItemsSourceData));
+      }
+    }
+
+    public MainDataGridParaTreeVM()
+    {
+      this._itemsSourceData = new ObservableCollection<MainDataGridParaTreeModel>();
+      this.TreeNodeCommand = (ICommand) new DelegateCommand<RoutedEventArgs>(new Action<RoutedEventArgs>(this.TreeNodeCommandExec));
+    }
+
+    public IList<MainDataGridParaTreeModel> GetCheckedItems()
+    {
+      this._checkedTreeList.Clear();
+      this.TraverseTree(this._itemsSourceData);
+      return this._checkedTreeList;
+    }
+
+    private void TraverseTree(
+      ObservableCollection<MainDataGridParaTreeModel> list)
+    {
+      foreach (MainDataGridParaTreeModel gridParaTreeModel in (Collection<MainDataGridParaTreeModel>) list)
+      {
+        if (gridParaTreeModel.Children.Count == 0)
+        {
+          bool? isChecked = gridParaTreeModel.IsChecked;
+          bool flag = true;
+          if ((isChecked.GetValueOrDefault() == flag ? (isChecked.HasValue ? 1 : 0) : 0) != 0)
+            this._checkedTreeList.Add(gridParaTreeModel);
+        }
+        else
+          this.TraverseTree(gridParaTreeModel.Children);
+      }
+    }
+
+    public ICommand TreeNodeCommand { get; set; }
+
+    private void TreeNodeCommandExec(RoutedEventArgs e)
+    {
+      if (!(MainDataGridParaTreeVM.VisualUpwardSearch<TreeViewItem>(e.OriginalSource as DependencyObject) is TreeViewItem treeViewItem))
+        return;
+      treeViewItem.Focus();
+      object dataContext = treeViewItem.DataContext;
+      if (dataContext != null)
+      {
+        MainDataGridParaTreeModel gridParaTreeModel = (MainDataGridParaTreeModel) dataContext;
+        bool? isChecked = gridParaTreeModel.IsChecked;
+        bool flag = true;
+        gridParaTreeModel.SetChildrenChecked(isChecked.GetValueOrDefault() == flag && isChecked.HasValue);
+        gridParaTreeModel.SetParentChecked();
+      }
+      e.Handled = true;
+    }
+
+    private static DependencyObject VisualUpwardSearch<T>(DependencyObject source)
+    {
+      while (source != null && source.GetType() != typeof (T))
+        source = VisualTreeHelper.GetParent(source);
+      return source;
+    }
+  }
+}

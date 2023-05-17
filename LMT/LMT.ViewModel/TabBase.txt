@@ -1,0 +1,49 @@
+using GalaSoft.MvvmLight;
+using System;
+using UILanguageHelper;
+
+namespace LMT.ViewModel
+{
+  public abstract class TabBase : ViewModelBase
+  {
+    private Uri _tabIcon;
+    private string cfgModeName = LanguageServices.Current.GetTextValue("CfgFile_Menu_ClassicMode");
+    private string cfgMakePatchMode = LanguageServices.Current.GetTextValue("CfgFile_Menu_PatchFileMode");
+
+    public int TabNumber { get; set; }
+
+    public string TabName { get; set; }
+
+    public bool IsPinned { get; set; }
+
+    public Uri TabIcon
+    {
+      get => this._tabIcon;
+      set
+      {
+        this._tabIcon = value;
+        this.RaisePropertyChanged(nameof (TabIcon));
+      }
+    }
+
+    public string CfgModeName
+    {
+      get => this.cfgModeName;
+      set
+      {
+        this.cfgModeName = value;
+        this.RaisePropertyChanged(nameof (CfgModeName));
+      }
+    }
+
+    public string CfgMakePatchMode
+    {
+      get => this.cfgMakePatchMode;
+      set
+      {
+        this.cfgMakePatchMode = value;
+        this.RaisePropertyChanged(nameof (CfgMakePatchMode));
+      }
+    }
+  }
+}

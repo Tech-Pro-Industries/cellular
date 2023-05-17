@@ -1,0 +1,19 @@
+using CommonServiceLocator;
+using GalaSoft.MvvmLight.Ioc;
+
+namespace LMT.ViewModel
+{
+  public class ViewModelLocator
+  {
+    public ViewModelLocator()
+    {
+      ServiceLocator.SetLocatorProvider((ServiceLocatorProvider) (() => (IServiceLocator) SimpleIoc.Default));
+      SimpleIoc.Default.Register<MainWindowVM>();
+      SimpleIoc.Default.Register<NodeBListManagerTabVM>();
+    }
+
+    public NodeBListManagerTabVM NodeBListManager => ServiceLocator.Current.GetInstance<NodeBListManagerTabVM>();
+
+    public MainWindowVM ViewModelMainWindow => ServiceLocator.Current.GetInstance<MainWindowVM>();
+  }
+}

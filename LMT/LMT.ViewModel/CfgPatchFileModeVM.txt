@@ -1,0 +1,304 @@
+using CfgFileOperation.UIShowManger;
+using DevExpress.Xpf.Grid;
+using GalaSoft.MvvmLight;
+using GalaSoft.MvvmLight.Command;
+using LMT.View;
+using LmtbSnmp;
+using MIBDataParser;
+using Microsoft.Practices.Prism.Commands;
+using SCMTResources.CustomControls;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Windows;
+using System.Windows.Input;
+using UILanguageHelper;
+
+namespace LMT.ViewModel
+{
+  public class CfgPatchFileModeVM : ViewModelBase
+  {
+    private MainDataGrid mainDataGrid;
+    private ObservableCollection<CfgPatchPara> patchInstListValue;
+    private ObservableCollection<CfgPatchPara> patchLeafListValue;
+    private bool? isInstSelectAll;
+    private bool? isLeafSelectAll;
+    private bool isInst;
+    private RelayCommand<Window> okClickCommand;
+    private RelayCommand<Window> cancleClickCommand;
+
+    public CfgPatchFileModeVM()
+    {
+      this.patchInstListValue = new ObservableCollection<CfgPatchPara>();
+      this.patchLeafListValue = new ObservableCollection<CfgPatchPara>();
+      this.InstCheckAllCheckedCommand = (ICommand) new DelegateCommand<RoutedEventArgs>(new Action<RoutedEventArgs>(this.InstCheckAllCheckedCommandExec));
+      this.InstCheckAllUnCheckedCommand = (ICommand) new DelegateCommand<RoutedEventArgs>(new Action<RoutedEventArgs>(this.InstCheckAllUnCheckedCommandExec));
+      this.LeafCheckAllCheckedCommand = (ICommand) new DelegateCommand<RoutedEventArgs>(new Action<RoutedEventArgs>(this.LeafCheckAllCheckedCommandExec));
+      this.LeafCheckAllUnCheckedCommand = (ICommand) new DelegateCommand<RoutedEventArgs>(new Action<RoutedEventArgs>(this.LeafCheckAllUnCheckedCommandExec));
+      this.InstCellValueChangCommand = (ICommand) new DelegateCommand<CellValueChangedEventArgs>(new Action<CellValueChangedEventArgs>(this.InstCellValueChangCommandExec));
+      this.LeafCellValueChangCommand = (ICommand) new DelegateCommand<CellValueChangedEventArgs>(new Action<CellValueChangedEventArgs>(this.LeafCellValueChangCommandExec));
+      this.BeginEditorCommand = (ICommand) new DelegateCommand<ShowingEditorEventArgs>(new Action<ShowingEditorEventArgs>(this.BeginEditorCommandExec));
+    }
+
+    public ObservableCollection<CfgPatchPara> PatchInstListValue
+    {
+      get => this.patchInstListValue;
+      set
+      {
+        this.patchInstListValue = value;
+        this.RaisePropertyChanged(nameof (PatchInstListValue));
+      }
+    }
+
+    public ObservableCollection<CfgPatchPara> PatchLeafListValue
+    {
+      get => this.patchLeafListValue;
+      set
+      {
+        this.patchLeafListValue = value;
+        this.RaisePropertyChanged(nameof (PatchLeafListValue));
+      }
+    }
+
+    public bool? IsInstSelectAll
+    {
+      get => this.isInstSelectAll;
+      set
+      {
+        this.isInstSelectAll = value;
+        this.RaisePropertyChanged(nameof (IsInstSelectAll));
+      }
+    }
+
+    public bool? IsLeafSelectAll
+    {
+      get => this.isLeafSelectAll;
+      set
+      {
+        this.isLeafSelectAll = value;
+        this.RaisePropertyChanged(nameof (IsLeafSelectAll));
+      }
+    }
+
+    public bool IsInst
+    {
+      get => this.isInst;
+      set
+      {
+        this.isInst = value;
+        this.RaisePropertyChanged(nameof (IsInst));
+      }
+    }
+
+    public void UpdateInstAndLeafShow(MainDataGrid datagrid)
+    {
+      this.mainDataGrid = datagrid;
+      this.isInstSelectAll = new bool?(false);
+      this.isLeafSelectAll = new bool?(false);
+      if (this.mainDataGrid.LineDataList == null || this.mainDataGrid.LineDataList.Count == 0 || this.mainDataGrid.mibTable == null)
+        return;
+      CfgUITableInfo tableInfo1 = (CfgUITableInfo) null;
+      string err;
+      if (!new CfgFileOperation.UIShowManger.UICfgLogicMid.CfgAboutUIShow.CfgAboutUIShow().GetTableInsts(this.mainDataGrid.cfgUUID, this.mainDataGrid.mibTable.nameMib, out tableInfo1, out err) || tableInfo1 == null || tableInfo1.m_cfgInsts.Count == 0)
+        return;
+      CfgPdgUITableInfo tableInfo2 = (CfgPdgUITableInfo) null;
+      if (!CfgLogicMid.GetInstance().GetPdgTableSelectedInfo(this.mainDataGrid.cfgUUID, this.mainDataGrid.mibTable.nameMib, out tableInfo2, out err) || tableInfo2 == null)
+        return;
+      foreach (CfgUIInstInfo cfgInst in tableInfo1.m_cfgInsts)
+      {
+        CfgUIInstInfo instInfo = cfgInst;
+        string name = tableInfo1.m_strTableName + instInfo.m_strIndex;
+        this.patchInstListValue.Add(new CfgPatchPara(tableInfo2.selectedInstIndex.Find((Predicate<Dictionary<string, int>>) (p => p.ContainsKey(instInfo.m_strIndex) && p[instInfo.m_strIndex] == instInfo.m_InstUUIDId)) != null, name, this.mainDataGrid.mibTable.nameMib, instInfo.m_InstUUIDId));
+      }
+      this.RefreshCheckBox(this.patchInstListValue, true, false);
+      foreach (string key in tableInfo1.m_cfgInsts.First<CfgUIInstInfo>().m_instNodeInfo.Keys)
+      {
+        MibLeafInfo mibLeaf = SnmpToDatabase.GetMibNodeInfoByName(key, this.mainDataGrid.m_gnbIp);
+        if (mibLeaf != null && this.patchLeafListValue.ToList<CfgPatchPara>().Find((Predicate<CfgPatchPara>) (p => p.MibNameEN.Equals(mibLeaf.childNameMib))) == null)
+          this.patchLeafListValue.Add(new CfgPatchPara(!string.IsNullOrEmpty(tableInfo2.selectedNodeNameEn.Find((Predicate<string>) (p => p.Equals(mibLeaf.childNameMib)))), mibLeaf.childNameCh, mibLeaf.childNameMib, -1));
+      }
+      this.RefreshCheckBox(this.patchLeafListValue, false, false);
+    }
+
+    private void RefreshCheckBox(
+      ObservableCollection<CfgPatchPara> dataList,
+      bool isInst,
+      bool index = true)
+    {
+      if (dataList == null || dataList.Count == 0 || dataList.All<CfgPatchPara>((Func<CfgPatchPara, bool>) (p => !p.IsSelected)))
+        this.SetAllSelect(isInst, new bool?(false), index);
+      else if (dataList.All<CfgPatchPara>((Func<CfgPatchPara, bool>) (p => p.IsSelected)))
+        this.SetAllSelect(isInst, new bool?(true), index);
+      else
+        this.SetAllSelect(isInst, new bool?(), index);
+    }
+
+    private void SetAllSelect(bool isInst, bool? value, bool index)
+    {
+      if (isInst)
+      {
+        this.IsInstSelectAll = value;
+        bool? nullable = value;
+        bool flag = false;
+        if ((nullable.GetValueOrDefault() == flag ? (nullable.HasValue ? 1 : 0) : 0) != 0)
+        {
+          foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchLeafListValue)
+            cfgPatchPara.IsSelected = false;
+        }
+        else if (index)
+          this.SetIndexNodeSelect(true);
+        this.RefreshCheckBox(this.patchLeafListValue, false);
+      }
+      else
+      {
+        this.IsLeafSelectAll = value;
+        if (!index)
+          return;
+        bool? nullable = value;
+        bool flag = false;
+        if ((nullable.GetValueOrDefault() == flag ? (!nullable.HasValue ? 1 : 0) : 1) == 0)
+          return;
+        this.SetIndexNodeSelect(true);
+      }
+    }
+
+    private bool IsIndexNode(CfgPatchPara para)
+    {
+      MibLeafInfo mibLeafInfo = this.mainDataGrid.mibTable.childList.Find((Predicate<MibLeafInfo>) (p => p.childNameMib.Equals(para.MibNameEN)));
+      return mibLeafInfo != null && (mibLeafInfo.IsIndex.Equals("True") || mibLeafInfo.IsRowStatus());
+    }
+
+    private void SetIndexNodeSelect(bool isSelect)
+    {
+      foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchLeafListValue)
+      {
+        CfgPatchPara leaf = cfgPatchPara;
+        MibLeafInfo mibLeafInfo = this.mainDataGrid.mibTable.childList.Find((Predicate<MibLeafInfo>) (p => p.childNameMib.Equals(leaf.MibNameEN)));
+        if (mibLeafInfo != null && (mibLeafInfo.IsIndex.Equals("True") || mibLeafInfo.IsRowStatus()))
+          leaf.IsSelected = isSelect;
+      }
+    }
+
+    public ICommand InstCheckAllCheckedCommand { get; set; }
+
+    private void InstCheckAllCheckedCommandExec(RoutedEventArgs e)
+    {
+      foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchInstListValue)
+        cfgPatchPara.IsSelected = true;
+      this.RefreshCheckBox(this.patchInstListValue, true);
+    }
+
+    public ICommand InstCheckAllUnCheckedCommand { get; set; }
+
+    private void InstCheckAllUnCheckedCommandExec(RoutedEventArgs e)
+    {
+      foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchInstListValue)
+        cfgPatchPara.IsSelected = false;
+      this.RefreshCheckBox(this.patchInstListValue, true);
+    }
+
+    public ICommand LeafCheckAllCheckedCommand { get; set; }
+
+    private void LeafCheckAllCheckedCommandExec(RoutedEventArgs e)
+    {
+      foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchLeafListValue)
+        cfgPatchPara.IsSelected = true;
+      this.RefreshCheckBox(this.patchLeafListValue, false);
+    }
+
+    public ICommand LeafCheckAllUnCheckedCommand { get; set; }
+
+    private void LeafCheckAllUnCheckedCommandExec(RoutedEventArgs e)
+    {
+      foreach (CfgPatchPara para in (Collection<CfgPatchPara>) this.patchLeafListValue)
+      {
+        bool? isInstSelectAll = this.isInstSelectAll;
+        bool flag = false;
+        if ((isInstSelectAll.GetValueOrDefault() == flag ? (!isInstSelectAll.HasValue ? 1 : 0) : 1) == 0 || !this.IsIndexNode(para))
+          para.IsSelected = false;
+      }
+      this.RefreshCheckBox(this.patchLeafListValue, false);
+    }
+
+    public ICommand InstCellValueChangCommand { get; set; }
+
+    private void InstCellValueChangCommandExec(CellValueChangedEventArgs e)
+    {
+      if (!(e.Column.FieldName.ToString() == "IsSelected") || !(e.Row is CfgPatchPara row))
+        return;
+      row.IsSelected = (bool) e.Value;
+      this.RefreshCheckBox(this.patchInstListValue, true);
+    }
+
+    public ICommand LeafCellValueChangCommand { get; set; }
+
+    private void LeafCellValueChangCommandExec(CellValueChangedEventArgs e)
+    {
+      if (!(e.Column.FieldName.ToString() == "IsSelected") || !(e.Row is CfgPatchPara row))
+        return;
+      row.IsSelected = (bool) e.Value;
+      this.RefreshCheckBox(this.patchLeafListValue, false);
+    }
+
+    public ICommand BeginEditorCommand { get; set; }
+
+    private void BeginEditorCommandExec(ShowingEditorEventArgs e)
+    {
+      if (!(e.Row is CfgPatchPara row) || !this.IsIndexNode(row))
+        return;
+      e.Cancel = true;
+    }
+
+    public RelayCommand<Window> OkClickCommand
+    {
+      get => this.okClickCommand == null ? new RelayCommand<Window>(new Action<Window>(this.OkClickCommandExc)) : this.okClickCommand;
+      set => this.okClickCommand = value;
+    }
+
+    public void OkClickCommandExc(Window win)
+    {
+      if (this.patchInstListValue.ToList<CfgPatchPara>().Find((Predicate<CfgPatchPara>) (p => p.IsSelected)) != null && this.patchLeafListValue.ToList<CfgPatchPara>().Find((Predicate<CfgPatchPara>) (p => p.IsSelected)) == null)
+      {
+        int num1 = (int) CustomMessageBox.Show(string.Format(LanguageServices.Current.GetTextValue("CfgFile_Menu_PatchFileModeInfo1")));
+      }
+      else if (this.patchInstListValue.ToList<CfgPatchPara>().Find((Predicate<CfgPatchPara>) (p => p.IsSelected)) == null && this.patchLeafListValue.ToList<CfgPatchPara>().Find((Predicate<CfgPatchPara>) (p => p.IsSelected)) != null)
+      {
+        int num2 = (int) CustomMessageBox.Show(string.Format(LanguageServices.Current.GetTextValue("CfgFile_Menu_PatchFileModeInfo2")));
+      }
+      else
+      {
+        CfgPdgUITableInfo tableInfo = new CfgPdgUITableInfo();
+        tableInfo.tableNameEn = this.mainDataGrid.mibTable.nameMib;
+        foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchInstListValue)
+        {
+          string str = cfgPatchPara.ShowName.Replace(this.mainDataGrid.mibTable.nameMib, "");
+          int instNum = cfgPatchPara.instNum;
+          if (cfgPatchPara.IsSelected)
+            tableInfo.selectedInstIndex.Add(new Dictionary<string, int>()
+            {
+              {
+                str,
+                instNum
+              }
+            });
+        }
+        foreach (CfgPatchPara cfgPatchPara in (Collection<CfgPatchPara>) this.patchLeafListValue)
+        {
+          if (cfgPatchPara.IsSelected)
+            tableInfo.selectedNodeNameEn.Add(cfgPatchPara.MibNameEN);
+        }
+        CfgLogicMid.GetInstance().SetPdgTableSelectedInfo(this.mainDataGrid.cfgUUID, this.mainDataGrid.mibTable.nameMib, tableInfo, out string _);
+        win.Close();
+      }
+    }
+
+    public RelayCommand<Window> CancleClickCommand
+    {
+      get => this.cancleClickCommand == null ? new RelayCommand<Window>(new Action<Window>(this.CancleClickCommandExc)) : this.cancleClickCommand;
+      set => this.cancleClickCommand = value;
+    }
+
+    public void CancleClickCommandExc(Window p) => p.Close();
+  }
+}

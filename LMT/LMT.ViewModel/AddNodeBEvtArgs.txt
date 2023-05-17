@@ -1,0 +1,14 @@
+using SCMTOperationCore.Elements;
+using System;
+
+namespace LMT.ViewModel
+{
+  public class AddNodeBEvtArgs : EventArgs
+  {
+    public NodeBMainTabVM tab;
+    public NodeB node;
+    public CfgCompareManagerVM cfgCompareTab;
+    public AlarmManageVM alarmManageTab;
+    public SelfCheckingToolVM selfCheckingToolTab;
+  }
+}
